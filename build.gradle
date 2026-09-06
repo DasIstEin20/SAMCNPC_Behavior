@@ -65,6 +65,7 @@ minecraft {
             parent runs.client
             workingDirectory project.file('run-lumberjack-smoke')
             property 'samcnpc.lumberjackSmoke', 'true'
+            property 'samcnpc.lumberjackGuiProbe', providers.gradleProperty('lumberjackGuiProbe').orElse('').get()
             mods { samcnpc_behavior { source sourceSets.test } }
         }
         server { args '--nogui' }

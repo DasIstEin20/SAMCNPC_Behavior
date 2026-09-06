@@ -33,6 +33,7 @@ import io.samcnpc.core.api.NpcEntityQuery
 import io.samcnpc.core.api.NpcEquipmentDestination
 import io.samcnpc.core.api.NpcFacade
 import io.samcnpc.core.api.NpcPosition
+import io.samcnpc.core.api.NpcSnapshot
 import io.samcnpc.core.api.NpcToolKind
 import io.samcnpc.core.api.NpcWorldView
 import net.minecraft.server.MinecraftServer
@@ -227,7 +228,7 @@ internal object LumberjackService {
         }
         maintainTreeClaim(npc, store, job, snapshot)?.let { result -> return result }
         gentlySeparateNearbyLumberjacks(npc, world, store, job, snapshot)?.let { result -> return result }
-        if (hasStalledMovement(job, snapshot.position)) {
+        if (hasStalledMovement(job, snapshot)) {
             return recoverFromStalledMovement(server, npc, world, store, job)
         }
         clearFoliageForSlowRoute(npc, world, store, job)?.let { result -> return result }
@@ -610,7 +611,7 @@ internal object LumberjackService {
         val clearingFoliage = job.accessReturnTarget != null && world.isLeafOrSupportedSnowObstacle(target)
         val atStance = stance != null && (
             isWithinPosition(snapshot.position, stance, MINING_STANCE_ARRIVAL_DISTANCE) ||
-                job.isStandingOnPreservedStump(snapshot.position)
+                job.isStandingOnPreservedStump(snapshot)
             ) || (clearingFoliage && isWithinDirectFoliageBreakRange(snapshot.position, target))
         if (!atStance) {
             job.phase = LumberjackDemoPhase.TRAVEL_TO_LOG
@@ -638,13 +639,19 @@ internal object LumberjackService {
                 LOGGER.info("Lumberjack begins scaffold descent npc={} from={} placed={}", job.npcUuid, npc.snapshot().position, scaffold.placedPositions)
                 return NpcActionResult.running("the remaining supplied log is below the scaffold; descending one recorded temporary block at a time")
             }
-            if (job.canClimbOntoPreservedStump(world) && !isStandingOnPreservedStump(npc.snapshot().position, job.trunkBasePosition ?: target)) {
+            if (job.canClimbOntoPreservedStump(world) && !isStandingOnPreservedStump(snapshot.position, snapshot.onGround, job.trunkBasePosition ?: target)) {
                 job.phase = LumberjackDemoPhase.CLIMB_TRUNK
                 job.climbJumpAttempts = 0
                 job.climbForwardTicks = 0
                 job.scaffoldMaterialRecovery = false
                 store.markChanged()
                 return NpcActionResult.running("the next supplied log is above ground reach; stepping onto the preserved stump")
+            }
+            if (job.isStandingOnPreservedStump(snapshot)) {
+                // A lower side cannot improve vertical reach after a real stump landing.
+                // Retain this useful footing instead of walking off and potentially losing
+                // the only reachable route back on uneven terrain.
+                return beginPillarOrContinue(npc, world, store, job)
             }
             val lowerStep = world.lowestRemainingLumberjackStep(job.trunkBasePosition, target)
             if (lowerStep != null) {
@@ -699,7 +706,7 @@ internal object LumberjackService {
         }
         val stumpTop = NpcBlockPosition(trunkBase.x, trunkBase.y + 1, trunkBase.z)
         val snapshot = npc.snapshot()
-        if (isStandingOnPreservedStump(snapshot.position, trunkBase)) {
+        if (isStandingOnPreservedStump(snapshot.position, snapshot.onGround, trunkBase)) {
             npc.stopControl()
             job.miningStance = stumpTop
             job.climbJumpAttempts = 0
@@ -708,6 +715,28 @@ internal object LumberjackService {
             job.phase = LumberjackDemoPhase.BREAK_LOG
             store.markChanged()
             return NpcActionResult.running("standing on the preserved stump; retrying the supplied upper log")
+        }
+        if (job.climbJumpAttempts > 0) {
+            // Once launched, the destination is the stump, never the launch cell behind us.
+            // The old 3D launch-distance check steered a rising body backwards, then mistook
+            // reaching stump height for a landing and handed an airborne NPC to BREAK_LOG.
+            if (snapshot.inWater || snapshot.inLava || snapshot.climbing || snapshot.riding ||
+                (snapshot.onGround && job.climbForwardTicks == 0)
+            ) {
+                npc.stopControl()
+                return beginPillarOrContinue(npc, world, store, job)
+            }
+            val turn = lookTowards(npc, blockCenter(stumpTop))
+            if (turn.isFailure()) return finish(server, npc, store, job, turn)
+            val centeredAboveStump = horizontalDistance(snapshot.position, trunkBase) <= STUMP_JUMP_CENTER_TOLERANCE &&
+                snapshot.position.y >= stumpTop.y
+            val motion = if (centeredAboveStump) npc.stopControl() else npc.applyControl(NpcControlInput(forward = 1.0F, strafe = 0.0F))
+            if (motion.isFailure()) return finish(server, npc, store, job, motion)
+            if (job.climbForwardTicks > 0) {
+                job.climbForwardTicks -= 1
+                store.markChanged()
+            }
+            return NpcActionResult.running("completing the committed stump jump; waiting for an actual supported landing")
         }
         val launchCell = trunkLaunchCell(trunkBase, job.miningStance)
         if (!world.isClearPlayerStandingCell(launchCell)) {
@@ -736,21 +765,8 @@ internal object LumberjackService {
         if (forward.isFailure()) {
             return finish(server, npc, store, job, forward)
         }
-        if (job.climbForwardTicks > 0) {
-            // Keep the same body direction briefly after launch. A Mob's collision hull can
-            // otherwise land on the near lip of the log, decide it is grounded, and immediately
-            // rotate into another jump without ever committing its momentum onto the step.
-            job.climbForwardTicks -= 1
-            return NpcActionResult.running("committing forward through the single player-like stump step")
-        }
         if (!snapshot.onGround) {
-            return NpcActionResult.running("carrying the player-like stump jump forward until normal physics resolves")
-        }
-        if (job.climbJumpAttempts >= MAX_CLIMB_JUMP_ATTEMPTS) {
-            // A missed step is an elevation problem, not permission to bunny-hop at a tree
-            // corner. The Behavior-owned pillar executor will use only real inventory material
-            // and normal Core placement if the target still needs height.
-            return beginPillarOrContinue(npc, world, store, job)
+            return NpcActionResult.running("waiting for real ground before starting the one permitted stump jump")
         }
         val jump = npc.jump()
         if (jump.isFailure()) {
@@ -769,11 +785,11 @@ internal object LumberjackService {
      * to its supplied navigation goal and asks the policy to choose another side after a bounded,
      * distance-derived period without meaningful progress.
      */
-    private fun hasStalledMovement(job: LumberjackDemoJob, position: NpcPosition): Boolean {
+    private fun hasStalledMovement(job: LumberjackDemoJob, snapshot: NpcSnapshot): Boolean {
         // A completed natural stump climb deliberately ends in the CLIMB_TRUNK phase for one
         // tick so that the executor can hand control back to BREAK_LOG. Treating that stable
         // work position as a navigation stall prevented the handoff and made high trunks loop.
-        if (job.phase == LumberjackDemoPhase.CLIMB_TRUNK && job.isStandingOnPreservedStump(position)) {
+        if (job.phase == LumberjackDemoPhase.CLIMB_TRUNK && job.isStandingOnPreservedStump(snapshot)) {
             routeProgress.clear(job.npcUuid)
             return false
         }
@@ -786,6 +802,7 @@ internal object LumberjackService {
             routeProgress.clear(job.npcUuid)
             return false
         }
+        val position = snapshot.position
         val distanceSquared = horizontalDistanceSquared(position, goal)
         return routeProgress.hasStalled(
             job.npcUuid,
@@ -1229,15 +1246,24 @@ internal object LumberjackService {
         job: LumberjackDemoJob,
         trunkBase: NpcBlockPosition,
     ): NpcActionResult {
-        val retainedLowerLog = highestRemainingLumberjackTrunkLog(world, trunkBase, job.pillarSession?.placedPositions.orEmpty())
+        val scaffold = job.pillarSession
+        val retainedLowerLog = highestRemainingLumberjackTrunkLog(world, trunkBase, scaffold?.placedPositions.orEmpty())
         if (retainedLowerLog != null) {
             job.targetPosition = retainedLowerLog
             job.pickupTicks = 0
+            if (scaffold != null && scaffold.placedPositions.isNotEmpty()) {
+                // The retained stump can be underneath our scaffold. Walking around it to
+                // obtain a mining ray abandons the only safe top-down cleanup stance.
+                // Descend first, then resume this exact lower log from the real ground.
+                TemporaryPillarKernel.beginCleanup(scaffold)
+                job.phase = LumberjackDemoPhase.PILLAR_CLEANUP
+                store.markChanged()
+                return NpcActionResult.running("upper trunk complete; dismantling the scaffold before its retained foundation")
+            }
             job.phase = LumberjackDemoPhase.TRAVEL_TO_LOG
             store.markChanged()
             return NpcActionResult.running("upper trunk complete; finishing the retained lower trunk")
         }
-        val scaffold = job.pillarSession
         if (scaffold != null) {
             TemporaryPillarKernel.beginCleanup(scaffold)
             job.phase = LumberjackDemoPhase.PILLAR_CLEANUP
@@ -1426,7 +1452,7 @@ internal object LumberjackService {
             }
             TemporaryPillarKernel.PillarProgress.CleanupComplete -> {
                 job.pillarSession = null
-                resumeAfterPillarCleanup(world, store, job)
+                resumeAfterPillarCleanup(npc, world, store, job)
                 store.markChanged()
                 LOGGER.info("Lumberjack scaffold cleanup handoff npc={} position={} target={}", job.npcUuid, npc.snapshot().position, job.targetPosition)
                 NpcActionResult.running("temporary scaffold was removed with normal block breaks; resuming the supplied task")
@@ -1436,21 +1462,21 @@ internal object LumberjackService {
                 // remain in the log, while the deployment-only task may still finish its wood run.
                 LOGGER.warn("Lumberjack left temporary scaffold npc={} positions={} reason={}", job.npcUuid, session.placedPositions, session.lastResult)
                 job.pillarSession = null
-                resumeAfterPillarCleanup(world, store, job)
+                resumeAfterPillarCleanup(npc, world, store, job)
                 store.markChanged()
                 NpcActionResult.running("temporary scaffold cleanup is incomplete; no unrelated blocks were touched")
             }
             else -> {
                 LOGGER.warn("Lumberjack scaffold cleanup transitioned unexpectedly npc={} progress={} state={} positions={}", job.npcUuid, progress, session.state, session.placedPositions)
                 job.pillarSession = null
-                resumeAfterPillarCleanup(world, store, job)
+                resumeAfterPillarCleanup(npc, world, store, job)
                 store.markChanged()
                 NpcActionResult.running("temporary scaffold no longer has a safe cleanup path")
             }
         }
     }
 
-    private fun resumeAfterPillarCleanup(world: NpcWorldView, store: LumberjackDemoStore, job: LumberjackDemoJob) {
+    private fun resumeAfterPillarCleanup(npc: NpcFacade, world: NpcWorldView, store: LumberjackDemoStore, job: LumberjackDemoJob) {
         if (job.abandonTreeAfterPillarCleanup) {
             LOGGER.info("Lumberjack yielded tree after pillar cleanup npc={} target={} failedAttempts={}", job.npcUuid, job.targetPosition, job.failedWorkAttempts)
             resumeLogScan(store, job)
@@ -1481,9 +1507,16 @@ internal object LumberjackService {
                 LOGGER.info("Lumberjack collects recovered scaffold wood npc={} deferredTarget={}", job.npcUuid, target)
                 return
             }
-            job.miningStance = null
-            job.phase = LumberjackDemoPhase.TRAVEL_TO_LOG
-            LOGGER.info("Lumberjack scaffold cleanup complete npc={} target={} is still work; returning to its normal mining stance", job.npcUuid, target)
+            val snapshot = npc.snapshot()
+            // Descent can end on the retained stump itself. It is already a valid place to
+            // mine that last log; forcing a lower side route can strand the job on a ledge.
+            job.miningStance = if (trunkBase != null && isStandingOnPreservedStump(snapshot.position, snapshot.onGround, trunkBase)) {
+                NpcBlockPosition(trunkBase.x, trunkBase.y + 1, trunkBase.z)
+            } else {
+                null
+            }
+            job.phase = if (job.miningStance != null) LumberjackDemoPhase.BREAK_LOG else LumberjackDemoPhase.TRAVEL_TO_LOG
+            LOGGER.info("Lumberjack scaffold cleanup complete npc={} target={} nextPhase={} stance={}", job.npcUuid, target, job.phase, job.miningStance)
         } else {
             if (job.trunkBasePosition != null) {
                 advanceTrunkPlan(world, store, job)
@@ -1600,8 +1633,8 @@ internal object LumberjackService {
     // A failed natural stump step is an escalation signal, not permission to bunny-hop at the
     // same collision. The post-launch forward commitment gives this one player-like attempt
     // enough momentum before the policy selects a scaffold.
-    private const val MAX_CLIMB_JUMP_ATTEMPTS = 1
     private const val CLIMB_POST_JUMP_FORWARD_TICKS = 6
+    private const val STUMP_JUMP_CENTER_TOLERANCE = 0.25
     private const val INVENTORY_SIZE = 36
     private const val CAPACITY_RETURN_PERCENT = 70
     private const val PERCENT_SCALE = 100

@@ -27,6 +27,7 @@ import net.minecraft.world.level.GameType
 import net.minecraft.world.level.LevelSettings
 import net.minecraft.world.level.WorldDataConfiguration
 import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.level.block.LeavesBlock
 import net.minecraft.world.level.levelgen.WorldOptions
 import net.minecraft.world.level.levelgen.presets.WorldPresets
 import net.minecraft.world.level.storage.LevelResource
@@ -42,6 +43,7 @@ import java.nio.file.Path
 @Mod.EventBusSubscriber(modid = SamcnpcBehavior.MOD_ID, value = [Dist.CLIENT])
 object LumberjackClientSmoke {
     private val enabled = java.lang.Boolean.getBoolean("samcnpc.lumberjackSmoke")
+    private val guiProbe = System.getProperty("samcnpc.lumberjackGuiProbe", "")
     private val logger = LogUtils.getLogger()
     private val report = Path.of("lumberjack-smoke-result.txt")
     private const val WORK_Y = -60
@@ -60,6 +62,7 @@ object LumberjackClientSmoke {
     private val initialWood = mutableMapOf<String, Int>()
     private val phases = mutableSetOf<String>()
     private val supports = mutableSetOf<io.samcnpc.core.api.NpcBlockPosition>()
+    private var previousGuiTrace = ""
 
     // Client-owned state.
     private var requestedWorld = false
@@ -78,6 +81,7 @@ object LumberjackClientSmoke {
         check(++clientTicks < 7000) { "Lumberjack smoke timed out before a verified client result" }
         if (minecraft.screen is AccessibilityOnboardingScreen && minecraft.overlay == null) minecraft.screen?.onClose()
         if (!requestedWorld && minecraft.screen is TitleScreen && minecraft.overlay == null) {
+            check(guiProbe in setOf("", "wood", "dirt")) { "Unknown lumberjackGuiProbe: $guiProbe (expected wood or dirt)" }
             requestedWorld = true
             val id = "lumberjack-smoke-${System.currentTimeMillis()}"
             worldId = id
@@ -136,12 +140,26 @@ object LumberjackClientSmoke {
                 }
             }
             check(initialWood.keys.size == 2 && trunks.size >= 8) { "Both real vanilla trees are required: $initialWood" }
+            if (guiProbe.isNotEmpty()) {
+                // Regression fixture: a third 1x1 nine-log trunk with a bounded crown.
+                // Do not alter the production behavior or its runtime state to complete it.
+                val leaves = Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true)
+                for (x in 22..26) for (z in -2..2) for (y in WORK_Y + 6..WORK_Y + 8) {
+                    if (x != 24 || z != 0) level.setBlockAndUpdate(BlockPos(x, y, z), leaves)
+                }
+                for (y in WORK_Y..WORK_Y + 8) {
+                    val position = BlockPos(24, y, 0)
+                    level.setBlockAndUpdate(position, Blocks.OAK_LOG.defaultBlockState())
+                    trunks.add(position)
+                    initialWood["minecraft:oak_log"] = (initialWood["minecraft:oak_log"] ?: 0) + 1
+                }
+            }
             level.setBlockAndUpdate(chestPosition, Blocks.CHEST.defaultBlockState())
             val chest = level.getBlockEntity(chestPosition) as Container
             chest.setItem(0, ItemStack(Items.IRON_AXE))
             chest.setItem(1, ItemStack(Items.IRON_SHOVEL))
             chest.setItem(2, ItemStack(Items.IRON_PICKAXE))
-            chest.setItem(3, ItemStack(Items.DIRT, 16))
+            if (guiProbe != "wood") chest.setItem(3, ItemStack(Items.DIRT, 16))
             chest.setItem(4, ItemStack(Items.LEATHER_HELMET))
             chest.setChanged()
             player.setGameMode(GameType.SPECTATOR)
@@ -163,6 +181,15 @@ object LumberjackClientSmoke {
         val phase = job?.phase?.name ?: "IDLE"
         phases.add(phase)
         if (serverTicks % 200 == 0) logger.info("Lumberjack client progress: {}", LumberjackService.status(server, current.npcUuid))
+        if (guiProbe.isNotEmpty()) {
+            val remaining = trunks.count { !level.getBlockState(it).isAir }
+            val wood = npc.inventoryContents().filter { it.stack.itemId in initialWood }.sumOf { it.stack.count }
+            val trace = "phase=$phase target=${job?.targetPosition} access=${job?.accessReturnTarget} suspended=${job?.blockedLogPosition} pillar=${job?.pillarSession?.state} supports=${job?.pillarSession?.placedPositions?.size} remaining=$remaining wood=$wood"
+            if (trace != previousGuiTrace) {
+                previousGuiTrace = trace
+                logger.info("LUMBERJACK GUI tick={} position={} grounded={} velocity={} {}", serverTicks, npc.snapshot().position, npc.snapshot().onGround, npc.snapshot().velocity, trace)
+            }
+        }
         sample = Sample(body.id, phase)
         player.teleportTo(level, body.x + 4.0, body.y + 3.0, body.z - 7.0, 29.745F, 20.42F)
         if (!started || job != null) return
@@ -178,7 +205,10 @@ object LumberjackClientSmoke {
         }
         check(npc.inventoryContents().none { it.stack.itemId in initialWood }) { "Finished lumberjack retained or picked up undeposited wood" }
         // Keep observing after completion to expose late contact pickups, not just a one-tick pass.
-        if (++completedTicks >= 40) result = "Vanilla oak+birch complete; wood=$initialWood ticks=$serverTicks phases=$phases"
+        if (++completedTicks >= 40) {
+            val scenario = if (guiProbe.isEmpty()) "vanilla oak+birch" else "vanilla oak+birch and nine-log trunk ($guiProbe)"
+            result = "Complete: $scenario; wood=$initialWood ticks=$serverTicks phases=$phases"
+        }
     }
 
     @SubscribeEvent

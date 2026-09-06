@@ -130,19 +130,17 @@ internal fun LumberjackDemoJob.canClimbOntoPreservedStump(world: NpcWorldView): 
     return world.observeBlock(trunkBase)?.isLumberjackWoodLog() == true && world.observeBlock(stumpTop)?.isAir == true
 }
 
-/** A one-block jump can legitimately finish on the top edge; it is a usable player-like step. */
-internal fun LumberjackDemoJob.isStandingOnPreservedStump(position: NpcPosition): Boolean {
+/** A jump-height sample is not a landing; only actual grounded support can finish the step. */
+internal fun LumberjackDemoJob.isStandingOnPreservedStump(snapshot: NpcSnapshot): Boolean {
     val trunkBase = trunkBasePosition ?: return false
     val stumpTop = NpcBlockPosition(trunkBase.x, trunkBase.y + 1, trunkBase.z)
-    if (miningStance != stumpTop || position.y < stumpTop.y - STUMP_TOP_HEIGHT_TOLERANCE) {
-        return false
-    }
-    return horizontalDistance(position, trunkBase) <= STUMP_TOP_HORIZONTAL_REACH
+    return miningStance == stumpTop && isStandingOnPreservedStump(snapshot.position, snapshot.onGround, trunkBase)
 }
 
-internal fun isStandingOnPreservedStump(position: NpcPosition, trunkBase: NpcBlockPosition): Boolean =
-    position.y >= trunkBase.y + 1 - STUMP_TOP_HEIGHT_TOLERANCE &&
-        horizontalDistance(position, trunkBase) <= STUMP_TOP_HORIZONTAL_REACH
+internal fun isStandingOnPreservedStump(position: NpcPosition, onGround: Boolean, trunkBase: NpcBlockPosition): Boolean =
+    onGround && abs(position.y - trunkBase.y - 1.0) <= STUMP_TOP_HEIGHT_TOLERANCE &&
+        abs(position.x - trunkBase.x - 0.5) <= STUMP_TOP_HALF_EXTENT &&
+        abs(position.z - trunkBase.z - 0.5) <= STUMP_TOP_HALF_EXTENT
 
 internal fun LumberjackDemoJob.recordedScaffoldStance(snapshot: NpcSnapshot): NpcBlockPosition? {
     if (!snapshot.onGround) return null
@@ -351,7 +349,9 @@ private const val MINING_STANCE_OFFSET = 2
 internal const val MINING_STANCE_ARRIVAL_DISTANCE = 1.0
 internal const val NAVIGATION_SPEED_MULTIPLIER = 1.3F
 private const val STUMP_TOP_HEIGHT_TOLERANCE = 0.05
-private const val STUMP_TOP_HORIZONTAL_REACH = 1.05
+// The 0.6-wide player-like body may overlap a top edge, but not stand a full block beside it.
+// A small overlap margin avoids accepting a hull that only touches the stump's collision face.
+private const val STUMP_TOP_HALF_EXTENT = 0.75
 private const val MAX_REJECTED_MINING_STANCES = 4
 private const val MAX_LEAF_INTERVENTION_RADIUS = 6
 private const val MIN_AXIS_ROUTE_DELTA = 0.05

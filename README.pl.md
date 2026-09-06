@@ -159,6 +159,9 @@ z przedmiotów w ekwipunku, rozładunek po zapełnieniu, wykrywanie zastoju i ko
 Usuwanie liści zachowuje przerwane zadanie i istniejące stanowisko na podporze. Drewniane podpory
 nie są mylone z pozostałym pniem. Stawianie jest sprawdzane synchronicznie, zanim kolejne podniesienie
 zmieni licznik stosu. Przed końcowym rozładunkiem NPC sprząta podpory i kończy zbieranie dropów.
+Wejście na pień zachowuje cel rozpoczętego skoku aż do prawdziwego lądowania; samo osiągnięcie
+wysokości pnia w powietrzu nie wystarcza. Po ścięciu górnych kłód NPC rozbiera rusztowanie,
+zanim odejdzie na bok, by ściąć zachowany dolny klocek pod nim.
 
 Podpora ma limit ośmiu poziomów. Próba zbierania ma łączny limit 240 ticków i normalnie kończy się
 po 20 tickach bez dropów, gdy NPC stoi na ziemi; udane podniesienia nie resetują limitu. Odzyskiwanie
@@ -180,6 +183,8 @@ i odzyskiwanie postępu przez wiele NPC nie są zweryfikowaną możliwością; t
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
 .\gradlew.bat :runClientLumberjackSmoke
+.\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
+.\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -192,13 +197,18 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. Dziesięć testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. Trzynaście testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
+Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
+przed ścięciem zachowanej podstawy.
 Osobny test klienta generuje
 dąb i brzozę w izolowanym świecie i sprawdza prawdziwe animacje chodzenia/rąbania, pełny rozładunek,
 brak pozostawionych podpór i spóźnionych podniesień drewna. Zapisuje lokalny wynik i zrzut w
 `run-lumberjack-smoke/`, po czym sam zamyka klienta. Kod sterownika testowego nie trafia do JAR-a moda.
+Warianty `dirt` i `wood` dodają trzeci, dziewięciokłodowy pień z koroną: pierwszy dostarcza ziemię,
+drugi wymaga wykorzystania zebranego drewna na podpory. Oba wymagają wszystkich 20 oryginalnych
+kłód w skrzyni, pełnego sprzątnięcia podpór i 40 ticków bez spóźnionego drewna po zakończeniu.
 Przejście testu nie gwarantuje poprawności dla dowolnych drzew, modpacków czy terenu.
 
 Dodatki mogą sprawdzić dokument JSON bez jego aktywowania przez

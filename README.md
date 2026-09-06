@@ -158,6 +158,9 @@ capacity-triggered deposits, stuck detection, and coordination between workers.
 Foliage clearing preserves the suspended work and any existing scaffold stance. Temporary wooden
 supports are not mistaken for remaining trunk logs. Placement is checked synchronously before a
 later pickup can change the held stack, and cleanup/settled-drop collection precede final deposit.
+Stump climbing keeps its jump destination until an actual supported landing; reaching stump
+height while airborne is not enough. After the upper trunk is gone, the NPC dismantles its
+scaffold before moving away to cut the retained stump underneath it.
 
 Scaffolds are limited to eight levels. A collection attempt has a 240-tick total budget and requires
 20 grounded quiet ticks to finish normally; successful pickups do not reset the deadline. Material
@@ -179,6 +182,8 @@ recovery are not a verified capability; this remains a bounded demo, not a gener
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
 .\gradlew.bat :runClientLumberjackSmoke
+.\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
+.\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -191,12 +196,17 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. Ten dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. Thirteen dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
-complete cleanup, unsafe/deadline recovery and exact wood conservation. The opt-in client smoke generates vanilla oak and
+complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
+also require real stump landings and scaffold descent before cutting the retained foundation.
+The opt-in client smoke generates vanilla oak and
 birch trees in an isolated world and verifies real rendered walking/chopping, full deposit, no leftover
 supports and no late wood pickup. It writes a local result and screenshot under `run-lumberjack-smoke/`
 and exits the client automatically. Its test driver is not shipped in the mod JAR.
+The `dirt` and `wood` probes add a third nine-log trunk with a crown: one supplies dirt, the
+other requires earned wood for supports. Both require all 20 original logs in the chest,
+complete scaffold removal and 40 post-completion ticks without late wood pickup.
 A passing test is not a guarantee for arbitrary trees, modpacks, or terrain.
 
 Add-ons can validate a candidate JSON document without activating it through

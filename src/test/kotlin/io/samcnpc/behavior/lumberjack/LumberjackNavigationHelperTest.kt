@@ -8,6 +8,28 @@ import kotlin.test.assertTrue
 
 class LumberjackNavigationHelperTest {
     @Test
+    fun `the observed rising body beside a stump is not a completed landing`() {
+        val stump = NpcBlockPosition(24, -60, 0)
+        val falseLanding = NpcPosition(23.45028, -58.99866, 0.49764)
+        assertFalse(isStandingOnPreservedStump(falseLanding, false, stump))
+        assertFalse(isStandingOnPreservedStump(falseLanding, true, stump))
+    }
+
+    @Test
+    fun `even a centered jump must land before stump work begins`() {
+        val stump = NpcBlockPosition(24, -60, 0)
+        assertFalse(isStandingOnPreservedStump(NpcPosition(24.5, -59.0, 0.5), false, stump))
+        assertTrue(isStandingOnPreservedStump(NpcPosition(24.5, -59.0, 0.5), true, stump))
+    }
+
+    @Test
+    fun `grounded edge overlap is usable but a higher canopy is not the stump`() {
+        val stump = NpcBlockPosition(24, -60, 0)
+        assertTrue(isStandingOnPreservedStump(NpcPosition(23.85, -59.0, 0.5), true, stump))
+        assertFalse(isStandingOnPreservedStump(NpcPosition(24.5, -58.0, 0.5), true, stump))
+    }
+
+    @Test
     fun `cleared block arrival uses the floor position instead of its former centre`() {
         val clearedLog = NpcBlockPosition(10, 64, 10)
         val feetAtFormerBlockBase = NpcPosition(10.5, 64.0, 10.5)
