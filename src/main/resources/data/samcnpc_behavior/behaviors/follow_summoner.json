@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:follow_summoner",
+  "description": "Follow the bound summoner outside the dead-zone and look at them while nearby.",
+  "priority": 100,
+  "channels": ["movement", "look"],
+  "rules": [
+    {
+      "id": "follow_when_far",
+      "priority": 100,
+      "when": { "all": [
+        { "test": { "condition": "samcnpc:has_summoner" } },
+        { "test": { "condition": "samcnpc:distance_to_summoner", "args": { "operator": "gt", "blocks": 5.0 } } }
+      ] },
+      "actions": [
+        { "action": "samcnpc:move_to_summoner", "args": { "speed": 1.0, "stopDistance": 3.0 } },
+        { "action": "samcnpc:look_at_summoner" }
+      ]
+    },
+    {
+      "id": "look_when_near",
+      "priority": 10,
+      "cooldownTicks": 4,
+      "when": { "all": [
+        { "test": { "condition": "samcnpc:has_summoner" } },
+        { "test": { "condition": "samcnpc:distance_to_summoner", "args": { "operator": "lte", "blocks": 5.0 } } }
+      ] },
+      "actions": [{ "action": "samcnpc:look_at_summoner" }]
+    }
+  ]
+}

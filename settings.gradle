@@ -1,0 +1,15 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.minecraftforge.net/' }
+    }
+}
+
+rootProject.name = 'samcnpc-behavior'
+
+// Core is a pinned Git dependency, not a second copy of its sources in Behavior history.
+if (!file('core/build.gradle').isFile()) {
+    throw new GradleException('Core submodule is missing. Run: git submodule update --init --recursive')
+}
+include 'samcnpc-core'
+project(':samcnpc-core').projectDir = file('core')

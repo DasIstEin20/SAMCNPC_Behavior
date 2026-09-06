@@ -1,0 +1,122 @@
+plugins {
+    id 'java-library'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'org.jetbrains.kotlin.jvm' version '2.2.21'
+}
+
+group = providers.gradleProperty('mod_group').get()
+version = providers.gradleProperty('mod_version').get()
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'KotlinForForge'
+        url = 'https://thedarkcolour.github.io/KotlinForForge/'
+        content { includeGroup 'thedarkcolour' }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile).configureEach {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        freeCompilerArgs.add('-Xjvm-default=all')
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+}
+
+// The published Core build supplies the source set used by ForgeGradle's dev remapping.
+evaluationDependsOn(':samcnpc-core')
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            property 'forge.enabledGameTestNamespaces', 'samcnpc_behavior'
+            mods {
+                // Load source sets rather than a reobfuscated JAR into the mapped dev runtime.
+                samcnpc_core {
+                    source project(':samcnpc-core').sourceSets.main
+                }
+                samcnpc_behavior {
+                    source sourceSets.main
+                }
+            }
+        }
+        client {}
+        server { args '--nogui' }
+        gameTestServer {}
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    implementation fg.deobf(project(':samcnpc-core'))
+    implementation "thedarkcolour:kotlinforforge:${kotlin_for_forge_version}"
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') {
+        expand version: project.version
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    archiveBaseName = 'samcnpc-behavior'
+    manifest {
+        attributes([
+            'Specification-Title': project.name,
+            'Specification-Vendor': 'SAMCNPC',
+            'Specification-Version': '1',
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'SAMCNPC'
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+tasks.register('verifyProductionKotlin') {
+    group = 'verification'
+    doLast {
+        def javaSources = fileTree('src/main') { include '**/*.java' }.files
+        if (!javaSources.empty) {
+            throw new GradleException("Production source must be Kotlin: ${javaSources.join(', ')}")
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyProductionKotlin')
+}
+
+// Command-line userdev needs the JSON packs and SNBT fixtures on its game resource path.
+// Stage them for every Behavior dev run, including a fresh client/server without an IDE.
+def prepareRunResources = tasks.register('prepareRunResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run')
+}
+
+tasks.matching { it.name in ['runClient', 'runServer', 'runGameTestServer'] }.configureEach {
+    dependsOn prepareRunResources
+}

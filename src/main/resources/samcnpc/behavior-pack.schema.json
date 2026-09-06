@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAMCNPC behavior v1 runtime mirror",
+  "description": "The canonical schema is kept at repository contracts/behavior-pack.schema.json; BehaviorPackCompiler enforces this bounded shape at reload time.",
+  "type": "object"
+}

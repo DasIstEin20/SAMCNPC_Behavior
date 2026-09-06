@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:retaliate",
+  "description": "Acquire the recent attacker as a target and fight it through bounded Core combat actions.",
+  "priority": 500,
+  "channels": ["movement", "look", "combat", "main_hand"],
+  "rules": [
+    {
+      "id": "acquire_attacker",
+      "priority": 1000,
+      "when": { "test": { "condition": "samcnpc:was_hurt_recently", "args": { "withinTicks": 100 } } },
+      "actions": [{ "action": "samcnpc:set_attack_target_from_recent_attacker" }]
+    },
+    {
+      "id": "approach_target",
+      "priority": 500,
+      "when": { "all": [
+        { "test": { "condition": "samcnpc:has_attack_target" } },
+        { "test": { "condition": "samcnpc:target_alive" } }
+      ] },
+      "actions": [
+        { "action": "samcnpc:move_to_target", "args": { "speed": 1.1, "stopDistance": 2.4 } },
+        { "action": "samcnpc:look_at_target" },
+        { "action": "samcnpc:attack_target" }
+      ]
+    }
+  ]
+}

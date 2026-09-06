@@ -1,0 +1,30 @@
+modLoader="kotlinforforge"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="samcnpc_behavior"
+version="${version}"
+displayName="SAMCNPC Behavior"
+description="Validated deterministic behavior packs for SAMCNPC."
+
+[[dependencies.samcnpc_behavior]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.21,48)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.samcnpc_behavior]]
+modId="kotlinforforge"
+mandatory=true
+versionRange="[4.12.0,5)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.samcnpc_behavior]]
+modId="samcnpc_core"
+mandatory=true
+versionRange="[0.1.0,1)"
+ordering="AFTER"
+side="BOTH"

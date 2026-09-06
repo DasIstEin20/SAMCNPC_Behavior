@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:demo_lumberjack",
+  "description": "Disposable deployment-test behavior: equip chest gear, cut a bounded 50x50 wood area, then return logs.",
+  "priority": 100000,
+  "channels": ["movement", "look", "main_hand", "block_action", "inventory"],
+  "rules": [
+    {
+      "id": "advance_demo_job",
+      "priority": 100000,
+      "when": {"test": {"condition": "samcnpc:always"}},
+      "actions": [{"action": "samcnpc:run_lumberjack_demo"}]
+    }
+  ]
+}

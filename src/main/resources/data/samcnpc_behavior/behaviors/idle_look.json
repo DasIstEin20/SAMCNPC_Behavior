@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:idle_look",
+  "description": "Low-priority companion idle look behavior.",
+  "priority": -100,
+  "channels": ["look"],
+  "rules": [
+    {
+      "id": "look_at_summoner",
+      "priority": 1,
+      "cooldownTicks": 10,
+      "when": { "test": { "condition": "samcnpc:has_summoner" } },
+      "actions": [{ "action": "samcnpc:look_at_summoner" }]
+    }
+  ]
+}
