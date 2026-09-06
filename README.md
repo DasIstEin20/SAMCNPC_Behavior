@@ -52,6 +52,8 @@ For single-player, install them in your Forge client profile.
 
 Use JDK 17 and the included Gradle wrapper. Core is a Git submodule at `core/`, pinned to a
 specific published commit rather than a floating branch. Cloning requires access to both repositories.
+The current pin includes Core's animation controls and NPC-driven chunk loading. Use the matching
+Core JAR from this build; older development builds may also carry the `0.1.0` version number.
 
 ```powershell
 git clone --recurse-submodules https://github.com/DasIstEin20/SAMCNPC_Behavior.git
@@ -138,8 +140,10 @@ with a safe-idle diagnostic.
 
 This is an **experimental integration job that changes real blocks**. Try it in a backed-up test world.
 
-Place an accessible chest near the NPC with an axe and, optionally, armor, a shovel, and building
-blocks such as dirt. Keep reachable trees within the bounded 50×50 work area around the NPC's
+Place an accessible chest near the NPC with an axe and, optionally, armor and building blocks.
+Supply a shovel for dirt supports or a pickaxe for cobblestone/netherrack supports; the job takes
+these tools from the chest. Without building blocks it can recover and reuse real felled wood.
+Keep reachable single-column trees within the bounded 50×50 work area around the NPC's
 starting position, then run:
 
 ```text
@@ -151,21 +155,30 @@ The job chooses a nearby chest, collects available equipment, searches for wood,
 stance, breaks selected logs, picks up their drops, and returns gathered wood to the chest.
 Its helpers support limited foliage clearing, trunk stepping, inventory-backed temporary pillars,
 capacity-triggered deposits, stuck detection, and coordination between workers.
+Foliage clearing preserves the suspended work and any existing scaffold stance. Temporary wooden
+supports are not mistaken for remaining trunk logs. Placement is checked synchronously before a
+later pickup can change the held stack, and cleanup/settled-drop collection precede final deposit.
+
+Scaffolds are limited to eight levels. A collection attempt has a 240-tick total budget and requires
+20 grounded quiet ticks to finish normally; successful pickups do not reset the deadline. Material
+recovery is limited to three attempts per tree. Unreachable work/drops produce bounded recovery
+or diagnostics rather than an endless loop. Job state and continuations survive save/load, with
+migration of older in-flight placement state.
 
 Core still performs every physical action; the lumberjack's targets and work plan belong to Behavior.
 The demo temporarily replaces the NPC's packs and restores them on completion or cancellation.
-Cancellation may leave already placed supports behind. Natural tree crowns, difficult terrain,
-and multi-NPC recovery still need broader real-world testing; this is not a general forestry AI.
-
-Known issue: the wood-only scaffold flow can fail during placement verification or material recovery.
-The existing lumberjack GameTest failed in both the publication checkout and the original workspace;
-it remains enabled. Do not treat this demo as production-ready.
+Cancellation or unsafe/interrupted cleanup may leave already placed supports behind, with
+remaining positions logged. Cleanup has a 600-tick deadline and refuses fluids, climbing or riding.
+Vanilla oak/birch crowns and nine-block
+vertical trunks are tested. Large branching/2×2 trees, arbitrary terrain/modpacks and multi-NPC
+recovery are not a verified capability; this remains a bounded demo, not a general forestry AI.
 
 ## Development and tests
 
 ```powershell
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
+.\gradlew.bat :runClientLumberjackSmoke
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -175,10 +188,15 @@ python core/tools/check_core_boundary.py
 The leading `:` selects Behavior's run task; Core also exposes its own dev runs.
 Behavior's client/server runs load both mods. A normal `:runServer` launch requires the user to
 accept Minecraft's EULA.
+GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
-Unit tests cover pack validation, arbitration, and the navigation/elevation/work helpers.
-The dedicated GameTest exercises chest equipment, foliage clearance, elevated log work,
-real-item scaffold recovery, cleanup, item pickup, and the return deposit through Core.
+Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
+and saved-state migration. Ten dedicated GameTests exercise chest equipment, foliage clearance,
+elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
+complete cleanup, unsafe/deadline recovery and exact wood conservation. The opt-in client smoke generates vanilla oak and
+birch trees in an isolated world and verifies real rendered walking/chopping, full deposit, no leftover
+supports and no late wood pickup. It writes a local result and screenshot under `run-lumberjack-smoke/`
+and exits the client automatically. Its test driver is not shipped in the mod JAR.
 A passing test is not a guarantee for arbitrary trees, modpacks, or terrain.
 
 Add-ons can validate a candidate JSON document without activating it through

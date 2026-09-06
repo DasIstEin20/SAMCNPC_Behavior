@@ -6,6 +6,7 @@ import io.samcnpc.behavior.kernel.elevation.TemporaryPillarSession
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarState
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoJob
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoPhase
+import io.samcnpc.behavior.lumberjack.LumberjackCollectionBudget
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.StringTag
@@ -46,10 +47,13 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             entry.putString(KEY_PHASE, job.phase.name)
             entry.putInt(KEY_SCAN_CURSOR, job.scanCursor)
             entry.putInt(KEY_PICKUP_TICKS, job.pickupTicks)
+            entry.putInt(KEY_PICKUP_QUIET_TICKS, job.pickupQuietTicks)
+            entry.putInt(KEY_SCAFFOLD_RECOVERY_ATTEMPTS, job.scaffoldRecoveryAttempts)
             entry.putBoolean(KEY_RESUME_WORK_AFTER_DEPOSIT, job.resumeWorkAfterDeposit)
             job.targetPosition?.let { entry.put(KEY_TARGET, it.toTag()) }
             job.trunkBasePosition?.let { entry.put(KEY_TRUNK_BASE, it.toTag()) }
             job.blockedLogPosition?.let { entry.put(KEY_BLOCKED_LOG, it.toTag()) }
+            job.accessReturnTarget?.let { entry.put(KEY_ACCESS_RETURN_TARGET, it.toTag()) }
             job.miningStance?.let { entry.put(KEY_MINING_STANCE, it.toTag()) }
             val rejectedStances = ListTag()
             job.rejectedMiningStances.take(MAX_REJECTED_STANCES).forEach { rejectedStances.add(it.toTag()) }
@@ -80,7 +84,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_lumberjack_demo"
-        private const val DATA_VERSION = 15
+        private const val DATA_VERSION = 16
         private const val KEY_VERSION = "version"
         private const val KEY_JOBS = "jobs"
         private const val KEY_NPC_UUID = "npcUuid"
@@ -90,10 +94,13 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
         private const val KEY_PHASE = "phase"
         private const val KEY_SCAN_CURSOR = "scanCursor"
         private const val KEY_PICKUP_TICKS = "pickupTicks"
+        private const val KEY_PICKUP_QUIET_TICKS = "pickupQuietTicks"
+        private const val KEY_SCAFFOLD_RECOVERY_ATTEMPTS = "scaffoldRecoveryAttempts"
         private const val KEY_RESUME_WORK_AFTER_DEPOSIT = "resumeWorkAfterDeposit"
         private const val KEY_TARGET = "target"
         private const val KEY_TRUNK_BASE = "trunkBase"
         private const val KEY_BLOCKED_LOG = "blockedLog"
+        private const val KEY_ACCESS_RETURN_TARGET = "accessReturnTarget"
         private const val KEY_MINING_STANCE = "miningStance"
         private const val KEY_REJECTED_STANCES = "rejectedStances"
         private const val KEY_INITIAL_TRUNK_TARGET_PENDING = "initialTrunkTargetPending"
@@ -114,9 +121,6 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
         private const val MAX_PREVIOUS_PACKS = 8
         private const val MAX_INITIAL_WOOD_KINDS = 32
         private const val MAX_REJECTED_STANCES = 4
-        // Wood-only scaffold recovery deliberately has a longer, but still bounded, wait for
-        // falling drops after the retained stump is removed.
-        private const val MAX_PICKUP_TICKS = 30
         private const val MAX_CLIMB_JUMP_ATTEMPTS = 1
         private const val MAX_FAILED_WORK_ATTEMPTS = 3
         private val PACK_ID = Regex("^[a-z0-9_.-]+:[a-z0-9_./-]+$")
@@ -124,7 +128,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
         fun forServer(server: MinecraftServer): LumberjackDemoStore =
             server.overworld().dataStorage.computeIfAbsent(::load, ::LumberjackDemoStore, DATA_NAME)
 
-        private fun load(tag: CompoundTag): LumberjackDemoStore {
+        internal fun load(tag: CompoundTag): LumberjackDemoStore {
             val store = LumberjackDemoStore()
             val savedVersion = tag.getInt(KEY_VERSION)
             if (savedVersion !in 0..DATA_VERSION) {
@@ -154,7 +158,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                         initialWoodCounts[itemId] = count
                     }
                 }
-                store.jobs[entry.getUUID(KEY_NPC_UUID)] = LumberjackDemoJob(
+                val job = LumberjackDemoJob(
                     npcUuid = entry.getUUID(KEY_NPC_UUID),
                     dimensionId = entry.getString(KEY_DIMENSION),
                     chestPosition = chest,
@@ -169,11 +173,14 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     } else {
                         entry.getInt(KEY_SCAN_CURSOR).coerceAtLeast(0)
                     },
-                    pickupTicks = entry.getInt(KEY_PICKUP_TICKS).coerceIn(0, MAX_PICKUP_TICKS),
+                    pickupTicks = entry.getInt(KEY_PICKUP_TICKS).coerceIn(0, LumberjackCollectionBudget.MAX_TICKS),
+                    pickupQuietTicks = entry.getInt(KEY_PICKUP_QUIET_TICKS).coerceIn(0, LumberjackCollectionBudget.QUIET_TICKS),
+                    scaffoldRecoveryAttempts = entry.getInt(KEY_SCAFFOLD_RECOVERY_ATTEMPTS).coerceIn(0, 3),
                     resumeWorkAfterDeposit = entry.getBoolean(KEY_RESUME_WORK_AFTER_DEPOSIT),
                     targetPosition = entry.positionOrNull(KEY_TARGET),
                     trunkBasePosition = entry.positionOrNull(KEY_TRUNK_BASE),
                     blockedLogPosition = entry.positionOrNull(KEY_BLOCKED_LOG),
+                    accessReturnTarget = entry.positionOrNull(KEY_ACCESS_RETURN_TARGET),
                     miningStance = entry.positionOrNull(KEY_MINING_STANCE),
                     rejectedMiningStances = entry.getList(KEY_REJECTED_STANCES, Tag.TAG_COMPOUND.toInt())
                         .take(MAX_REJECTED_STANCES)
@@ -193,8 +200,27 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     initialWoodCounts = initialWoodCounts,
                     pillarSession = entry.pillarSessionOrNull(),
                 )
+                recoverLegacyPlacement(savedVersion, job)
+                store.jobs[job.npcUuid] = job
             }
             return store
+        }
+
+        private fun recoverLegacyPlacement(version: Int, job: LumberjackDemoJob) {
+            val pillar = job.pillarSession ?: return
+            if (version >= 16 || pillar.state != TemporaryPillarState.VERIFY_PLACEMENT) return
+            // Old VERIFY means Core already accepted placement, but the old counter receipt
+            // crossed a tick/save boundary. Retain that last support and descend conservatively;
+            // never compare a current inventory (possibly after pickup) with a historical count.
+            val pending = pillar.currentPlacement
+            if (pending != null && pending !in pillar.placedPositions && pillar.placedPositions.size < MAX_PILLAR_POSITIONS) {
+                pillar.placedPositions.add(pending)
+            }
+            pillar.currentPlacement = null
+            pillar.expectedMaterialCountAfterPlacement = null
+            pillar.state = TemporaryPillarState.DESCEND_BREAK
+            job.phase = LumberjackDemoPhase.PILLAR_CLEANUP
+            job.abandonTreeAfterPillarCleanup = false
         }
 
         private const val LEGACY_SCAN_BLOCKS_PER_COLUMN = 27
@@ -224,6 +250,8 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             tag.putString(KEY_PILLAR_ITEM_ID, materialItemId)
             tag.putInt(KEY_PILLAR_ESTIMATE, estimatedLevels)
             tag.putInt(KEY_PILLAR_RETRIES, retries)
+            tag.putInt(KEY_PILLAR_POSITIONING_TICKS, positioningTicks)
+            tag.putInt(KEY_PILLAR_CLEANUP_TICKS, cleanupTicks)
             tag.putString(KEY_PILLAR_LAST_RESULT, lastResult.name)
             currentPlacement?.let { tag.put(KEY_PILLAR_PLACEMENT, it.toTag()) }
             expectedMaterialCountAfterPlacement?.let { count -> tag.putInt(KEY_PILLAR_EXPECTED_COUNT, count) }
@@ -273,6 +301,8 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     null
                 },
                 placedPositions = placed,
+                positioningTicks = tag.getInt(KEY_PILLAR_POSITIONING_TICKS).coerceIn(0, 41),
+                cleanupTicks = tag.getInt(KEY_PILLAR_CLEANUP_TICKS).coerceIn(0, 601),
             )
         }
 
@@ -289,6 +319,8 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
         private const val KEY_PILLAR_ITEM_ID = "materialItemId"
         private const val KEY_PILLAR_ESTIMATE = "estimatedLevels"
         private const val KEY_PILLAR_RETRIES = "retries"
+        private const val KEY_PILLAR_POSITIONING_TICKS = "positioningTicks"
+        private const val KEY_PILLAR_CLEANUP_TICKS = "cleanupTicks"
         private const val KEY_PILLAR_LAST_RESULT = "lastResult"
         private const val KEY_PILLAR_PLACEMENT = "placement"
         private const val KEY_PILLAR_EXPECTED_COUNT = "expectedMaterialCount"

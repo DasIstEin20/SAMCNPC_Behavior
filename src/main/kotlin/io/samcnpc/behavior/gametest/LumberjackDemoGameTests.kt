@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.Container
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Item
 import net.minecraft.world.item.Items
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.LeavesBlock
@@ -26,7 +27,17 @@ object LumberjackDemoGameTests {
     // A wood-only fallback has to collect genuine drops and dismantle its normal scaffold before
     // the final chest return. Leave deterministic headroom for that complete player-like path.
     @GameTest(template = "empty", timeoutTicks = 7300)
-    fun chestGearWoodAndReturnFlow(helper: GameTestHelper) {
+    fun chestGearWoodAndReturnFlow(helper: GameTestHelper) = exerciseFlow(helper)
+
+    @JvmStatic
+    @GameTest(template = "empty", timeoutTicks = 7300, batch = "lumberjack_dirt")
+    fun suppliedDirtScaffoldAndReturn(helper: GameTestHelper) = exerciseFlow(helper, Items.DIRT)
+
+    @JvmStatic
+    @GameTest(template = "empty", timeoutTicks = 7300, batch = "lumberjack_cobblestone")
+    fun suppliedCobblestoneScaffoldAndReturn(helper: GameTestHelper) = exerciseFlow(helper, Items.COBBLESTONE)
+
+    private fun exerciseFlow(helper: GameTestHelper, scaffoldMaterial: Item? = null) {
         // Keep the chest inside the interaction envelope without placing it in the direct path
         // between the spawned NPC and the distant tree.
         val chestPosition = BlockPos(2, 1, 3)
@@ -38,6 +49,7 @@ object LumberjackDemoGameTests {
         helper.setBlock(BlockPos(5, 0, 1), Blocks.STONE)
         helper.setBlock(BlockPos(6, 0, 1), Blocks.STONE)
         val chest = configureChest(helper, chestPosition) ?: return
+        if (scaffoldMaterial != null) chest.setItem(7, ItemStack(scaffoldMaterial, 12))
         // The tree is outside Core mining reach at spawn. The complete flow must therefore
         // approach a clear stance before it can request a block break.
         // The upper section is beyond both ground and the one-block retained stump. The chest
@@ -86,8 +98,27 @@ object LumberjackDemoGameTests {
                 helper.fail("Could not start lumberjack demo: ${started.code}: ${started.detail}")
                 return@awaitRegisteredNpc
             }
+            var previousTrace = ""
+            var traceCount = 0
+            val scaffoldPositions = mutableSetOf<io.samcnpc.core.api.NpcBlockPosition>()
+            helper.onEachTick {
+                val job = LumberjackDemoStore.forServer(server).jobFor(npcUuid)
+                job?.pillarSession?.placedPositions?.let(scaffoldPositions::addAll)
+                val trace = "phase=${job?.phase} target=${job?.targetPosition} blocked=${job?.blockedLogPosition} stance=${job?.miningStance} rejected=${job?.rejectedMiningStances} recovery=${job?.scaffoldMaterialRecovery} pillar=${job?.pillarSession?.state}"
+                if (trace != previousTrace && traceCount < 250) {
+                    previousTrace = trace
+                    traceCount++
+                    com.mojang.logging.LogUtils.getLogger().info("LUMBERJACK TEST tick={} {} position={} wood={}",
+                        npc.snapshot().gameTime, trace, npc.snapshot().position,
+                        npc.inventoryContents().filter { it.stack.itemId == "minecraft:oak_log" }.sumOf { it.stack.count })
+                }
+            }
             helper.runAfterDelay(7000) {
                 val deposited = (0 until chest.containerSize).any { slot -> chest.getItem(slot).`is`(Items.OAK_LOG) }
+                val depositedCount = (0 until chest.containerSize).sumOf { slot ->
+                    val stack = chest.getItem(slot)
+                    if (stack.`is`(Items.OAK_LOG)) stack.count else 0
+                }
                 val stillCarried = npc.inventoryContents().any { entry -> entry.stack.itemId == "minecraft:oak_log" }
                 val remainingJob = LumberjackDemoStore.forServer(server).jobFor(npc.npcUuid)
                 val remainingTrunk = trunkPositions.filter { position -> !helper.level.getBlockState(position).isAir }
@@ -124,6 +155,12 @@ object LumberjackDemoGameTests {
                     helper.fail("Lumberjack demo did not equip chest armor")
                 } else if (remainingJob != null) {
                     helper.fail("Lumberjack demo did not complete after the bounded scan was exhausted")
+                } else if (depositedCount != trunkPositions.size) {
+                    helper.fail("Wood was lost or duplicated: chest=$depositedCount expected=${trunkPositions.size}")
+                } else if (scaffoldPositions.isEmpty() || scaffoldPositions.any { position ->
+                        !helper.level.getBlockState(BlockPos(position.x, position.y, position.z)).isAir
+                    }) {
+                    helper.fail("The real scaffold was not completely dismantled: $scaffoldPositions")
                 } else {
                     helper.succeed()
                 }
@@ -144,6 +181,7 @@ object LumberjackDemoGameTests {
         chest.setItem(3, ItemStack(Items.LEATHER_BOOTS))
         chest.setItem(4, ItemStack(Items.IRON_AXE))
         chest.setItem(5, ItemStack(Items.IRON_SHOVEL))
+        chest.setItem(6, ItemStack(Items.IRON_PICKAXE))
         chest.setChanged()
         return chest
     }

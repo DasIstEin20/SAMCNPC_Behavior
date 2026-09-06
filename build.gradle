@@ -61,8 +61,14 @@ minecraft {
             }
         }
         client {}
+        clientLumberjackSmoke {
+            parent runs.client
+            workingDirectory project.file('run-lumberjack-smoke')
+            property 'samcnpc.lumberjackSmoke', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
         server { args '--nogui' }
-        gameTestServer {}
+        gameTestServer { workingDirectory project.file('run-gametest') }
     }
 }
 
@@ -117,6 +123,36 @@ def prepareRunResources = tasks.register('prepareRunResources', Copy) {
     into layout.projectDirectory.dir('run')
 }
 
-tasks.matching { it.name in ['runClient', 'runServer', 'runGameTestServer'] }.configureEach {
+tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach {
     dependsOn prepareRunResources
+}
+
+// A normal dev world's water/terrain must never leak into GameTest fixtures.
+def prepareGameTestResources = tasks.register('prepareGameTestResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    from layout.projectDirectory.dir('src/test/resources/gametest')
+    into layout.projectDirectory.dir('run-gametest')
+}
+
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    dependsOn prepareGameTestResources
+}
+
+def prepareLumberjackSmokeResources = tasks.register('prepareLumberjackSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-lumberjack-smoke')
+}
+
+tasks.matching { it.name == 'runClientLumberjackSmoke' }.configureEach {
+    dependsOn prepareLumberjackSmokeResources
+    def report = layout.projectDirectory.file('run-lumberjack-smoke/lumberjack-smoke-result.txt').asFile
+    doFirst {
+        report.parentFile.mkdirs()
+        report.text = 'RUNNING\n'
+    }
+    doLast {
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) {
+            throw new GradleException("Lumberjack client smoke did not pass: ${report}")
+        }
+    }
 }

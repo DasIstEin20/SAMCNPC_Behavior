@@ -19,7 +19,7 @@ internal data class LumberjackDemoJob(
     var targetPosition: NpcBlockPosition?,
     /** Lowest log of the one trunk currently being planned by this Behavior-only demo. */
     var trunkBasePosition: NpcBlockPosition?,
-    /** A supplied upper log deferred for a leaf, safe lower step, or felled-log scaffold recovery. */
+    /** The upper work target suspended while a lower step or material recovery is completed. */
     var blockedLogPosition: NpcBlockPosition?,
     /** A Behavior-selected clear standing cell for the current supplied log; never a Core intent. */
     var miningStance: NpcBlockPosition?,
@@ -37,6 +37,10 @@ internal data class LumberjackDemoJob(
     /** A failed or contested elevation session must clean up, then yield this tree rather than retry it. */
     var abandonTreeAfterPillarCleanup: Boolean,
     val initialWoodCounts: Map<String, Int>,
+    var pickupQuietTicks: Int = 0,
+    var scaffoldRecoveryAttempts: Int = 0,
+    /** A separate, one-level continuation: clearing foliage must not overwrite material recovery. */
+    var accessReturnTarget: NpcBlockPosition? = null,
     /** Behavior-owned durable elevation state. Core never observes or interprets this policy. */
     var pillarSession: TemporaryPillarSession? = null,
 )
@@ -49,6 +53,7 @@ internal enum class LumberjackDemoPhase {
     BREAK_LOG,
     CLIMB_TRUNK,
     COLLECT_LOG_DROP,
+    COLLECT_TREE_DROPS,
     RETURN_TO_CHEST,
     DEPOSIT_WOOD,
     PILLAR_UP,

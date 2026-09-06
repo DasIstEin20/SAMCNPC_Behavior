@@ -58,11 +58,15 @@ internal fun NpcWorldView.lowestRemainingLumberjackStep(
         .firstOrNull { candidate -> observeBlock(candidate)?.isLumberjackWoodLog() == true }
 }
 
-internal fun highestRemainingLumberjackTrunkLog(world: NpcWorldView, trunkBase: NpcBlockPosition): NpcBlockPosition? =
+internal fun highestRemainingLumberjackTrunkLog(
+    world: NpcWorldView,
+    trunkBase: NpcBlockPosition,
+    temporarySupports: Collection<NpcBlockPosition> = emptyList(),
+): NpcBlockPosition? =
     (trunkBase.y..trunkBase.y + MAX_TRUNK_HEIGHT)
         .asSequence()
         .map { y -> NpcBlockPosition(trunkBase.x, y, trunkBase.z) }
-        .filter { candidate -> world.observeBlock(candidate)?.isLumberjackWoodLog() == true }
+        .filter { candidate -> candidate !in temporarySupports && world.observeBlock(candidate)?.isLumberjackWoodLog() == true }
         .maxByOrNull { it.y }
 
 private const val MAX_TRUNK_HEIGHT = 32

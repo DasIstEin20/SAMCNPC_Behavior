@@ -52,6 +52,8 @@ W grze jednoosobowej wystarczy instalacja w używanym profilu klienta Forge.
 
 Użyj JDK 17 i dołączonego wrappera Gradle. Core jest submodułem Git w `core/`, przypiętym do
 konkretnego opublikowanego commita, a nie zmiennej gałęzi. Klonowanie wymaga dostępu do obu repozytoriów.
+Aktualne przypięcie obejmuje sterowanie animacjami i ładowanie chunków przez NPC w Core. Używaj
+pasującego JAR-a Core z tego buildu; starsze buildy rozwojowe też mogą mieć numer `0.1.0`.
 
 ```powershell
 git clone --recurse-submodules https://github.com/DasIstEin20/SAMCNPC_Behavior.git
@@ -139,8 +141,10 @@ reguł danej postaci i ustawia diagnostykę bezpiecznego bezczynnego stanu.
 
 To **eksperymentalne zadanie integracyjne zmieniające prawdziwe bloki**. Wypróbuj je w testowym świecie z kopią zapasową.
 
-Postaw przy NPC dostępną skrzynię z siekierą oraz opcjonalnie zbroją, łopatą i blokami budowlanymi,
-np. ziemią. Zapewnij dostępne drzewa w ograniczonym obszarze pracy 50×50 wokół początkowej pozycji
+Postaw przy NPC dostępną skrzynię z siekierą oraz opcjonalnie zbroją i blokami budowlanymi.
+Do podpór z ziemi dodaj łopatę, a do bruku/netherracku kilof; zadanie pobiera te narzędzia ze skrzyni.
+Bez bloków budowlanych NPC może odzyskać i wykorzystać prawdziwe drewno ze ściętego pnia.
+Zapewnij dostępne drzewa o pniu 1×1 w ograniczonym obszarze pracy 50×50 wokół początkowej pozycji
 NPC, a następnie wykonaj:
 
 ```text
@@ -152,21 +156,30 @@ Zadanie wybiera pobliską skrzynię, pobiera dostępne wyposażenie, szuka drewn
 roboczą, niszczy wskazane kłody, podnosi ich drop i oddaje zebrane drewno do skrzyni.
 Mechanizmy pomocnicze obsługują ograniczone usuwanie liści, wejście na pień, tymczasowe podpory
 z przedmiotów w ekwipunku, rozładunek po zapełnieniu, wykrywanie zastoju i koordynację pracowników.
+Usuwanie liści zachowuje przerwane zadanie i istniejące stanowisko na podporze. Drewniane podpory
+nie są mylone z pozostałym pniem. Stawianie jest sprawdzane synchronicznie, zanim kolejne podniesienie
+zmieni licznik stosu. Przed końcowym rozładunkiem NPC sprząta podpory i kończy zbieranie dropów.
+
+Podpora ma limit ośmiu poziomów. Próba zbierania ma łączny limit 240 ticków i normalnie kończy się
+po 20 tickach bez dropów, gdy NPC stoi na ziemi; udane podniesienia nie resetują limitu. Odzyskiwanie
+materiału ma limit trzech prób na drzewo. Nieosiągalne bloki/drop uruchamiają ograniczone odzyskiwanie
+lub diagnostykę zamiast nieskończonej pętli. Stan zadania i jego wznowienia są zapisywane, a starsze
+stany niedokończonej weryfikacji podpór mają migrację.
 
 Każdą fizyczną akcję nadal wykonuje Core; wybór celów i plan pracy drwala należą do Behavior.
 Demo tymczasowo zastępuje paczki NPC i przywraca je po zakończeniu lub anulowaniu.
-Anulowanie może pozostawić wcześniej postawione podpory. Naturalne korony drzew, trudny teren
-i odzyskiwanie postępu przez wiele NPC nadal wymagają szerszych testów w grze; nie jest to uniwersalna AI leśnika.
-
-Znany problem: ścieżka podpór budowanych wyłącznie z drewna może zawieść podczas weryfikacji
-stawiania lub odzyskiwania materiału. Istniejący GameTest drwala nie przeszedł zarówno w kopii
-do publikacji, jak i oryginalnym workspace; pozostaje włączony. Demo nie jest gotowe do zastosowań produkcyjnych.
+Anulowanie lub przerwane/niebezpieczne sprzątanie może pozostawić wcześniej postawione podpory;
+ich pozycje są zapisywane w logu. Sprzątanie ma limit 600 ticków i odmawia pracy w cieczy,
+podczas wspinania lub jazdy. Przetestowano naturalne korony dębu/brzozy
+i pionowe pnie o wysokości dziewięciu bloków. Duże rozgałęzione drzewa/pnie 2×2, dowolny teren/modpack
+i odzyskiwanie postępu przez wiele NPC nie są zweryfikowaną możliwością; to ograniczone demo, nie uniwersalna AI leśnika.
 
 ## Uruchamianie i testy
 
 ```powershell
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
+.\gradlew.bat :runClientLumberjackSmoke
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -176,10 +189,16 @@ python core/tools/check_core_boundary.py
 Początkowy `:` wybiera zadanie uruchomieniowe Behavior; Core udostępnia też własne zadania developerskie.
 Klient/serwer Behavior ładuje oba mody. Zwykły start `:runServer` wymaga zaakceptowania
 EULA Minecrafta przez użytkownika.
+GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
-Testy jednostkowe obejmują walidację paczek, arbitraż oraz mechanizmy nawigacji, wspinania i pracy.
-Dedykowany GameTest sprawdza wyposażenie ze skrzyni, usuwanie liści, pracę przy wysoko położonych kłodach,
-odzyskanie prawdziwego materiału na podpory, sprzątanie, podnoszenie przedmiotów i końcowy rozładunek przez Core.
+Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
+i migrację zapisanego stanu. Dziesięć testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
+zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
+Osobny test klienta generuje
+dąb i brzozę w izolowanym świecie i sprawdza prawdziwe animacje chodzenia/rąbania, pełny rozładunek,
+brak pozostawionych podpór i spóźnionych podniesień drewna. Zapisuje lokalny wynik i zrzut w
+`run-lumberjack-smoke/`, po czym sam zamyka klienta. Kod sterownika testowego nie trafia do JAR-a moda.
 Przejście testu nie gwarantuje poprawności dla dowolnych drzew, modpacków czy terenu.
 
 Dodatki mogą sprawdzić dokument JSON bez jego aktywowania przez

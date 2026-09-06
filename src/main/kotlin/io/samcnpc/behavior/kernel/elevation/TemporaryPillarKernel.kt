@@ -32,6 +32,7 @@ private typealias PillarResultCode = TemporaryPillarResultCode
  * The caller supplies the work target; this controller never chooses a tree or a task.
  */
 internal object TemporaryPillarKernel {
+    internal const val MAX_CLEANUP_TICKS = 600
     private const val MAX_HEIGHT = 8
     private const val MAX_RETRIES = 2
     private const val BREAK_REACH = 4.5
@@ -43,8 +44,16 @@ internal object TemporaryPillarKernel {
 
     fun begin(npc: NpcFacade, world: NpcWorldView, target: NpcBlockPosition): PillarBeginResult {
         val snapshot = npc.snapshot()
-        val base = currentFeetCell(snapshot.position)
-        val baseValidation = validateBase(snapshot.position, snapshot.onGround, snapshot.inWater, snapshot.inLava, snapshot.climbing, snapshot.riding, base, world)
+        val feet = currentFeetCell(snapshot.position)
+        var base = feet
+        var baseValidation = validateBase(snapshot.position, snapshot.onGround, snapshot.inWater, snapshot.inLava, snapshot.climbing, snapshot.riding, base, world)
+        if (baseValidation == PillarBeginResult.Failed(PillarResultCode.PILLAR_NO_SAFE_BASE)) {
+            // A grounded body can overlap the edge of a block while its mathematical feet
+            // cell is over air. Re-center on adjacent real support; do not demand a remote path
+            // or pretend that the unsupported cell is a legal placement base.
+            base = adjacentSupport(snapshot.position, world) ?: return baseValidation
+            baseValidation = validateBase(snapshot.position, snapshot.onGround, snapshot.inWater, snapshot.inLava, snapshot.climbing, snapshot.riding, base, world)
+        }
         if (baseValidation != null) {
             return baseValidation
         }
@@ -74,7 +83,7 @@ internal object TemporaryPillarKernel {
             TemporaryPillarSession(
                 taskId = UUID.randomUUID(),
                 targetPosition = target,
-                state = TemporaryPillarState.VALIDATE_BASE,
+                state = if (base == feet) TemporaryPillarState.VALIDATE_BASE else TemporaryPillarState.POSITION_ON_SUPPORT,
                 originalSelectedHotbarSlot = snapshot.selectedHotbarSlot,
                 materialOriginalSlot = material.slot,
                 materialActiveSlot = if (material.slot < HOTBAR_SIZE) material.slot else snapshot.selectedHotbarSlot,
@@ -82,7 +91,7 @@ internal object TemporaryPillarKernel {
                 estimatedLevels = estimatedLevels,
                 retries = 0,
                 lastResult = TemporaryPillarResultCode.PILLAR_STARTED,
-                currentPlacement = null,
+                currentPlacement = if (base == feet) null else base,
                 expectedMaterialCountAfterPlacement = null,
                 placedPositions = mutableListOf(),
             ),
@@ -111,6 +120,7 @@ internal object TemporaryPillarKernel {
 
     /** The parent task calls this only after no useful elevated target remains. */
     fun beginCleanup(session: PillarSession) {
+        session.cleanupTicks = 0
         session.state = PillarState.DESCEND_BREAK
         session.currentPlacement = null
         session.expectedMaterialCountAfterPlacement = null
@@ -156,6 +166,18 @@ internal object TemporaryPillarKernel {
      */
     fun tickCleanup(npc: NpcFacade, world: NpcWorldView, session: PillarSession): PillarProgress {
         val snapshot = npc.snapshot()
+        // Fluids can prevent a landing forever. Occupants and lost footing also have a
+        // persisted deadline; neither a restart nor a transient pickup may renew it.
+        if (snapshot.inWater || snapshot.inLava || snapshot.climbing || snapshot.riding) {
+            npc.abortBlockBreak()
+            session.lastResult = PillarResultCode.PILLAR_UNSAFE_ENVIRONMENT
+            return PillarProgress.CleanupIncomplete
+        }
+        if (++session.cleanupTicks > MAX_CLEANUP_TICKS) {
+            npc.abortBlockBreak()
+            session.lastResult = PillarResultCode.PILLAR_CLEANUP_INCOMPLETE
+            return PillarProgress.CleanupIncomplete
+        }
         if (session.state == PillarState.DESCEND_LAND) {
             val removedSupport = session.currentPlacement ?: return PillarProgress.CleanupIncomplete
             if (!snapshot.onGround) {
@@ -203,7 +225,7 @@ internal object TemporaryPillarKernel {
             session.lastResult = PillarResultCode.PILLAR_CLEANUP_COMPLETE
             return PillarProgress.CleanupComplete
         }
-        if (!snapshot.onGround || snapshot.inWater || snapshot.inLava || snapshot.climbing || snapshot.riding) {
+        if (!snapshot.onGround) {
             return PillarProgress.Running("waiting for stable footing before scaffold cleanup")
         }
         val support = currentFeetCell(snapshot.position).let { NpcBlockPosition(it.x, it.y - 1, it.z) }
@@ -275,6 +297,7 @@ internal object TemporaryPillarKernel {
             }
         }
         session.currentPlacement = feet
+        session.positioningTicks = 0
         session.state = PillarState.POSITION_ON_SUPPORT
         return PillarProgress.Running("validated one legal pillar level")
     }
@@ -286,6 +309,9 @@ internal object TemporaryPillarKernel {
         world: NpcWorldView,
     ): PillarProgress {
         val placement = session.currentPlacement ?: return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE)
+        if (++session.positioningTicks > MAX_POSITIONING_TICKS) {
+            return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE, "could not center on $placement within $MAX_POSITIONING_TICKS ticks")
+        }
         val support = NpcBlockPosition(placement.x, placement.y - 1, placement.z)
         if (world.observeBlock(support)?.isSolid != true) {
             return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE)
@@ -388,7 +414,10 @@ internal object TemporaryPillarKernel {
             )
         }
         session.state = PillarState.VERIFY_PLACEMENT
-        return PillarProgress.Running("requested normal held-block placement under the airborne NPC")
+        // Placement and consumption are synchronous Core operations on this server thread.
+        // Verify before yielding: the next entity tick may legitimately pick up another log
+        // into this very stack. A later count is not a receipt for this placement.
+        return verifyPlacement(npc, session, world)
     }
 
     private fun verifyPlacement(npc: NpcFacade, session: PillarSession, world: NpcWorldView): PillarProgress {
@@ -403,11 +432,17 @@ internal object TemporaryPillarKernel {
             held?.stack?.itemId == session.materialItemId &&
                 held.stack.count == expectedCount
         }
-        if (actual?.isSolid != true || !consumedFromSelectedMaterial) {
-            return fail(session, PillarResultCode.PILLAR_PLACEMENT_DESYNC)
+        if (actual?.isSolid != true) {
+            return fail(session, PillarResultCode.PILLAR_PLACEMENT_DESYNC, "Core accepted placement at $placement but observed block is $actual")
         }
+        // Even a legacy in-flight verification or a faulty inventory receipt must retain the
+        // accepted world mutation, otherwise cleanup cannot descend past this last level.
         if (placement !in session.placedPositions) {
             session.placedPositions.add(placement)
+        }
+        if (!consumedFromSelectedMaterial) {
+            return fail(session, PillarResultCode.PILLAR_PLACEMENT_DESYNC,
+                "placement=$placement expected=${session.materialItemId}x$expectedCount slot=${session.materialActiveSlot} actual=${held?.stack}")
         }
         session.expectedMaterialCountAfterPlacement = null
         session.state = PillarState.WAIT_FOR_LANDING
@@ -572,6 +607,21 @@ internal object TemporaryPillarKernel {
     private fun currentFeetCell(position: NpcPosition): NpcBlockPosition =
         NpcBlockPosition(floor(position.x).toInt(), floor(position.y).toInt(), floor(position.z).toInt())
 
+    private fun adjacentSupport(position: NpcPosition, world: NpcWorldView): NpcBlockPosition? {
+        val feet = currentFeetCell(position)
+        val candidates = ArrayList<NpcBlockPosition>(9)
+        for (dx in -1..1) for (dz in -1..1) {
+            val candidate = NpcBlockPosition(feet.x + dx, feet.y, feet.z + dz)
+            if (hypot(position.x - candidate.x - 0.5, position.z - candidate.z - 0.5) > 1.15) continue
+            if (world.observeBlock(candidate)?.isAir != true) continue
+            if (world.observeBlock(NpcBlockPosition(candidate.x, candidate.y - 1, candidate.z))?.isSolid != true) continue
+            candidates.add(candidate)
+        }
+        return candidates.minWithOrNull(compareBy<NpcBlockPosition> {
+            hypot(position.x - it.x - 0.5, position.z - it.z - 0.5)
+        }.thenBy { it.x }.thenBy { it.z })
+    }
+
     private fun blockCenter(position: NpcBlockPosition): NpcPosition =
         NpcPosition(position.x + 0.5, position.y + 0.5, position.z + 0.5)
 
@@ -606,4 +656,5 @@ internal object TemporaryPillarKernel {
 
     private val HAZARD_PATHS = setOf("lava", "fire", "soul_fire", "cactus", "magma_block", "powder_snow")
     private const val HOTBAR_SIZE = 9
+    private const val MAX_POSITIONING_TICKS = 40
 }

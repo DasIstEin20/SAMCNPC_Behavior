@@ -12,6 +12,7 @@ import io.samcnpc.core.api.NpcBlockPosition
 import io.samcnpc.core.api.NpcFacade
 import io.samcnpc.core.api.NpcLookRotation
 import io.samcnpc.core.api.NpcPosition
+import io.samcnpc.core.api.NpcSnapshot
 import io.samcnpc.core.api.NpcRaycastRequest
 import io.samcnpc.core.api.NpcRaycastResult
 import io.samcnpc.core.api.NpcVector
@@ -142,6 +143,21 @@ internal fun LumberjackDemoJob.isStandingOnPreservedStump(position: NpcPosition)
 internal fun isStandingOnPreservedStump(position: NpcPosition, trunkBase: NpcBlockPosition): Boolean =
     position.y >= trunkBase.y + 1 - STUMP_TOP_HEIGHT_TOLERANCE &&
         horizontalDistance(position, trunkBase) <= STUMP_TOP_HORIZONTAL_REACH
+
+internal fun LumberjackDemoJob.recordedScaffoldStance(snapshot: NpcSnapshot): NpcBlockPosition? {
+    if (!snapshot.onGround) return null
+    val feet = NpcBlockPosition(floor(snapshot.position.x).toInt(), floor(snapshot.position.y).toInt(), floor(snapshot.position.z).toInt())
+    val support = NpcBlockPosition(feet.x, feet.y - 1, feet.z)
+    return feet.takeIf { support in pillarSession?.placedPositions.orEmpty() }
+}
+
+internal fun canSeeWorkBlock(npc: NpcFacade, target: NpcBlockPosition, world: NpcWorldView): Boolean {
+    val eye = npc.snapshot().eyePosition
+    val center = blockCenter(target)
+    val direction = NpcVector(center.x - eye.x, center.y - eye.y, center.z - eye.z)
+    val length = hypot(hypot(direction.x, direction.z), direction.y)
+    return (world.raycast(NpcRaycastRequest(eye, direction, length + RAYCAST_TARGET_EPSILON)) as? NpcRaycastResult.BlockHit)?.position == target
+}
 
 /**
  * Returns the first foliage cell in the NPC's feet/head collision corridor along either

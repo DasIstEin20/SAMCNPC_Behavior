@@ -19,6 +19,8 @@ internal data class TemporaryPillarSession(
     /** Exact selected-stack count expected after the placement now awaiting world verification. */
     var expectedMaterialCountAfterPlacement: Int?,
     val placedPositions: MutableList<NpcBlockPosition>,
+    var positioningTicks: Int = 0,
+    var cleanupTicks: Int = 0,
 )
 
 internal enum class TemporaryPillarState {

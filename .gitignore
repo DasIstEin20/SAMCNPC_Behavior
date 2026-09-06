@@ -2,7 +2,9 @@
 .kotlin/
 build/
 run/
+run-gametest/
 run-animation-smoke/
+run-lumberjack-smoke/
 logs/
 crash-reports/
 backups/
