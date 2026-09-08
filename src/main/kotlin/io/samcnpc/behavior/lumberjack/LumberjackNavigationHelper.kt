@@ -166,6 +166,8 @@ internal fun foliageObstacleOnNavigationAxes(
     npc: NpcFacade,
     destination: NpcPosition,
     world: NpcWorldView,
+    visibleOnly: Boolean = false,
+    includeLogs: Boolean = false,
 ): NpcBlockPosition? {
     val position = npc.snapshot().position
     val startX = floor(position.x).toInt()
@@ -187,8 +189,13 @@ internal fun foliageObstacleOnNavigationAxes(
             val z = startZ + axis.stepZ * step
             for (y in startY until startY + NPC_COLLISION_HEIGHT_BLOCKS) {
                 val candidate = NpcBlockPosition(x, y, z)
-                if (world.isLeafOrSupportedSnowObstacle(candidate)) {
-                    return candidate
+                if (world.isLeafOrSupportedSnowObstacle(candidate) || (includeLogs && world.observeBlock(candidate)?.isLumberjackWoodLog() == true)) {
+                    if (!visibleOnly) return candidate
+                    // Feet-level foliage can be hidden by a head-level leaf or a solid trunk.
+                    // A chest route has no tree-work continuation: select an immediately legal
+                    // clearance of the first allowed block on this same corridor ray.
+                    val visible = accessObstacleOnRay(npc, blockCenter(candidate), null, world, includeLogs) ?: continue
+                    if (isWithinDistance(position, visible, 4.5) && canSeeWorkBlock(npc, visible, world)) return visible
                 }
             }
         }
@@ -234,6 +241,7 @@ internal fun accessObstacleOnRay(
     destination: NpcPosition,
     ignoredPosition: NpcBlockPosition?,
     world: NpcWorldView,
+    includeLogs: Boolean = false,
 ): NpcBlockPosition? {
     val eye = npc.snapshot().eyePosition
     val direction = NpcVector(destination.x - eye.x, destination.y - eye.y, destination.z - eye.z)
@@ -248,7 +256,7 @@ internal fun accessObstacleOnRay(
     }
     val observation = world.observeBlock(hit.position) ?: return null
     return hit.position.takeIf { candidate ->
-        observation.isLumberjackLeafBlock() ||
+        (includeLogs && observation.isLumberjackWoodLog()) || observation.isLumberjackLeafBlock() ||
             (observation.isLumberjackSnowLayer() &&
                 world.observeBlock(NpcBlockPosition(candidate.x, candidate.y - 1, candidate.z))?.isLumberjackLeafBlock() == true)
     }

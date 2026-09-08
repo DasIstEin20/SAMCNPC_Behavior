@@ -9,6 +9,7 @@ import net.minecraft.nbt.ListTag
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import kotlin.test.assertEquals
+import io.samcnpc.behavior.lumberjack.model.LumberjackChestAccessStage
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -79,7 +80,7 @@ class LumberjackPersistenceTest {
         entry.putInt("scaffoldRecoveryAttempts", 2)
         val store = LumberjackDemoStore.load(root)
         val saved = store.save(CompoundTag())
-        assertEquals(16, saved.getInt("version"))
+        assertEquals(18, saved.getInt("version"))
         val restored = assertNotNull(LumberjackDemoStore.load(saved).jobFor(npcUuid))
         assertEquals(LumberjackDemoPhase.COLLECT_TREE_DROPS, restored.phase)
         assertEquals(88, restored.pickupTicks)
@@ -104,6 +105,70 @@ class LumberjackPersistenceTest {
         assertEquals(LumberjackCollectionBudget.MAX_TICKS, bounded.pickupTicks)
         assertEquals(0, bounded.pickupQuietTicks)
         assertTrue(bounded.scaffoldRecoveryAttempts <= 3)
+    }
+
+    @Test
+    fun `chest access survives reload without overwriting suspended tree work`() {
+        val (root, entry) = fixture(17)
+        entry.putString("phase", "RETURN_TO_CHEST")
+        entry.put("target", position(10, 8, 3))
+        entry.putBoolean("resumeWorkAfterDeposit", true)
+        entry.put("chestAccessTarget", position(2, 1, 0))
+        entry.putInt("chestAccessTicks", 42)
+        entry.putInt("chestAccessAttempts", 3)
+        val store = LumberjackDemoStore.load(root)
+        val active = assertNotNull(store.jobFor(npcUuid))
+        active.chestApproach = NpcBlockPosition(1, 1, 0)
+        val saved = store.save(CompoundTag())
+        val job = assertNotNull(LumberjackDemoStore.load(saved).jobFor(npcUuid))
+        assertEquals(NpcBlockPosition(10, 8, 3), job.targetPosition)
+        assertTrue(job.resumeWorkAfterDeposit)
+        assertEquals(NpcBlockPosition(2, 1, 0), job.chestAccessTarget)
+        assertEquals(42, job.chestAccessTicks)
+        assertEquals(3, job.chestAccessAttempts)
+        assertNull(job.chestApproach)
+        assertEquals(LumberjackChestAccessStage.CLEAR_FOLIAGE, job.chestAccessStage)
+        assertEquals(0, job.chestAccessQuietTicks)
+        entry.putInt("chestAccessTicks", Int.MAX_VALUE)
+        entry.putInt("chestAccessAttempts", Int.MAX_VALUE)
+        val bounded = assertNotNull(LumberjackDemoStore.load(root).jobFor(npcUuid))
+        assertEquals(LumberjackChestTravel.MAX_ACCESS_TICKS + 1, bounded.chestAccessTicks)
+        assertEquals(LumberjackChestTravel.MAX_ACCESS_BLOCKS, bounded.chestAccessAttempts)
+        root.putInt("version", 16)
+        assertNull(assertNotNull(LumberjackDemoStore.load(root).jobFor(npcUuid)).chestAccessTarget)
+    }
+
+    @Test
+    fun `route wood collection resumes within its original budget and migrates legacy jobs`() {
+        val (root, entry) = fixture(18)
+        entry.putString("phase", "RETURN_TO_CHEST")
+        entry.put("target", position(10, 8, 3))
+        entry.put("chestAccessTarget", position(2, 2, 0))
+        entry.putString("chestAccessStage", "COLLECT_WOOD")
+        entry.putInt("chestAccessTicks", 185)
+        entry.putInt("chestAccessQuietTicks", 12)
+        val saved = LumberjackDemoStore.load(root).save(CompoundTag())
+        val restored = assertNotNull(LumberjackDemoStore.load(saved).jobFor(npcUuid))
+        assertEquals(LumberjackChestAccessStage.COLLECT_WOOD, restored.chestAccessStage)
+        assertEquals(185, restored.chestAccessTicks)
+        assertEquals(12, restored.chestAccessQuietTicks)
+        assertEquals(NpcBlockPosition(10, 8, 3), restored.targetPosition)
+        assertEquals(NpcBlockPosition(2, 2, 0), restored.chestAccessTarget)
+        entry.putInt("chestAccessTicks", Int.MAX_VALUE)
+        entry.putInt("chestAccessQuietTicks", Int.MAX_VALUE)
+        val bounded = assertNotNull(LumberjackDemoStore.load(root).jobFor(npcUuid))
+        assertEquals(LumberjackCollectionBudget.MAX_TICKS, bounded.chestAccessTicks)
+        assertEquals(LumberjackCollectionBudget.QUIET_TICKS, bounded.chestAccessQuietTicks)
+        entry.putString("chestAccessStage", "CUT_WOOD")
+        val cutting = assertNotNull(LumberjackDemoStore.load(root).jobFor(npcUuid))
+        assertEquals(LumberjackChestAccessStage.CUT_WOOD, cutting.chestAccessStage)
+        assertEquals(LumberjackChestTravel.MAX_ACCESS_TICKS + 1, cutting.chestAccessTicks)
+        assertEquals(0, cutting.chestAccessQuietTicks)
+        root.putInt("version", 17)
+        val legacy = assertNotNull(LumberjackDemoStore.load(root).jobFor(npcUuid))
+        assertEquals(LumberjackChestAccessStage.CLEAR_FOLIAGE, legacy.chestAccessStage)
+        assertEquals(0, legacy.chestAccessQuietTicks)
+        assertEquals(NpcBlockPosition(2, 2, 0), legacy.chestAccessTarget)
     }
 
     private fun fixture(version: Int): Pair<CompoundTag, CompoundTag> {

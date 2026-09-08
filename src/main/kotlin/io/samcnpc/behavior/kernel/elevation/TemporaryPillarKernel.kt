@@ -14,6 +14,7 @@ import io.samcnpc.core.api.NpcRaycastRequest
 import io.samcnpc.core.api.NpcRaycastResult
 import io.samcnpc.core.api.NpcVector
 import io.samcnpc.core.api.NpcWorldView
+import io.samcnpc.behavior.kernel.navigation.isLeafOrSupportedSnowObstacle
 import java.util.UUID
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -104,6 +105,9 @@ internal object TemporaryPillarKernel {
         if (targetObservation == null || targetObservation.isAir) {
             session.lastResult = PillarResultCode.PILLAR_TARGET_GONE
             return PillarProgress.TargetGone
+        }
+        if (snapshot.onGround && session.state == PillarState.VALIDATE_BASE) {
+            workReachProgress(npc, world, session)?.let { return it }
         }
         return when (session.state) {
             PillarState.VALIDATE_BASE -> validateStepBase(snapshot.position, snapshot.onGround, snapshot.inWater, snapshot.inLava, snapshot.climbing, snapshot.riding, session, world)
@@ -464,10 +468,7 @@ internal object TemporaryPillarKernel {
             return PillarProgress.Running("waiting to land on the newly placed scaffold block")
         }
         session.lastResult = PillarResultCode.PILLAR_LEVEL_COMPLETED
-        if (targetReachable(npc, session.targetPosition, world)) {
-            session.state = PillarState.RESTORE_TASK_ITEM
-            return PillarProgress.Running("one level changed reach; restoring the original work item")
-        }
+        workReachProgress(npc, world, session)?.let { return it }
         session.currentPlacement = null
         session.expectedMaterialCountAfterPlacement = null
         session.state = PillarState.VALIDATE_BASE
@@ -563,18 +564,29 @@ internal object TemporaryPillarKernel {
         return ceil(target.y + 0.5 - position.y - verticalReach).toInt().coerceAtLeast(1)
     }
 
-    private fun targetReachable(npc: NpcFacade, target: NpcBlockPosition, world: NpcWorldView): Boolean {
+    private fun workReachProgress(npc: NpcFacade, world: NpcWorldView, session: PillarSession): PillarProgress? {
         val snapshot = npc.snapshot()
+        val target = session.targetPosition
         val center = blockCenter(target)
         val dx = snapshot.position.x - center.x
         val dy = snapshot.position.y - center.y
         val dz = snapshot.position.z - center.z
         if (dx * dx + dy * dy + dz * dz > BREAK_REACH * BREAK_REACH) {
-            return false
+            return null
         }
         val direction = NpcVector(center.x - snapshot.eyePosition.x, center.y - snapshot.eyePosition.y, center.z - snapshot.eyePosition.z)
         val distance = hypot(hypot(direction.x, direction.z), direction.y)
-        return (world.raycast(NpcRaycastRequest(snapshot.eyePosition, direction, distance + 0.01)) as? NpcRaycastResult.BlockHit)?.position == target
+        val hit = world.raycast(NpcRaycastRequest(snapshot.eyePosition, direction, distance + 0.01)) as? NpcRaycastResult.BlockHit
+        if (hit?.position == target) {
+            session.state = PillarState.RESTORE_TASK_ITEM
+            return PillarProgress.Running("supplied work is in reach and visible; restoring the original work item")
+        }
+        // More height does not clear a leaf between an already reachable block and the eye.
+        // Give the parent the exact obstruction while retaining the verified work scaffold.
+        if (hit != null && world.isLeafOrSupportedSnowObstacle(hit.position)) {
+            return PillarProgress.BlockedByLeaf(hit.position)
+        }
+        return fail(session, PillarResultCode.PILLAR_TARGET_OBSTRUCTED, "in-reach target $target is obscured by ${hit?.position}")
     }
 
     private fun retryOrFail(session: PillarSession, code: PillarResultCode): PillarProgress {

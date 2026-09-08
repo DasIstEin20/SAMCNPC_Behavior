@@ -161,6 +161,8 @@ internal object LumberjackService {
             "stepForwardTicks=${job.climbForwardTicks}",
             "recoveringWood=${job.scaffoldMaterialRecovery}",
             "recoveryPending=${job.scaffoldMaterialRecoveryPending}",
+            "recoveryAttempts=${job.scaffoldRecoveryAttempts}/$MAX_SCAFFOLD_RECOVERY_ATTEMPTS",
+            "chestAccess=${job.chestAccessTarget}; attempts=${job.chestAccessAttempts}/${LumberjackChestTravel.MAX_ACCESS_BLOCKS}; accessStage=${job.chestAccessStage}; accessTicks=${job.chestAccessTicks}",
             "abandonAfterCleanup=${job.abandonTreeAfterPillarCleanup}",
             "stalledTicks=$stalledTicks/$stallLimit",
             "upwardStare=$upwardStare",
@@ -195,7 +197,14 @@ internal object LumberjackService {
             // Also repair old saved plans that mistook recovered-wood supports for the trunk.
             return advanceTrunkPlan(world, store, job)
         }
-        val monitorUpwardStare = job.phase in UPWARD_STARE_MONITORED_PHASES
+        if (job.phase in CHEST_TRAVEL_PHASES && job.chestAccessTarget != null) {
+            val access = LumberjackChestTravel.clearAccess(npc, world, job)
+            routeProgress.clear(job.npcUuid)
+            store.markChanged()
+            return finishIfMechanicalFailure(server, npc, store, job, access)
+        }
+        val onScaffold = job.pillarSession?.placedPositions?.isNotEmpty() == true
+        val monitorUpwardStare = !onScaffold && job.phase in UPWARD_STARE_MONITORED_PHASES
         val resumeAfterDetour = if (job.phase == LumberjackDemoPhase.BREAK_LOG) LumberjackDemoPhase.TRAVEL_TO_LOG else job.phase
         when (val recovery = upwardStareRecovery.tick(npc, world, monitorUpwardStare, resumeAfterDetour)) {
             null -> Unit
@@ -231,12 +240,12 @@ internal object LumberjackService {
         if (hasStalledMovement(job, snapshot)) {
             return recoverFromStalledMovement(server, npc, world, store, job)
         }
-        clearFoliageForSlowRoute(npc, world, store, job)?.let { result -> return result }
+        clearFoliageForSlowRoute(npc, world, store, job)?.let { result -> return finishIfMechanicalFailure(server, npc, store, job, result) }
         if (shouldReturnWoodForCapacity(npc, job)) {
             return beginCapacityWoodReturn(store, job)
         }
         return when (job.phase) {
-            LumberjackDemoPhase.TRAVEL_TO_CHEST -> travelToChest(server, npc, store, job)
+            LumberjackDemoPhase.TRAVEL_TO_CHEST -> travelToChest(server, npc, world, store, job)
             LumberjackDemoPhase.PREPARE_EQUIPMENT -> prepareEquipment(server, npc, world, store, job)
             LumberjackDemoPhase.SEARCH_WOOD -> findNextLog(npc, world, store, job)
             LumberjackDemoPhase.TRAVEL_TO_LOG -> travelToLog(server, npc, world, store, job)
@@ -244,7 +253,7 @@ internal object LumberjackService {
             LumberjackDemoPhase.CLIMB_TRUNK -> climbTrunk(server, npc, world, store, job)
             LumberjackDemoPhase.COLLECT_LOG_DROP -> collectLogDrop(server, npc, world, store, job)
             LumberjackDemoPhase.COLLECT_TREE_DROPS -> collectTreeDrops(npc, world, store, job)
-            LumberjackDemoPhase.RETURN_TO_CHEST -> returnToChest(server, npc, store, job)
+            LumberjackDemoPhase.RETURN_TO_CHEST -> returnToChest(server, npc, world, store, job)
             LumberjackDemoPhase.DEPOSIT_WOOD -> depositWood(server, npc, world, store, job)
             LumberjackDemoPhase.PILLAR_UP -> advancePillar(server, npc, world, store, job)
             LumberjackDemoPhase.PILLAR_CLEANUP -> cleanPillar(store, npc, world, job)
@@ -267,8 +276,8 @@ internal object LumberjackService {
         return null
     }
 
-    private fun travelToChest(server: MinecraftServer, npc: NpcFacade, store: LumberjackDemoStore, job: LumberjackDemoJob): NpcActionResult {
-        when (val progress = moveToward(npc, job.chestPosition, CHEST_ARRIVAL_DISTANCE)) {
+    private fun travelToChest(server: MinecraftServer, npc: NpcFacade, world: NpcWorldView, store: LumberjackDemoStore, job: LumberjackDemoJob): NpcActionResult {
+        when (val progress = LumberjackChestTravel.move(npc, world, job)) {
             MoveTowardProgress.ARRIVED -> Unit
             MoveTowardProgress.MOVING -> return NpcActionResult.running("walking to the selected chest")
             is MoveTowardProgress.FAILED -> return finish(server, npc, store, job, progress.result)
@@ -308,10 +317,13 @@ internal object LumberjackService {
             }
         }
         val carriedAxe = npc.inventoryContents().firstOrNull { it.knowledge.toolKind == NpcToolKind.AXE && !it.stack.isEmpty }
-        if (carriedAxe == null) {
+        val workSettings = npc.snapshot()
+        if (carriedAxe == null && !workSettings.bareHandsMiningOnly) {
             val chestAxe = chest.slots.firstOrNull { it.knowledge.toolKind == NpcToolKind.AXE && !it.stack.isEmpty }
-                ?: return finish(server, npc, store, job, NpcActionResult.failed("the selected chest has no axe for the demo", NpcActionCode.MISSING_RESOURCE))
-            return finishIfMechanicalFailure(
+            if (chestAxe == null && !workSettings.ignoreMissingMiningTool) {
+                return finish(server, npc, store, job, NpcActionResult.failed("the selected chest has no axe for the demo", NpcActionCode.MISSING_RESOURCE))
+            }
+            if (chestAxe != null) return finishIfMechanicalFailure(
                 server,
                 npc,
                 store,
@@ -339,6 +351,7 @@ internal object LumberjackService {
         // break, never a direct world edit. The demo remains usable without one when it never
         // needs a temporary pillar.
         for (kind in SCAFFOLD_TOOL_KINDS) {
+            if (workSettings.bareHandsMiningOnly) break
             val carried = npc.inventoryContents().any { it.knowledge.toolKind == kind && !it.stack.isEmpty }
             if (carried) continue
             val supplied = chest.slots.firstOrNull { it.knowledge.toolKind == kind && !it.stack.isEmpty } ?: continue
@@ -347,7 +360,7 @@ internal object LumberjackService {
         }
         job.phase = LumberjackDemoPhase.SEARCH_WOOD
         store.markChanged()
-        return NpcActionResult.running("armor available in the chest has been equipped and an axe is carried")
+        return NpcActionResult.running("available equipment prepared; block work follows the server's tool settings")
     }
 
     private fun findNextLog(npc: NpcFacade, world: NpcWorldView, store: LumberjackDemoStore, job: LumberjackDemoJob): NpcActionResult {
@@ -465,7 +478,7 @@ internal object LumberjackService {
         job: LumberjackDemoJob,
         snapshot: io.samcnpc.core.api.NpcSnapshot,
     ): NpcActionResult? {
-        if (job.phase !in PERSONAL_SPACE_PHASES) {
+        if (job.phase !in PERSONAL_SPACE_PHASES || job.pillarSession?.placedPositions?.isNotEmpty() == true) {
             neighborRepulsion.clear(job.npcUuid)
             return null
         }
@@ -519,12 +532,12 @@ internal object LumberjackService {
         val trunkBase = job.trunkBasePosition ?: return resumeLogScan(store, job)
         val clearingFoliage = job.accessReturnTarget != null && world.isLeafOrSupportedSnowObstacle(target)
         val scaffoldStance = job.recordedScaffoldStance(npc.snapshot())
-        if (clearingFoliage && scaffoldStance != null && isWithinDirectFoliageBreakRange(npc.snapshot().position, target) && canSeeWorkBlock(npc, target, world)) {
+        if (scaffoldStance != null) {
             npc.stopControl()
             job.miningStance = scaffoldStance
             job.phase = LumberjackDemoPhase.BREAK_LOG
             store.markChanged()
-            return NpcActionResult.running("clearing the visible access leaf from the existing scaffold stance")
+            return NpcActionResult.running("retaining the supported work stance; Core checks reach before further elevation or descent")
         }
         val stance = job.miningStance ?: if (clearingFoliage) {
             selectFoliageClearingStance(npc.snapshot().position, target, world)
@@ -816,7 +829,7 @@ internal object LumberjackService {
     private fun movementGoal(job: LumberjackDemoJob): NpcPosition? = when (job.phase) {
         LumberjackDemoPhase.TRAVEL_TO_CHEST,
         LumberjackDemoPhase.RETURN_TO_CHEST,
-        -> blockNavigationPosition(job.chestPosition)
+        -> blockNavigationPosition(job.chestApproach ?: job.chestPosition)
 
         LumberjackDemoPhase.TRAVEL_TO_LOG -> job.miningStance?.let(::blockNavigationPosition)
         LumberjackDemoPhase.CLIMB_TRUNK -> job.trunkBasePosition
@@ -847,6 +860,25 @@ internal object LumberjackService {
         store: LumberjackDemoStore,
         job: LumberjackDemoJob,
     ): NpcActionResult? {
+        if (job.phase in CHEST_TRAVEL_PHASES) {
+            val stalled = routeProgress.status(job.npcUuid)?.noProgressTicks ?: 0
+            if (stalled < FOLIAGE_ROUTE_PROBE_DELAY_TICKS) {
+                val snapshot = npc.snapshot()
+                val feet = snapshot.position
+                val eye = snapshot.eyePosition
+                val feetCell = NpcBlockPosition(floor(feet.x).toInt(), floor(feet.y).toInt(), floor(feet.z).toInt())
+                val eyeCell = NpcBlockPosition(floor(eye.x).toInt(), floor(eye.y).toInt(), floor(eye.z).toInt())
+                // A trunk already intersecting the body is a confirmed obstruction. Do not
+                // let navigation jump deeper into it while waiting for the route watchdog.
+                if (world.observeBlock(feetCell)?.isLumberjackWoodLog() != true && world.observeBlock(eyeCell)?.isLumberjackWoodLog() != true) return null
+            }
+            val destination = blockNavigationPosition(job.chestApproach ?: job.chestPosition)
+            val obstruction = foliageObstacleOnNavigationAxes(npc, destination, world, visibleOnly = true, includeLogs = true) ?: return null
+            val access = LumberjackChestTravel.beginAccess(job, obstruction)
+            routeProgress.clear(job.npcUuid)
+            store.markChanged()
+            return access
+        }
         if (job.phase != LumberjackDemoPhase.TRAVEL_TO_LOG) {
             return null
         }
@@ -1020,8 +1052,8 @@ internal object LumberjackService {
         return NpcActionResult.running("trunk and scaffold are finished; collecting settled drops before scanning or depositing")
     }
 
-    private fun returnToChest(server: MinecraftServer, npc: NpcFacade, store: LumberjackDemoStore, job: LumberjackDemoJob): NpcActionResult {
-        when (val progress = moveToward(npc, job.chestPosition, CHEST_ARRIVAL_DISTANCE)) {
+    private fun returnToChest(server: MinecraftServer, npc: NpcFacade, world: NpcWorldView, store: LumberjackDemoStore, job: LumberjackDemoJob): NpcActionResult {
+        when (val progress = LumberjackChestTravel.move(npc, world, job)) {
             MoveTowardProgress.ARRIVED -> Unit
             MoveTowardProgress.MOVING -> return NpcActionResult.running("returning wood to the selected chest")
             is MoveTowardProgress.FAILED -> return finish(server, npc, store, job, progress.result)
@@ -1497,14 +1529,11 @@ internal object LumberjackService {
                 // the ground, where both the just-cut log and the dismantled scaffold have real
                 // item entities. Gather those first rather than pretending the empty stack can
                 // continue a taller pillar.
-                job.blockedLogPosition = target
-                job.targetPosition = trunkBase
-                job.miningStance = null
-                job.phase = LumberjackDemoPhase.COLLECT_LOG_DROP
-                job.pickupTicks = 0
-                job.pickupQuietTicks = 0
-                store.markChanged()
-                LOGGER.info("Lumberjack collects recovered scaffold wood npc={} deferredTarget={}", job.npcUuid, target)
+                // Every full cleanup/recovery cycle spends the same persisted budget. The old
+                // direct transition skipped its guard and rebuilt an unchanged failed pillar.
+                if (beginScaffoldMaterialRecovery(world, store, job) == null) {
+                    beginFinalTreeCollection(store, job)
+                }
                 return
             }
             val snapshot = npc.snapshot()
@@ -1628,7 +1657,7 @@ internal object LumberjackService {
 
     private const val WORK_AREA_SIDE = 50
     private const val WORK_HALF_SIDE = WORK_AREA_SIDE / 2
-    private const val CHEST_ARRIVAL_DISTANCE = 3.5
+    private val CHEST_TRAVEL_PHASES = setOf(LumberjackDemoPhase.TRAVEL_TO_CHEST, LumberjackDemoPhase.RETURN_TO_CHEST)
     private const val CLIMB_LAUNCH_ARRIVAL_DISTANCE = 0.55
     // A failed natural stump step is an escalation signal, not permission to bunny-hop at the
     // same collision. The post-launch forward commitment gives this one player-like attempt

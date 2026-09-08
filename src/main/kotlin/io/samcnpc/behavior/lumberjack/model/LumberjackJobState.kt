@@ -43,7 +43,17 @@ internal data class LumberjackDemoJob(
     var accessReturnTarget: NpcBlockPosition? = null,
     /** Behavior-owned durable elevation state. Core never observes or interprets this policy. */
     var pillarSession: TemporaryPillarSession? = null,
+    var chestAccessTarget: NpcBlockPosition? = null,
+    var chestAccessTicks: Int = 0,
+    var chestAccessAttempts: Int = 0,
+    /** Collect the route log's real drops before resuming a possibly suspended tree task. */
+    var chestAccessStage: LumberjackChestAccessStage = LumberjackChestAccessStage.CLEAR_FOLIAGE,
+    var chestAccessQuietTicks: Int = 0,
+    /** Cached route endpoint; reselected from current geometry after reload, never persisted. */
+    var chestApproach: NpcBlockPosition? = null,
 )
+
+internal enum class LumberjackChestAccessStage { CLEAR_FOLIAGE, CUT_WOOD, COLLECT_WOOD }
 
 internal enum class LumberjackDemoPhase {
     TRAVEL_TO_CHEST,

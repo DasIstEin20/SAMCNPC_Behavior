@@ -52,7 +52,7 @@ W grze jednoosobowej wystarczy instalacja w używanym profilu klienta Forge.
 
 Użyj JDK 17 i dołączonego wrappera Gradle. Core jest submodułem Git w `core/`, przypiętym do
 konkretnego opublikowanego commita, a nie zmiennej gałęzi. Klonowanie wymaga dostępu do obu repozytoriów.
-Aktualne przypięcie obejmuje sterowanie animacjami i ładowanie chunków przez NPC w Core. Używaj
+Aktualne przypięcie obejmuje konfigurację Forge, tryby narzędzi, efekty i poprawki podwójnych skrzynek w Core. Używaj
 pasującego JAR-a Core z tego buildu; starsze buildy rozwojowe też mogą mieć numer `0.1.0`.
 
 ```powershell
@@ -152,6 +152,13 @@ NPC, a następnie wykonaj:
 /samcnpc behavior lumberjack status Sam
 ```
 
+Fizyczne ustawienia NPC są w Core: **Mody → SAMCNPC Core → Config**. Globalne Yes/No
+wymusza wartość dla wszystkich zapisów; Global Default przekazuje decyzję do In world
+settings. **Ignore missing tool = Yes** pozwala pracować ręką przy braku siekiery, ale NPC
+nadal pobierze dostępną siekierę ze skrzyni. **Praca wyłącznie ręką = Yes** pomija pobieranie
+narzędzi i zawsze wymusza pustą rękę. Oba warianty domyślnie mają No; praca wyłącznie ręką
+ma pierwszeństwo. Zasady dropu vanilli pozostają. Logo Behavior jest także na liście modów Forge.
+
 Zadanie wybiera pobliską skrzynię, pobiera dostępne wyposażenie, szuka drewna, podchodzi na pozycję
 roboczą, niszczy wskazane kłody, podnosi ich drop i oddaje zebrane drewno do skrzyni.
 Mechanizmy pomocnicze obsługują ograniczone usuwanie liści, wejście na pień, tymczasowe podpory
@@ -162,6 +169,13 @@ zmieni licznik stosu. Przed końcowym rozładunkiem NPC sprząta podpory i końc
 Wejście na pień zachowuje cel rozpoczętego skoku aż do prawdziwego lądowania; samo osiągnięcie
 wysokości pnia w powietrzu nie wystarcza. Po ścięciu górnych kłód NPC rozbiera rusztowanie,
 zanim odejdzie na bok, by ściąć zachowany dolny klocek pod nim.
+
+Obie połówki podwójnej skrzyni udostępniają teraz wspólny ekwipunek przez Core. Po drodze
+do skrzyni zadanie może usunąć widoczny blok liści lub pień, zebrać uzyskane drewno i wznowić
+przerwaną pracę. Nie próbuje stale kopać ukrytego liścia przez paproć/pień. Usuwanie liści
+na wysokości zachowuje pozycję na podporze, a powtarzanie całej próby podpory zużywa
+ograniczony budżet odzyskiwania. Format zapisu zadania 18 migruje starsze zadania i zachowuje
+ich wznowienia. Zadania wcześniej anulowane wymagają ponownej komendy startu.
 
 Podpora ma limit ośmiu poziomów. Próba zbierania ma łączny limit 240 ticków i normalnie kończy się
 po 20 tickach bez dropów, gdy NPC stoi na ziemi; udane podniesienia nie resetują limitu. Odzyskiwanie
@@ -185,6 +199,7 @@ i odzyskiwanie postępu przez wiele NPC nie są zweryfikowaną możliwością; t
 .\gradlew.bat :runClientLumberjackSmoke
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
+.\gradlew.bat :runClientConfigSmoke
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -197,7 +212,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. Trzynaście testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. Osiemnaście testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -210,6 +225,13 @@ Warianty `dirt` i `wood` dodają trzeci, dziewięciokłodowy pień z koroną: pi
 drugi wymaga wykorzystania zebranego drewna na podpory. Oba wymagają wszystkich 20 oryginalnych
 kłód w skrzyni, pełnego sprzątnięcia podpór i 40 ticków bez spóźnionego drewna po zakończeniu.
 Przejście testu nie gwarantuje poprawności dla dowolnych drzew, modpacków czy terenu.
+
+`runClientConfigSmoke` otwiera oba logotypy Forge i ekran Core, zapisuje ustawienia przez
+prawdziwe pakiety serwera, sprawdza niezależność zapisów oraz ponowne wczytanie i kończy
+zadanie drwala na dwóch kłodach bez siekiery. Światy/wyniki zostają w `run-config-smoke/`,
+a sterowniki testów nie trafiają do JAR-ów. `runClientForestRepairSmoke -PforestSnapshot=<ścieżka>`
+odtwarza pierwotną regresję z trzema NPC; wymaga przechwyconego świata i kopiuje go do
+`run-forest-repair/`. Ten zapis nie jest dołączany do repozytorium.
 
 Dodatki mogą sprawdzić dokument JSON bez jego aktywowania przez
 [`BehaviorPackValidationApi.validateCandidate(json)`](src/main/kotlin/io/samcnpc/behavior/api/BehaviorPackValidationApi.kt).

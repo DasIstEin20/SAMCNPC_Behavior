@@ -5,8 +5,10 @@ import io.samcnpc.behavior.kernel.elevation.TemporaryPillarResultCode
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarSession
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarState
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoJob
+import io.samcnpc.behavior.lumberjack.model.LumberjackChestAccessStage
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoPhase
 import io.samcnpc.behavior.lumberjack.LumberjackCollectionBudget
+import io.samcnpc.behavior.lumberjack.LumberjackChestTravel
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.StringTag
@@ -49,6 +51,11 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             entry.putInt(KEY_PICKUP_TICKS, job.pickupTicks)
             entry.putInt(KEY_PICKUP_QUIET_TICKS, job.pickupQuietTicks)
             entry.putInt(KEY_SCAFFOLD_RECOVERY_ATTEMPTS, job.scaffoldRecoveryAttempts)
+            job.chestAccessTarget?.let { entry.put(KEY_CHEST_ACCESS_TARGET, it.toTag()) }
+            entry.putInt(KEY_CHEST_ACCESS_TICKS, job.chestAccessTicks)
+            entry.putInt(KEY_CHEST_ACCESS_ATTEMPTS, job.chestAccessAttempts)
+            entry.putString(KEY_CHEST_ACCESS_STAGE, job.chestAccessStage.name)
+            entry.putInt(KEY_CHEST_ACCESS_QUIET_TICKS, job.chestAccessQuietTicks)
             entry.putBoolean(KEY_RESUME_WORK_AFTER_DEPOSIT, job.resumeWorkAfterDeposit)
             job.targetPosition?.let { entry.put(KEY_TARGET, it.toTag()) }
             job.trunkBasePosition?.let { entry.put(KEY_TRUNK_BASE, it.toTag()) }
@@ -84,12 +91,17 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_lumberjack_demo"
-        private const val DATA_VERSION = 16
+        private const val DATA_VERSION = 18
         private const val KEY_VERSION = "version"
         private const val KEY_JOBS = "jobs"
         private const val KEY_NPC_UUID = "npcUuid"
         private const val KEY_DIMENSION = "dimension"
         private const val KEY_CHEST = "chest"
+        private const val KEY_CHEST_ACCESS_TARGET = "chestAccessTarget"
+        private const val KEY_CHEST_ACCESS_TICKS = "chestAccessTicks"
+        private const val KEY_CHEST_ACCESS_ATTEMPTS = "chestAccessAttempts"
+        private const val KEY_CHEST_ACCESS_STAGE = "chestAccessStage"
+        private const val KEY_CHEST_ACCESS_QUIET_TICKS = "chestAccessQuietTicks"
         private const val KEY_WORK_CENTER = "workCenter"
         private const val KEY_PHASE = "phase"
         private const val KEY_SCAN_CURSOR = "scanCursor"
@@ -158,6 +170,13 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                         initialWoodCounts[itemId] = count
                     }
                 }
+                val chestAccessTarget = if (savedVersion >= 17) entry.positionOrNull(KEY_CHEST_ACCESS_TARGET) else null
+                val accessStage = if (savedVersion >= 18 && chestAccessTarget != null) {
+                    LumberjackChestAccessStage.entries.firstOrNull { it.name == entry.getString(KEY_CHEST_ACCESS_STAGE) }
+                        ?: LumberjackChestAccessStage.CLEAR_FOLIAGE
+                } else LumberjackChestAccessStage.CLEAR_FOLIAGE
+                val collectingRouteWood = accessStage == LumberjackChestAccessStage.COLLECT_WOOD
+                val accessTickLimit = if (collectingRouteWood) LumberjackCollectionBudget.MAX_TICKS else LumberjackChestTravel.MAX_ACCESS_TICKS + 1
                 val job = LumberjackDemoJob(
                     npcUuid = entry.getUUID(KEY_NPC_UUID),
                     dimensionId = entry.getString(KEY_DIMENSION),
@@ -199,6 +218,13 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     abandonTreeAfterPillarCleanup = entry.getBoolean(KEY_ABANDON_AFTER_PILLAR_CLEANUP),
                     initialWoodCounts = initialWoodCounts,
                     pillarSession = entry.pillarSessionOrNull(),
+                    // Older jobs have no separate chest-access continuation; their tree task
+                    // and existing scaffold recovery budget retain their previous meanings.
+                    chestAccessTarget = chestAccessTarget,
+                    chestAccessTicks = entry.getInt(KEY_CHEST_ACCESS_TICKS).coerceIn(0, accessTickLimit),
+                    chestAccessAttempts = entry.getInt(KEY_CHEST_ACCESS_ATTEMPTS).coerceIn(0, LumberjackChestTravel.MAX_ACCESS_BLOCKS),
+                    chestAccessStage = accessStage,
+                    chestAccessQuietTicks = if (collectingRouteWood) entry.getInt(KEY_CHEST_ACCESS_QUIET_TICKS).coerceIn(0, LumberjackCollectionBudget.QUIET_TICKS) else 0,
                 )
                 recoverLegacyPlacement(savedVersion, job)
                 store.jobs[job.npcUuid] = job

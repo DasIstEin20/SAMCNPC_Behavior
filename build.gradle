@@ -41,6 +41,8 @@ tasks.withType(Test).configureEach {
 // The published Core build supplies the source set used by ForgeGradle's dev remapping.
 evaluationDependsOn(':samcnpc-core')
 
+def forestSmokeWorld = "forest-repair-${System.currentTimeMillis()}"
+
 minecraft {
     mappings channel: 'official', version: minecraft_version
     copyIdeResources = true
@@ -61,11 +63,29 @@ minecraft {
             }
         }
         client {}
+        clientConfigSmoke {
+            parent runs.client
+            workingDirectory project.file('run-config-smoke')
+            property 'samcnpc.configSmoke', 'true'
+            property 'samcnpc.configSmokeCompanionReport', 'tool-settings-behavior-result.txt'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
+        }
         clientLumberjackSmoke {
             parent runs.client
             workingDirectory project.file('run-lumberjack-smoke')
             property 'samcnpc.lumberjackSmoke', 'true'
             property 'samcnpc.lumberjackGuiProbe', providers.gradleProperty('lumberjackGuiProbe').orElse('').get()
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        clientForestRepairSmoke {
+            parent runs.client
+            workingDirectory project.file('run-forest-repair')
+            property 'samcnpc.forestRepairSmoke', 'true'
+            property 'samcnpc.forestSmokeWorld', forestSmokeWorld
+            property 'samcnpc.forestSam3Only', providers.gradleProperty('forestSam3Only').orElse('false').get()
             mods { samcnpc_behavior { source sourceSets.test } }
         }
         server { args '--nogui' }
@@ -155,5 +175,49 @@ tasks.matching { it.name == 'runClientLumberjackSmoke' }.configureEach {
         if (!report.exists() || !report.text.trim().endsWith('PASS')) {
             throw new GradleException("Lumberjack client smoke did not pass: ${report}")
         }
+    }
+}
+
+def prepareConfigSmokeResources = tasks.register('prepareConfigSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-config-smoke')
+}
+
+tasks.matching { it.name == 'runClientConfigSmoke' }.configureEach {
+    dependsOn prepareConfigSmokeResources, ':samcnpc-core:testClasses'
+    def report = layout.projectDirectory.file('run-config-smoke/config-smoke-result.txt').asFile
+    def companion = layout.projectDirectory.file('run-config-smoke/tool-settings-behavior-result.txt').asFile
+    doFirst {
+        report.parentFile.mkdirs()
+        report.text = 'RUNNING\n'
+        companion.text = 'RUNNING\n'
+    }
+    doLast {
+        if (!report.text.trim().endsWith('PASS') || !companion.text.trim().endsWith('PASS')) {
+            throw new GradleException("Configuration client smoke failed: ${report}")
+        }
+    }
+}
+
+def forestSnapshot = providers.gradleProperty('forestSnapshot')
+def prepareForestRepairSmoke = tasks.register('prepareForestRepairSmoke', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-forest-repair')
+    into("saves/${forestSmokeWorld}") {
+        from { forestSnapshot.isPresent() ? project.file(forestSnapshot.get()) : project.files() }
+    }
+    doFirst {
+        if (!forestSnapshot.isPresent() || !new File(project.file(forestSnapshot.get()), 'level.dat').isFile()) {
+            throw new GradleException('Supply -PforestSnapshot=<paused regression world copy> containing level.dat')
+        }
+    }
+}
+
+tasks.matching { it.name == 'runClientForestRepairSmoke' }.configureEach {
+    dependsOn prepareForestRepairSmoke
+    def report = layout.projectDirectory.file('run-forest-repair/forest-repair-result.txt').asFile
+    doFirst { report.text = 'RUNNING\n' }
+    doLast {
+        if (!report.text.trim().endsWith('PASS')) throw new GradleException("Forest repair smoke failed: ${report}")
     }
 }

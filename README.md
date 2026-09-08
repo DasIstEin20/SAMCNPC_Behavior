@@ -52,7 +52,7 @@ For single-player, install them in your Forge client profile.
 
 Use JDK 17 and the included Gradle wrapper. Core is a Git submodule at `core/`, pinned to a
 specific published commit rather than a floating branch. Cloning requires access to both repositories.
-The current pin includes Core's animation controls and NPC-driven chunk loading. Use the matching
+The current pin includes Core's Forge configuration, tool modes, effects and double-chest fixes. Use the matching
 Core JAR from this build; older development builds may also carry the `0.1.0` version number.
 
 ```powershell
@@ -151,6 +151,13 @@ starting position, then run:
 /samcnpc behavior lumberjack status Sam
 ```
 
+Core's **Mods → SAMCNPC Core → Config** screen controls physical NPC settings. Global
+Yes/No forces every save; Global Default delegates to In world settings. With **Ignore
+missing tool = Yes**, an axe-less chest is allowed and the NPC works by hand, still taking
+an available axe. **Bare hands only = Yes** skips collecting tools and always works with
+an empty hand. Both default to No; Bare hands only takes precedence. Vanilla harvest rules
+still apply. Behavior's logo is also visible in the Forge Mods list.
+
 The job chooses a nearby chest, collects available equipment, searches for wood, moves to a working
 stance, breaks selected logs, picks up their drops, and returns gathered wood to the chest.
 Its helpers support limited foliage clearing, trunk stepping, inventory-backed temporary pillars,
@@ -161,6 +168,13 @@ later pickup can change the held stack, and cleanup/settled-drop collection prec
 Stump climbing keeps its jump destination until an actual supported landing; reaching stump
 height while airborne is not enough. After the upper trunk is gone, the NPC dismantles its
 scaffold before moving away to cut the retained stump underneath it.
+
+Both halves of a double chest now address its combined inventory through Core. On the way
+to a chest, the job may clear a visible blocking leaf or log, collect cut wood and resume the
+suspended task. It does not repeatedly target a hidden leaf through a fern/trunk. Elevated
+foliage clearing retains the existing scaffold stance, and full pillar retries consume the
+bounded recovery budget. Saved job format 18 preserves these continuations when loading
+older jobs. Previously cancelled jobs still require a new start command.
 
 Scaffolds are limited to eight levels. A collection attempt has a 240-tick total budget and requires
 20 grounded quiet ticks to finish normally; successful pickups do not reset the deadline. Material
@@ -184,6 +198,7 @@ recovery are not a verified capability; this remains a bounded demo, not a gener
 .\gradlew.bat :runClientLumberjackSmoke
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
+.\gradlew.bat :runClientConfigSmoke
 .\gradlew.bat :runClient
 .\gradlew.bat :runServer
 python tools/check_behavior_boundary.py
@@ -196,7 +211,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. Thirteen dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. Eighteen dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -208,6 +223,13 @@ The `dirt` and `wood` probes add a third nine-log trunk with a crown: one suppli
 other requires earned wood for supports. Both require all 20 original logs in the chest,
 complete scaffold removal and 40 post-completion ticks without late wood pickup.
 A passing test is not a guarantee for arbitrary trees, modpacks, or terrain.
+
+`runClientConfigSmoke` opens both Forge logos and the Core config screen, saves changes
+through actual server packets, verifies independent save settings and reload, and completes
+a two-log lumberjack job with no axe. Its worlds/results stay in `run-config-smoke/` and the
+drivers are excluded from the mod JARs. `runClientForestRepairSmoke -PforestSnapshot=<path>`
+is an optional replay of the original three-NPC regression scene; it requires that captured
+world as input and copies it into `run-forest-repair/`. The captured save is not distributed.
 
 Add-ons can validate a candidate JSON document without activating it through
 [`BehaviorPackValidationApi.validateCandidate(json)`](src/main/kotlin/io/samcnpc/behavior/api/BehaviorPackValidationApi.kt).

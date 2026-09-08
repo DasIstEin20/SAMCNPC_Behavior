@@ -6,6 +6,8 @@ license="MIT"
 modId="samcnpc_behavior"
 version="${version}"
 displayName="SAMCNPC Behavior"
+logoFile="assets/samcnpc_behavior/textures/gui/logo.png"
+logoBlur=false
 description="Validated deterministic behavior packs for SAMCNPC."
 
 [[dependencies.samcnpc_behavior]]

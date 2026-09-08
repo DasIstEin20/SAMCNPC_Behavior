@@ -5,6 +5,8 @@ run/
 run-gametest/
 run-animation-smoke/
 run-lumberjack-smoke/
+run-config-smoke/
+run-forest-repair/
 logs/
 crash-reports/
 backups/
