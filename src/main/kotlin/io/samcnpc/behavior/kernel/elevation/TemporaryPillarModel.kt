@@ -21,6 +21,9 @@ internal data class TemporaryPillarSession(
     val placedPositions: MutableList<NpcBlockPosition>,
     var positioningTicks: Int = 0,
     var cleanupTicks: Int = 0,
+    val placedBlockIds: MutableMap<NpcBlockPosition, String> = LegacyPillarBlocks.expectedIds(placedPositions, materialItemId),
+    /** Rebuilt runtime gate; never persist a claim that a prior world's geometry is still valid. */
+    var revalidateSupports: Boolean = true,
 )
 
 internal enum class TemporaryPillarState {
@@ -52,6 +55,7 @@ internal enum class TemporaryPillarResultCode {
     PILLAR_PLACEMENT_FAILED,
     PILLAR_PLACEMENT_DESYNC,
     PILLAR_SUPPORT_LOST,
+    PILLAR_SUPPORT_CHANGED,
     PILLAR_FELL,
     PILLAR_INTERRUPTED,
     PILLAR_TARGET_GONE,

@@ -8,13 +8,11 @@ import io.samcnpc.core.api.NpcWorldView
  * navigation request; these checks merely keep policy from selecting an obviously unsafe cell.
  */
 internal fun NpcWorldView.isClearPlayerStandingCell(position: NpcBlockPosition): Boolean {
-    val feet = observeBlock(position) ?: return false
-    val head = observeBlock(NpcBlockPosition(position.x, position.y + 1, position.z)) ?: return false
-    val floor = observeBlock(NpcBlockPosition(position.x, position.y - 1, position.z)) ?: return false
-    return !feet.isSolid && !head.isSolid &&
+    val space = observeStandingSpace(io.samcnpc.core.api.NpcPosition(
+        position.x + 0.5, position.y.toDouble(), position.z + 0.5)) ?: return false
+    return space.clear && space.supported && !space.inFluid &&
         !isLeafOrSupportedSnowObstacle(position) &&
-        !isLeafOrSupportedSnowObstacle(NpcBlockPosition(position.x, position.y + 1, position.z)) &&
-        !floor.isAir
+        !isLeafOrSupportedSnowObstacle(NpcBlockPosition(position.x, position.y + 1, position.z))
 }
 
 internal fun NpcWorldView.isLeafOrSupportedSnowObstacle(position: NpcBlockPosition): Boolean {

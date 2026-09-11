@@ -1,132 +1,155 @@
 package io.samcnpc.behavior.registry
 
 import com.google.gson.JsonObject
-import io.samcnpc.behavior.model.ActionDefinition
 import io.samcnpc.behavior.model.ActionHandler
 import io.samcnpc.behavior.model.BehaviorChannel
-import io.samcnpc.behavior.model.ConditionDefinition
+import io.samcnpc.behavior.model.BehaviorReadContext
 import io.samcnpc.behavior.model.ConditionHandler
 import io.samcnpc.behavior.runtime.BehaviorTargetMemory
 import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.behavior.lumberjack.LumberjackService
 import io.samcnpc.core.api.NpcActionResult
+import io.samcnpc.core.api.NpcActionStatus
 import io.samcnpc.core.api.NpcControlInput
 import io.samcnpc.core.api.NpcEntityObservation
 import io.samcnpc.core.api.NpcFacade
 import io.samcnpc.core.api.NpcSnapshot
 import io.samcnpc.core.api.NpcWorldView
 
-/** Allow-listed v1 behavior decisions. Core receives only the resulting explicit capabilities. */
+/** Allow-listed decisions compile data once; only captured facts reach condition handlers. */
 object BehaviorDefinitions {
-    val conditions: Map<String, ConditionDefinition> = listOf(
-        condition("samcnpc:always", ::noArgs) { _, _, _, _ -> true },
-        condition("samcnpc:has_summoner", ::noArgs) { _, _, snapshot, _ -> snapshot.summonerUuid != null },
-        condition("samcnpc:summoner_online", ::noArgs) { _, world, snapshot, _ ->
-            snapshot.summonerUuid?.let(world::observeEntity)?.let { it.alive && it.isPlayer } == true
+    val conditions: Map<String, ConditionDefinition> = java.util.Map.copyOf(listOf(
+        readCondition("samcnpc:always") { true },
+        readCondition("samcnpc:task_ready") { it.taskReady },
+        readCondition("samcnpc:task_combat_ready") { it.taskCombatReady },
+        readCondition("samcnpc:task_reaction_ready") { it.taskReactionReady },
+        readCondition("samcnpc:has_summoner") { it.snapshot.summonerUuid != null },
+        readCondition("samcnpc:summoner_online") { it.summoner?.alive == true && it.summoner.isPlayer },
+        ConditionDefinition("samcnpc:distance_to_summoner", ::distanceArgs) { args ->
+            val operator = Comparison.parse(args.get("operator").asString)
+            val blocks = args.get("blocks").asDouble
+            ConditionHandler { context ->
+                val summoner = context.summoner
+                summoner != null && operator.test(horizontalDistance(context.snapshot, summoner), blocks)
+            }
         },
-        condition("samcnpc:distance_to_summoner", ::distanceArgs) { _, world, snapshot, args ->
-            val summoner = snapshot.summonerUuid?.let(world::observeEntity) ?: return@condition false
-            val distance = horizontalDistance(snapshot, summoner)
-            compare(distance, args.get("operator").asString, args.get("blocks").asDouble)
+        readCondition("samcnpc:has_unhandled_damage") { it.unhandledDamage },
+        readCondition("samcnpc:has_attack_target") { it.attackTarget?.alive == true },
+        ConditionDefinition("samcnpc:was_hurt_recently", ::hurtAgeArgs) { args ->
+            val withinTicks = args.get("withinTicks").asLong
+            ConditionHandler { context ->
+                val age = context.snapshot.lastDamageAgeTicks
+                age != null && age in 0..withinTicks
+            }
         },
-        condition("samcnpc:has_attack_target", ::noArgs) { npc, world, _, _ -> BehaviorTargetMemory.hasLiveTarget(npc, world) },
-        condition("samcnpc:was_hurt_recently", ::hurtAgeArgs) { _, _, snapshot, args ->
-            val age = snapshot.lastDamageAgeTicks ?: return@condition false
-            age <= args.get("withinTicks").asLong
+        readCondition("samcnpc:target_alive") { it.attackTarget?.alive == true },
+        ConditionDefinition("samcnpc:health_fraction", ::healthFractionArgs) { args ->
+            val operator = Comparison.parse(args.get("operator").asString)
+            val value = args.get("value").asDouble
+            ConditionHandler { context -> operator.test(context.snapshot.healthFraction, value) }
         },
-        condition("samcnpc:target_alive", ::noArgs) { npc, world, _, _ -> BehaviorTargetMemory.hasLiveTarget(npc, world) },
-        condition("samcnpc:health_fraction", ::healthFractionArgs) { _, _, snapshot, args ->
-            compare(snapshot.healthFraction, args.get("operator").asString, args.get("value").asDouble)
-        },
-    ).associateBy { it.id }
+    ).associateBy { it.id })
 
-    val actions: Map<String, ActionDefinition> = listOf(
-        action("samcnpc:look_at_summoner", setOf(BehaviorChannel.LOOK), ::noArgs) { npc, world, _ ->
-            val summoner = resolveSummoner(npc, world) ?: return@action NpcActionResult.rejected("summoner is unavailable in the current bounded world view")
+    val actions: Map<String, ActionDefinition> = java.util.Map.copyOf(listOf(
+        action("samcnpc:look_at_summoner", setOf(BehaviorChannel.LOOK)) { npc, _, context ->
+            val summoner = context.summoner
+                ?: return@action NpcActionResult.rejected("summoner is unavailable in the current bounded world view")
             npc.lookAtEntity(summoner.uuid)
         },
-        action("samcnpc:look_at_target", setOf(BehaviorChannel.LOOK), ::noArgs) { npc, world, _ ->
-            val target = BehaviorTargetMemory.resolveLiveTarget(npc, world)
-                ?: return@action NpcActionResult.rejected("behavior target is unavailable")
+        action("samcnpc:look_at_target", setOf(BehaviorChannel.LOOK)) { npc, _, context ->
+            val target = context.attackTarget ?: return@action NpcActionResult.rejected("behavior target is unavailable")
             npc.lookAtEntity(target.uuid)
         },
-        action("samcnpc:move_to_summoner", setOf(BehaviorChannel.MOVEMENT), ::moveArgs) { npc, world, args ->
-            val summoner = resolveSummoner(npc, world) ?: return@action NpcActionResult.rejected("summoner is unavailable in the current bounded world view")
-            steerToward(npc, summoner, args.get("speed").asFloat, args.get("stopDistance").asDouble)
-        },
-        action("samcnpc:move_to_target", setOf(BehaviorChannel.MOVEMENT), ::moveArgs) { npc, world, args ->
-            val target = BehaviorTargetMemory.resolveLiveTarget(npc, world)
-                ?: return@action NpcActionResult.rejected("behavior target is unavailable")
-            steerToward(npc, target, args.get("speed").asFloat, args.get("stopDistance").asDouble)
-        },
-        action("samcnpc:stop_movement", setOf(BehaviorChannel.MOVEMENT), ::noArgs) { npc, _, _ -> npc.stopControl() },
-        action("samcnpc:attack_target", setOf(BehaviorChannel.COMBAT, BehaviorChannel.MAIN_HAND), ::noArgs) { npc, world, _ ->
-            val target = BehaviorTargetMemory.resolveLiveTarget(npc, world)
-                ?: return@action NpcActionResult.rejected("behavior target is unavailable")
+        io.samcnpc.behavior.runtime.FollowMovement.definition(),
+        moveAction("samcnpc:move_to_target") { it.attackTarget },
+        action("samcnpc:stop_movement", setOf(BehaviorChannel.MOVEMENT)) { npc, _, _ -> npc.stopControl() },
+        action("samcnpc:attack_target", setOf(BehaviorChannel.COMBAT, BehaviorChannel.MAIN_HAND)) { npc, _, context ->
+            val target = context.attackTarget ?: return@action NpcActionResult.rejected("behavior target is unavailable")
+            if (context.snapshot.attackStrength < 0.9F) return@action NpcActionResult.running("waiting for the real melee cooldown")
             npc.attackEntity(target.uuid)
         },
-        action("samcnpc:set_attack_target_from_recent_attacker", setOf(BehaviorChannel.COMBAT), ::noArgs) { npc, _, _ ->
-            BehaviorTargetMemory.acquireFromRecentDamage(npc)
+        BehaviorTargetMemory.definition(),
+        action("samcnpc:clear_attack_target", setOf(BehaviorChannel.COMBAT)) { _, _, context ->
+            BehaviorTargetMemory.clear(context.snapshot.npcUuid)
         },
-        action("samcnpc:clear_attack_target", setOf(BehaviorChannel.COMBAT), ::noArgs) { npc, _, _ ->
-            BehaviorTargetMemory.clear(npc.npcUuid)
+        action(io.samcnpc.behavior.task.TaskService.REACTION_ACTION_ID, setOf(BehaviorChannel.COMBAT)) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskCombatReactions.begin(server, npc, world)
         },
-        action(
-            "samcnpc:run_lumberjack_demo",
-            setOf(
-                BehaviorChannel.MOVEMENT,
-                BehaviorChannel.LOOK,
-                BehaviorChannel.MAIN_HAND,
-                BehaviorChannel.BLOCK_ACTION,
-                BehaviorChannel.INVENTORY,
-            ),
-            ::noArgs,
-        ) { npc, world, _ ->
+        action(io.samcnpc.behavior.task.TaskService.COMBAT_ACTION_ID, setOf(BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK,
+            BehaviorChannel.COMBAT, BehaviorChannel.MAIN_HAND)) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.COMBAT_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.ACTION_ID, setOf(BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK)) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world)
+        },
+        action(io.samcnpc.behavior.task.TaskService.DELIVERY_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.DELIVERY_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.LUMBERJACK_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.LUMBERJACK_ACTION_ID)
+        },
+        action("samcnpc:run_lumberjack_demo", setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
             val server = BehaviorRuntimeService.serverOrNull()
                 ?: return@action NpcActionResult.rejected("behavior server is not ready")
             LumberjackService.tick(server, npc, world)
         },
-    ).associateBy { it.id }
+    ).associateBy { it.id })
 
     val compiler = BehaviorPackCompiler(conditions, actions)
 
-    private fun condition(
-        id: String,
-        validate: (JsonObject) -> String?,
-        handler: (NpcFacade, NpcWorldView, NpcSnapshot, JsonObject) -> Boolean,
-    ): ConditionDefinition = ConditionDefinition(id, validate, ConditionHandler(handler))
+    private fun readCondition(id: String, handler: (BehaviorReadContext) -> Boolean): ConditionDefinition =
+        ConditionDefinition(id, ::noArgs) { ConditionHandler(handler) }
 
     private fun action(
         id: String,
         channels: Set<BehaviorChannel>,
-        validate: (JsonObject) -> String?,
-        handler: (NpcFacade, NpcWorldView, JsonObject) -> NpcActionResult,
-    ): ActionDefinition = ActionDefinition(id, channels, validate, ActionHandler(handler))
+        handler: (NpcFacade, NpcWorldView, BehaviorReadContext) -> NpcActionResult,
+    ): ActionDefinition = ActionDefinition(id, channels, ::noArgs) { ActionHandler(handler) }
 
-    private fun resolveSummoner(npc: NpcFacade, world: NpcWorldView): NpcEntityObservation? {
-        val snapshot = npc.snapshot()
-        return snapshot.summonerUuid?.let(world::observeEntity)?.takeIf { it.alive && it.isPlayer }
-    }
+    private fun moveAction(id: String, target: (BehaviorReadContext) -> NpcEntityObservation?): ActionDefinition =
+        ActionDefinition(id, setOf(BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK), ::moveArgs) { args ->
+            val speed = args.get("speed").asFloat
+            val stopDistance = args.get("stopDistance").asDouble
+            ActionHandler { npc, _, context ->
+                val observation = target(context)
+                    ?: return@ActionHandler NpcActionResult.rejected("movement target is unavailable in the current bounded world view")
+                steerToward(npc, context.snapshot, observation, speed, stopDistance)
+            }
+        }
 
-    private fun steerToward(npc: NpcFacade, target: NpcEntityObservation, speed: Float, stopDistance: Double): NpcActionResult {
-        val snapshot = npc.snapshot()
-        if (horizontalDistance(snapshot, target) <= stopDistance) {
-            return npc.stopControl()
+    private fun steerToward(
+        npc: NpcFacade,
+        snapshot: NpcSnapshot,
+        target: NpcEntityObservation,
+        speed: Float,
+        stopDistance: Double,
+    ): NpcActionResult {
+        if (horizontalDistance(snapshot, target) <= stopDistance) return npc.stopControl()
+        val look = npc.lookAtEntity(target.uuid)
+        when (look.status) {
+            NpcActionStatus.REJECTED, NpcActionStatus.FAILED, NpcActionStatus.UNSUPPORTED -> return look
+            else -> Unit
         }
-        val lookResult = npc.lookAtEntity(target.uuid)
-        if (lookResult.status == io.samcnpc.core.api.NpcActionStatus.REJECTED) {
-            return lookResult
-        }
-        // Pack speed above one is a bounded request to use the normal sprint flag, not a Core
-        // speed boost. Core still receives a legal analog input in [0, 1].
-        return npc.applyControl(
-            NpcControlInput(
-                forward = 1.0F,
-                strafe = 0.0F,
-                speedMultiplier = speed.coerceAtMost(1.0F),
-                sprint = speed > 1.0F,
-            ),
-        )
+        // Speed above one requests the normal sprint flag, never a hidden physics boost.
+        return npc.applyControl(NpcControlInput(
+            forward = 1.0F, strafe = 0.0F, speedMultiplier = speed.coerceAtMost(1.0F), sprint = speed > 1.0F,
+        ))
     }
 
     private fun horizontalDistance(snapshot: NpcSnapshot, entity: NpcEntityObservation): Double {
@@ -179,13 +202,20 @@ object BehaviorDefinitions {
         }
     }
 
-    private fun compare(actual: Double, operator: String, expected: Double): Boolean = when (operator) {
-        "gt" -> actual > expected
-        "gte" -> actual >= expected
-        "lt" -> actual < expected
-        "lte" -> actual <= expected
-        "eq" -> actual == expected
-        else -> false
+    private enum class Comparison(val token: String) {
+        GT("gt"), GTE("gte"), LT("lt"), LTE("lte"), EQ("eq");
+
+        fun test(actual: Double, expected: Double): Boolean = when (this) {
+            GT -> actual > expected
+            GTE -> actual >= expected
+            LT -> actual < expected
+            LTE -> actual <= expected
+            EQ -> actual == expected
+        }
+
+        companion object {
+            fun parse(token: String): Comparison = entries.first { it.token == token }
+        }
     }
 
     private fun JsonObject.string(name: String): String? =

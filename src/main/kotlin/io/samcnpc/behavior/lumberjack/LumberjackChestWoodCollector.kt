@@ -1,6 +1,8 @@
 package io.samcnpc.behavior.lumberjack
 
 import com.mojang.logging.LogUtils
+import io.samcnpc.behavior.kernel.inventory.ItemPickupApproach
+import io.samcnpc.core.api.NpcNavigationRequest
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoJob
 import io.samcnpc.behavior.lumberjack.model.LumberjackChestAccessStage
 import io.samcnpc.core.api.NpcActionResult
@@ -35,14 +37,15 @@ internal object LumberjackChestWoodCollector {
             job.chestAccessStage = LumberjackChestAccessStage.CLEAR_FOLIAGE
             return NpcActionResult.running("route wood collection finished; resuming the same chest approach")
         }
-        val drop = drops.filter { it.position.y <= snapshot.position.y + 0.9 }
-            .minWithOrNull(compareBy<NpcEntityObservation> { distanceSquared(snapshot.position, it.position) }.thenBy { it.uuid.toString() })
+        val selection = ItemPickupApproach.select(snapshot.position, world, drops)
+        val drop = selection?.drop
         if (drop == null) {
             npc.stopControl()
             return NpcActionResult.running("waiting for route wood drops to land and the pickup area to settle")
         }
-        if (distanceSquared(snapshot.position, drop.position) > 4.0) {
-            val navigation = npc.navigateTo(drop.position, NAVIGATION_SPEED_MULTIPLIER)
+        val standing = selection.standing
+        if (standing != null) {
+            val navigation = npc.navigateTo(NpcNavigationRequest(standing, NAVIGATION_SPEED_MULTIPLIER, arrivalDistance = 0.65))
             return NpcActionResult.running("approaching route wood: ${navigation.code}: ${navigation.detail}")
         }
         npc.stopControl()

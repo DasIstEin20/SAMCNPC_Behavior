@@ -1,6 +1,10 @@
 package io.samcnpc.behavior.lumberjack.persistence
 
+import com.mojang.logging.LogUtils
+import io.samcnpc.core.api.NpcActionCode
+import io.samcnpc.core.api.NpcActionResult
 import io.samcnpc.core.api.NpcBlockPosition
+import io.samcnpc.behavior.kernel.elevation.LegacyPillarBlocks
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarResultCode
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarSession
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarState
@@ -24,11 +28,23 @@ import java.util.UUID
 internal class LumberjackDemoStore private constructor() : SavedData() {
     private val jobs: MutableMap<UUID, LumberjackDemoJob> = mutableMapOf()
 
-    fun jobFor(npcUuid: UUID): LumberjackDemoJob? = jobs[npcUuid]
+    private val rejectedEntries = mutableListOf<CompoundTag>()
+    private val problems = mutableMapOf<UUID, String>()
+    private var fileProblem: String? = null
+    private var preservedData: CompoundTag? = null
 
-    fun put(job: LumberjackDemoJob) {
+    fun jobFor(npcUuid: UUID): LumberjackDemoJob? = jobs[npcUuid]
+    fun problemFor(npcUuid: UUID): String? = fileProblem ?: problems[npcUuid]
+
+    fun put(job: LumberjackDemoJob): NpcActionResult {
+        val problem = problemFor(job.npcUuid)
+        if (problem != null) return NpcActionResult.rejected(problem, NpcActionCode.NOT_READY)
+        if (job.npcUuid !in jobs && jobs.size + rejectedEntries.size >= MAX_SAVED_JOBS) {
+            return NpcActionResult.rejected("lumberjack storage is full ($MAX_SAVED_JOBS jobs)", NpcActionCode.NOT_READY)
+        }
         jobs[job.npcUuid] = job
         setDirty()
+        return NpcActionResult.succeeded("lumberjack job stored")
     }
 
     fun remove(npcUuid: UUID): LumberjackDemoJob? = jobs.remove(npcUuid)?.also { setDirty() }
@@ -38,6 +54,8 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
     }
 
     override fun save(tag: CompoundTag): CompoundTag {
+        val preserved = preservedData
+        if (preserved != null) return tag.merge(preserved.copy())
         tag.putInt(KEY_VERSION, DATA_VERSION)
         val savedJobs = ListTag()
         jobs.toSortedMap(compareBy(UUID::toString)).forEach { (_, job) ->
@@ -85,13 +103,14 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             entry.put(KEY_INITIAL_WOOD, initialWood)
             savedJobs.add(entry)
         }
+        for (entry in rejectedEntries) savedJobs.add(entry.copy())
         tag.put(KEY_JOBS, savedJobs)
         return tag
     }
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_lumberjack_demo"
-        private const val DATA_VERSION = 18
+        private const val DATA_VERSION = 19
         private const val KEY_VERSION = "version"
         private const val KEY_JOBS = "jobs"
         private const val KEY_NPC_UUID = "npcUuid"
@@ -137,24 +156,79 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
         private const val MAX_FAILED_WORK_ATTEMPTS = 3
         private val PACK_ID = Regex("^[a-z0-9_.-]+:[a-z0-9_./-]+$")
 
-        fun forServer(server: MinecraftServer): LumberjackDemoStore =
-            server.overworld().dataStorage.computeIfAbsent(::load, ::LumberjackDemoStore, DATA_NAME)
+        private val LOGGER = LogUtils.getLogger()
+
+        fun forServer(server: MinecraftServer): LumberjackDemoStore {
+            check(server.isSameThread) { "lumberjack persistence requires the authoritative server thread" }
+            return server.overworld().dataStorage.computeIfAbsent(::load, ::LumberjackDemoStore, DATA_NAME)
+        }
+
+        /** Same strict, versioned work checkpoint used inside a common task frame. */
+        internal fun encodeCheckpoint(job: LumberjackDemoJob): CompoundTag {
+            val snapshot = LumberjackDemoStore()
+            snapshot.jobs[job.npcUuid] = job
+            return snapshot.save(CompoundTag())
+        }
+
+        internal fun decodeCheckpoint(tag: CompoundTag, npcUuid: UUID): LumberjackDemoJob {
+            val entries = tag.get(KEY_JOBS) as? ListTag
+            require(entries != null && entries.size == 1 && entries.elementType == Tag.TAG_COMPOUND) { "work checkpoint must contain exactly one job" }
+            require(entries.getCompound(0).hasUUID(KEY_NPC_UUID) && entries.getCompound(0).getUUID(KEY_NPC_UUID) == npcUuid) { "work checkpoint belongs to another NPC" }
+            val snapshot = load(tag)
+            require(snapshot.problemFor(npcUuid) == null) { snapshot.problemFor(npcUuid).orEmpty() }
+            val job = requireNotNull(snapshot.jobFor(npcUuid)) { "work checkpoint is unavailable" }
+            require(tag == encodeCheckpoint(job)) { "work checkpoint is noncanonical or requires legacy repair" }
+            return job
+        }
 
         internal fun load(tag: CompoundTag): LumberjackDemoStore {
             val store = LumberjackDemoStore()
             val savedVersion = tag.getInt(KEY_VERSION)
-            if (savedVersion !in 0..DATA_VERSION) {
+            val entries = tag.get(KEY_JOBS) as? ListTag
+            if ((tag.contains(KEY_VERSION) && !tag.contains(KEY_VERSION, Tag.TAG_INT.toInt())) || savedVersion !in 0..DATA_VERSION ||
+                entries == null || entries.size > MAX_SAVED_JOBS || (!entries.isEmpty() && entries.elementType != Tag.TAG_COMPOUND)) {
+                store.fileProblem = "Cannot load $DATA_NAME: unsupported version, oversized or malformed jobs; original data preserved, safe idle"
+                store.preservedData = tag.copy()
+                LOGGER.warn(store.fileProblem)
                 return store
             }
-            val entries = tag.getList(KEY_JOBS, Tag.TAG_COMPOUND.toInt())
-            for (index in 0 until entries.size.coerceAtMost(MAX_SAVED_JOBS)) {
-                val entry = entries.getCompound(index)
-                if (!entry.hasUUID(KEY_NPC_UUID)) {
-                    continue
+            val seen = hashSetOf<UUID>()
+            val firstEntries = mutableMapOf<UUID, CompoundTag>()
+            for (element in entries) {
+                val entry = element as CompoundTag
+                val npcUuid = if (entry.hasUUID(KEY_NPC_UUID)) entry.getUUID(KEY_NPC_UUID) else null
+                try {
+                    require(npcUuid != null) { "missing NPC UUID" }
+                    require(seen.add(npcUuid)) { "duplicate NPC job" }
+                    LumberjackSavedJobValidation.validate(entry, savedVersion)
+                    val job = readJob(entry, savedVersion)
+                    store.jobs[npcUuid] = job
+                    firstEntries[npcUuid] = entry
+                } catch (error: IllegalArgumentException) {
+                    val problem = "Invalid lumberjack job npc=$npcUuid: ${error.message}; original job preserved, safe idle"
+                    if (npcUuid != null) {
+                        store.problems[npcUuid] = problem
+                        store.jobs.remove(npcUuid)
+                        firstEntries.remove(npcUuid)?.let { store.rejectedEntries.add(it.copy()) }
+                    }
+                    store.rejectedEntries.add(entry.copy())
+                    LOGGER.warn(problem)
                 }
-                val chest = entry.positionOrNull(KEY_CHEST) ?: continue
-                val workCenter = entry.positionOrNull(KEY_WORK_CENTER) ?: continue
-                val phase = LumberjackDemoPhase.entries.firstOrNull { it.name == entry.getString(KEY_PHASE) } ?: continue
+            }
+            if (savedVersion < DATA_VERSION && store.rejectedEntries.isNotEmpty()) {
+                // A raw v4 cursor cannot be relabelled v18 just because another entry migrated.
+                store.jobs.clear()
+                store.fileProblem = "Legacy lumberjack v$savedVersion contains rejected jobs; entire original file preserved to retain migration semantics"
+                store.preservedData = tag.copy()
+                LOGGER.warn(store.fileProblem)
+            }
+            return store
+        }
+
+        private fun readJob(entry: CompoundTag, savedVersion: Int): LumberjackDemoJob {
+                val chest = requireNotNull(entry.positionOrNull(KEY_CHEST))
+                val workCenter = requireNotNull(entry.positionOrNull(KEY_WORK_CENTER))
+                val phase = requireNotNull(LumberjackDemoPhase.entries.firstOrNull { it.name == entry.getString(KEY_PHASE) })
                 val previousPackIds = entry.getList(KEY_PREVIOUS_PACKS, Tag.TAG_STRING.toInt())
                     .take(MAX_PREVIOUS_PACKS)
                     .map { it.asString }
@@ -217,7 +291,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     failedWorkAttempts = entry.getInt(KEY_FAILED_WORK_ATTEMPTS).coerceIn(0, MAX_FAILED_WORK_ATTEMPTS),
                     abandonTreeAfterPillarCleanup = entry.getBoolean(KEY_ABANDON_AFTER_PILLAR_CLEANUP),
                     initialWoodCounts = initialWoodCounts,
-                    pillarSession = entry.pillarSessionOrNull(),
+                    pillarSession = entry.pillarSessionOrNull(savedVersion),
                     // Older jobs have no separate chest-access continuation; their tree task
                     // and existing scaffold recovery budget retain their previous meanings.
                     chestAccessTarget = chestAccessTarget,
@@ -226,10 +300,13 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                     chestAccessStage = accessStage,
                     chestAccessQuietTicks = if (collectingRouteWood) entry.getInt(KEY_CHEST_ACCESS_QUIET_TICKS).coerceIn(0, LumberjackCollectionBudget.QUIET_TICKS) else 0,
                 )
+                require(!entry.contains(KEY_PILLAR_SESSION) || job.pillarSession != null) { "pillar continuation is unreadable" }
+                val pillar = job.pillarSession
+                if (savedVersion >= 16 && pillar?.state == TemporaryPillarState.VERIFY_PLACEMENT) {
+                    require(pillar.currentPlacement != null && pillar.expectedMaterialCountAfterPlacement != null) { "placement verification lost its receipt" }
+                }
                 recoverLegacyPlacement(savedVersion, job)
-                store.jobs[job.npcUuid] = job
-            }
-            return store
+                return job
         }
 
         private fun recoverLegacyPlacement(version: Int, job: LumberjackDemoJob) {
@@ -241,6 +318,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             val pending = pillar.currentPlacement
             if (pending != null && pending !in pillar.placedPositions && pillar.placedPositions.size < MAX_PILLAR_POSITIONS) {
                 pillar.placedPositions.add(pending)
+                pillar.placedBlockIds.putAll(LegacyPillarBlocks.expectedIds(listOf(pending), pillar.materialItemId))
             }
             pillar.currentPlacement = null
             pillar.expectedMaterialCountAfterPlacement = null
@@ -284,9 +362,15 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
             val placed = ListTag()
             placedPositions.take(MAX_PILLAR_POSITIONS).forEach { placed.add(it.toTag()) }
             tag.put(KEY_PILLAR_POSITIONS, placed)
+            val identities = ListTag()
+            for (position in placedPositions) {
+                val blockId = placedBlockIds[position] ?: continue
+                identities.add(position.toTag().apply { putString("blockId", blockId) })
+            }
+            tag.put("placedBlocks", identities)
         }
 
-        private fun CompoundTag.pillarSessionOrNull(): TemporaryPillarSession? {
+        private fun CompoundTag.pillarSessionOrNull(savedVersion: Int): TemporaryPillarSession? {
             if (!contains(KEY_PILLAR_SESSION, Tag.TAG_COMPOUND.toInt())) {
                 return null
             }
@@ -308,6 +392,17 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                 .mapNotNull { (it as? CompoundTag)?.positionOrNullDirect() }
                 .distinct()
                 .toMutableList()
+            val blockIds = if (savedVersion < 19) {
+                LegacyPillarBlocks.expectedIds(placed, materialItemId)
+            } else {
+                val result = linkedMapOf<NpcBlockPosition, String>()
+                for (element in tag.getList("placedBlocks", Tag.TAG_COMPOUND.toInt())) {
+                    val identity = element as CompoundTag
+                    val position = requireNotNull(identity.positionOrNullDirect())
+                    result[position] = identity.getString("blockId")
+                }
+                result
+            }
             return TemporaryPillarSession(
                 taskId = tag.getUUID(KEY_TASK_ID),
                 targetPosition = target,
@@ -329,6 +424,7 @@ internal class LumberjackDemoStore private constructor() : SavedData() {
                 placedPositions = placed,
                 positioningTicks = tag.getInt(KEY_PILLAR_POSITIONING_TICKS).coerceIn(0, 41),
                 cleanupTicks = tag.getInt(KEY_PILLAR_CLEANUP_TICKS).coerceIn(0, 601),
+                placedBlockIds = blockIds,
             )
         }
 

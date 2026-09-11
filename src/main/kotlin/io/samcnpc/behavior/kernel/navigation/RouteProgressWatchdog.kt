@@ -3,33 +3,40 @@ package io.samcnpc.behavior.kernel.navigation
 import io.samcnpc.core.api.NpcPosition
 import java.util.UUID
 
-/**
- * Per-NPC, transient route progress measurement. The caller chooses the route identity, goal and
- * recovery policy; this kernel only answers whether horizontal progress has stopped.
- */
+/** The caller owns route/recovery policy. Repeated calls and vertical jitter are not progress. */
 internal class RouteProgressWatchdog<R>(
     private val minimumProgressDistanceSquared: Double,
 ) {
+    init {
+        require(minimumProgressDistanceSquared.isFinite() && minimumProgressDistanceSquared > 0.0)
+    }
+
     private val states: MutableMap<UUID, State<R>> = mutableMapOf()
 
-    fun hasStalled(npcUuid: UUID, route: R, position: NpcPosition, goal: NpcPosition, timeoutTicks: Int): Boolean {
+    fun hasStalled(npcUuid: UUID, route: R, position: NpcPosition, goal: NpcPosition,
+                   timeoutTicks: Int, gameTime: Long): Boolean {
+        require(timeoutTicks > 0)
         val distanceSquared = horizontalDistanceSquared(position, goal)
         val current = states[npcUuid]
-        if (current == null || current.route != route || current.goal != goal) {
-            states[npcUuid] = State(route, goal, distanceSquared, timeoutTicks)
+        if (current == null || current.route != route || current.goal != goal || gameTime < current.lastObservedTick) {
+            states[npcUuid] = State(route, goal, distanceSquared, timeoutTicks, gameTime, gameTime)
             return false
         }
+        if (gameTime == current.lastObservedTick) return current.noProgressTicks >= current.timeoutTicks
+        current.lastObservedTick = gameTime
         if (distanceSquared <= current.bestHorizontalDistanceSquared - minimumProgressDistanceSquared) {
             current.bestHorizontalDistanceSquared = distanceSquared
+            current.lastProgressTick = gameTime
             current.noProgressTicks = 0
             return false
         }
-        current.noProgressTicks += 1
+        current.noProgressTicks = (gameTime - current.lastProgressTick).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
         return current.noProgressTicks >= current.timeoutTicks
     }
 
-    fun status(npcUuid: UUID): Progress? = states[npcUuid]?.let { state ->
-        Progress(state.noProgressTicks, state.timeoutTicks)
+    fun status(npcUuid: UUID): Progress? {
+        val state = states[npcUuid] ?: return null
+        return Progress(state.noProgressTicks, state.timeoutTicks)
     }
 
     fun clear(npcUuid: UUID) {
@@ -49,6 +56,8 @@ internal class RouteProgressWatchdog<R>(
         val goal: NpcPosition,
         var bestHorizontalDistanceSquared: Double,
         val timeoutTicks: Int,
+        var lastObservedTick: Long,
+        var lastProgressTick: Long,
         var noProgressTicks: Int = 0,
     )
 }

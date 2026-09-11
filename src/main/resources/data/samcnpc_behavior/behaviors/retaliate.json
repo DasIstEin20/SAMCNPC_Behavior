@@ -1,15 +1,18 @@
 {
   "schemaVersion": 1,
   "id": "samcnpc:retaliate",
-  "description": "Acquire the recent attacker as a target and fight it through bounded Core combat actions.",
+  "description": "React once to new accepted damage, retain an eligible target and stop at the original chase bounds.",
   "priority": 500,
   "channels": ["movement", "look", "combat", "main_hand"],
   "rules": [
     {
       "id": "acquire_attacker",
       "priority": 1000,
-      "when": { "test": { "condition": "samcnpc:was_hurt_recently", "args": { "withinTicks": 100 } } },
-      "actions": [{ "action": "samcnpc:set_attack_target_from_recent_attacker" }]
+      "when": { "all": [
+        { "test": { "condition": "samcnpc:has_unhandled_damage" } },
+        { "not": { "test": { "condition": "samcnpc:has_attack_target" } } }
+      ] },
+      "actions": [{ "action": "samcnpc:set_attack_target_from_recent_attacker", "args": {"leash": 24.0, "durationTicks": 600, "allowPlayers": false} }]
     },
     {
       "id": "approach_target",

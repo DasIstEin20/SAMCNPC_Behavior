@@ -1,5 +1,7 @@
 package io.samcnpc.behavior.lumberjack
 
+import io.samcnpc.behavior.kernel.inventory.ItemPickupApproach
+import io.samcnpc.core.api.NpcNavigationRequest
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoJob
 import io.samcnpc.core.api.NpcActionResult
 import io.samcnpc.core.api.NpcActionStatus
@@ -50,15 +52,15 @@ internal object LumberjackDropCollector {
             return Result.Complete(drops.size, budget.timedOut)
         }
         // Falling items keep the window open, but never become floating navigation goals.
-        val drop = drops.filter { it.position.y <= snapshot.position.y + 0.9 }
-            .minWithOrNull(compareBy<NpcEntityObservation> { distanceSquared(snapshot.position, it.position) }
-                .thenBy { it.uuid.toString() })
+        val selection = ItemPickupApproach.select(snapshot.position, world, drops)
+        val drop = selection?.drop
         if (drop == null) {
             npc.stopControl()
             return Result.Running(NpcActionResult.running("waiting for tree/scaffold drops to land and the pickup area to settle"))
         }
-        if (distanceSquared(snapshot.position, drop.position) > 4.0) {
-            val navigation = npc.navigateTo(drop.position, NAVIGATION_SPEED_MULTIPLIER)
+        val standing = selection.standing
+        if (standing != null) {
+            val navigation = npc.navigateTo(NpcNavigationRequest(standing, NAVIGATION_SPEED_MULTIPLIER, arrivalDistance = 0.65))
             if (navigation.status == NpcActionStatus.ACCEPTED || navigation.status == NpcActionStatus.RUNNING || navigation.status == NpcActionStatus.SUCCEEDED) {
                 val look = lookTowards(npc, drop.position)
                 if (look.status != NpcActionStatus.SUCCEEDED) return Result.Running(look)

@@ -8,6 +8,7 @@ import io.samcnpc.core.api.NpcBlockPosition
 import io.samcnpc.core.api.NpcControlInput
 import io.samcnpc.core.api.NpcEntityQuery
 import io.samcnpc.core.api.NpcFacade
+import io.samcnpc.core.api.NpcNavigationRequest
 import io.samcnpc.core.api.NpcPillarMaterialClass
 import io.samcnpc.core.api.NpcPosition
 import io.samcnpc.core.api.NpcRaycastRequest
@@ -100,7 +101,21 @@ internal object TemporaryPillarKernel {
     }
 
     fun tick(npc: NpcFacade, world: NpcWorldView, session: PillarSession): PillarProgress {
+        val resuming = session.revalidateSupports
+        if (resuming || session.state == PillarState.VALIDATE_BASE) {
+            if (!reconcileSupports(npc, world, session)) return PillarProgress.Failed(session.lastResult, "recorded scaffold geometry changed or is unverified")
+        }
         val snapshot = npc.snapshot()
+        if (resuming && session.state != PillarState.DESCEND_BREAK && session.state != PillarState.DESCEND_LAND) {
+            val top = session.placedPositions.maxByOrNull { it.y }
+            if (top != null && (!snapshot.onGround || currentFeetCell(snapshot.position) != top.copy(y = top.y + 1))) {
+                // An interruption can move the body while leaving honest placed blocks behind.
+                // Resume from verified footing before reusing a pending jump/placement state.
+                session.currentPlacement = top
+                session.expectedMaterialCountAfterPlacement = null
+                session.state = PillarState.WAIT_FOR_LANDING
+            }
+        }
         val targetObservation = world.observeBlock(session.targetPosition)
         if (targetObservation == null || targetObservation.isAir) {
             session.lastResult = PillarResultCode.PILLAR_TARGET_GONE
@@ -177,6 +192,7 @@ internal object TemporaryPillarKernel {
             session.lastResult = PillarResultCode.PILLAR_UNSAFE_ENVIRONMENT
             return PillarProgress.CleanupIncomplete
         }
+        if (session.revalidateSupports && !reconcileSupports(npc, world, session)) return PillarProgress.CleanupIncomplete
         if (++session.cleanupTicks > MAX_CLEANUP_TICKS) {
             npc.abortBlockBreak()
             session.lastResult = PillarResultCode.PILLAR_CLEANUP_INCOMPLETE
@@ -195,12 +211,18 @@ internal object TemporaryPillarKernel {
             // This exact position was recorded only after a successful placement verification.
             // Its observed disappearance and an actual landing complete one honest descent step.
             session.placedPositions.remove(removedSupport)
+            session.placedBlockIds.remove(removedSupport)
             session.currentPlacement = null
             session.state = PillarState.DESCEND_BREAK
             return PillarProgress.Running("landed safely after removing one temporary scaffold block")
         }
         val pendingRemoval = session.currentPlacement
         if (session.state == PillarState.DESCEND_BREAK && pendingRemoval != null) {
+            val observed = world.observeBlock(pendingRemoval)
+            if (observed?.isAir != true && !matchesSupport(world, session, pendingRemoval)) {
+                abortRelatedBreak(npc, session)
+                return PillarProgress.CleanupIncomplete
+            }
             val active = snapshot.blockBreak
             if (active != null && active.position == pendingRemoval) {
                 return npc.continueBlockBreak().toProgress("removing one temporary scaffold block")
@@ -232,11 +254,12 @@ internal object TemporaryPillarKernel {
         if (!snapshot.onGround) {
             return PillarProgress.Running("waiting for stable footing before scaffold cleanup")
         }
-        val support = currentFeetCell(snapshot.position).let { NpcBlockPosition(it.x, it.y - 1, it.z) }
-        if (support !in session.placedPositions) {
-            session.lastResult = PillarResultCode.PILLAR_CLEANUP_INCOMPLETE
-            return PillarProgress.CleanupIncomplete
-        }
+        val beneath = currentFeetCell(snapshot.position).let { NpcBlockPosition(it.x, it.y - 1, it.z) }
+        // After an interruption the body may be on the ground beside a too-high scaffold.
+        // Only its highest recorded block is eligible from the side; normal Core reach/ray
+        // checks still apply, and the same identity/occupancy checks below protect every break.
+        val support = if (beneath in session.placedPositions) beneath else session.placedPositions.maxByOrNull { it.y }
+            ?: return PillarProgress.CleanupIncomplete
         // Drops produced by the preceding normal block break do not occupy a scaffold. A player,
         // mob, boat, or minecart does; never remove a support while one of those is there.
         if (world.queryEntities(NpcEntityQuery(blockCenter(support), radius = 0.8, limit = 8)).any { it.typeId != "minecraft:item" }) {
@@ -245,6 +268,10 @@ internal object TemporaryPillarKernel {
         val observation = world.observeBlock(support)
         if (observation == null || observation.isAir || !observation.isSolid) {
             session.lastResult = PillarResultCode.PILLAR_SUPPORT_LOST
+            return PillarProgress.CleanupIncomplete
+        }
+        if (!matchesSupport(world, session, support)) {
+            abortRelatedBreak(npc, session)
             return PillarProgress.CleanupIncomplete
         }
         val active = snapshot.blockBreak
@@ -265,6 +292,38 @@ internal object TemporaryPillarKernel {
         return PillarProgress.Running("starting normal cleanup break for one temporary scaffold block")
     }
 
+    private fun reconcileSupports(npc: NpcFacade, world: NpcWorldView, session: PillarSession): Boolean {
+        for (position in session.placedPositions) {
+            val pendingDescent = position == session.currentPlacement &&
+                (session.state == PillarState.DESCEND_BREAK || session.state == PillarState.DESCEND_LAND)
+            if (pendingDescent && world.observeBlock(position)?.isAir == true) continue
+            if (!matchesSupport(world, session, position)) {
+                abortRelatedBreak(npc, session)
+                return false
+            }
+        }
+        session.revalidateSupports = false
+        return true
+    }
+
+    private fun matchesSupport(world: NpcWorldView, session: PillarSession, position: NpcBlockPosition): Boolean {
+        val observed = world.observeBlock(position)
+        if (observed == null || observed.isAir || !observed.isSolid) {
+            session.lastResult = PillarResultCode.PILLAR_SUPPORT_LOST
+            return false
+        }
+        val expected = session.placedBlockIds[position]
+        if (expected == null || observed.blockId != expected) {
+            session.lastResult = PillarResultCode.PILLAR_SUPPORT_CHANGED
+            return false
+        }
+        return true
+    }
+
+    private fun abortRelatedBreak(npc: NpcFacade, session: PillarSession) {
+        if (npc.snapshot().blockBreak?.position in session.placedPositions) npc.abortBlockBreak()
+    }
+
     private fun validateStepBase(
         position: NpcPosition,
         onGround: Boolean,
@@ -275,6 +334,12 @@ internal object TemporaryPillarKernel {
         session: PillarSession,
         world: NpcWorldView,
     ): PillarProgress {
+        if (!onGround && !inWater && !inLava && !climbing && !riding) {
+            if (++session.positioningTicks > MAX_POSITIONING_TICKS) {
+                return fail(session, PillarResultCode.PILLAR_UNSAFE_ENVIRONMENT, "no stable landing before the bounded next-level deadline")
+            }
+            return PillarProgress.Running("waiting for normal landing before validating the next scaffold level")
+        }
         if (session.placedPositions.size >= MAX_HEIGHT) {
             session.lastResult = PillarResultCode.PILLAR_HEIGHT_LIMIT
             return PillarProgress.Failed(session.lastResult)
@@ -444,6 +509,7 @@ internal object TemporaryPillarKernel {
         if (placement !in session.placedPositions) {
             session.placedPositions.add(placement)
         }
+        session.placedBlockIds[placement] = actual.blockId
         if (!consumedFromSelectedMaterial) {
             return fail(session, PillarResultCode.PILLAR_PLACEMENT_DESYNC,
                 "placement=$placement expected=${session.materialItemId}x$expectedCount slot=${session.materialActiveSlot} actual=${held?.stack}")
@@ -461,12 +527,27 @@ internal object TemporaryPillarKernel {
         world: NpcWorldView,
     ): PillarProgress {
         val placement = session.currentPlacement ?: return fail(session, PillarResultCode.PILLAR_SUPPORT_LOST)
-        if (world.observeBlock(placement)?.isSolid != true) {
-            return fail(session, PillarResultCode.PILLAR_SUPPORT_LOST)
+        if (!matchesSupport(world, session, placement)) {
+            return fail(session, session.lastResult)
         }
-        if (!onGround || position.y < placement.y + LANDING_BOTTOM_OFFSET) {
-            return PillarProgress.Running("waiting to land on the newly placed scaffold block")
+        val standing = placement.copy(y = placement.y + 1)
+        if (!onGround || currentFeetCell(position) != standing || position.y < placement.y + LANDING_BOTTOM_OFFSET) {
+            if (++session.positioningTicks > MAX_POSITIONING_TICKS) {
+                npc.stopControl()
+                return fail(session, PillarResultCode.PILLAR_INTERRUPTED, "could not return to verified scaffold footing within $MAX_POSITIONING_TICKS steps")
+            }
+            if (!onGround) return PillarProgress.Running("waiting for normal landing before recovering scaffold footing")
+            val destination = NpcPosition(standing.x + 0.5, standing.y.toDouble(), standing.z + 0.5)
+            val observed = world.observeStandingSpace(destination)
+            if (observed == null || !observed.clear || !observed.supported || observed.inFluid) {
+                return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE, "recorded scaffold top is not a safe standing space")
+            }
+            val route = npc.navigateTo(NpcNavigationRequest(destination, 1.0F, 0.25))
+            if (route.isFailure()) return fail(session, PillarResultCode.PILLAR_INTERRUPTED, route.detail)
+            return PillarProgress.Running("returning to the verified scaffold top after interrupted movement")
         }
+        npc.stopControl()
+        session.positioningTicks = 0
         session.lastResult = PillarResultCode.PILLAR_LEVEL_COMPLETED
         workReachProgress(npc, world, session)?.let { return it }
         session.currentPlacement = null

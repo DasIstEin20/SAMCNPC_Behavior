@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:task_navigation",
+  "description": "Execute an explicitly assigned finite navigation task; paused/waiting tasks release channels.",
+  "priority": 100,
+  "channels": [
+    "movement",
+    "look",
+    "combat",
+    "main_hand"
+  ],
+  "rules": [
+    {
+      "id": "new_damage",
+      "priority": 1000,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_reaction_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_reaction"
+        }
+      ]
+    },
+    {
+      "id": "advance_combat",
+      "priority": 900,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_combat_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_combat_task"
+        }
+      ]
+    },
+    {
+      "id": "advance_task",
+      "priority": 100,
+      "when": {
+        "all": [
+          {
+            "test": {
+              "condition": "samcnpc:task_ready"
+            }
+          },
+          {
+            "not": {
+              "test": {
+                "condition": "samcnpc:task_combat_ready"
+              }
+            }
+          }
+        ]
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_navigation_task"
+        }
+      ]
+    }
+  ]
+}

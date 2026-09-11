@@ -53,7 +53,9 @@ minecraft {
             property 'forge.logging.console.level', 'info'
             property 'forge.enabledGameTestNamespaces', 'samcnpc_behavior'
             mods {
-                // Load source sets rather than a reobfuscated JAR into the mapped dev runtime.
+                // Behavior's dev runs must load Core through the same userdev remapping path as
+                // the standalone Core run. A reobfuscated project JAR here would link against
+                // runtime names before ForgeGradle has a chance to remap it.
                 samcnpc_core {
                     source project(':samcnpc-core').sourceSets.main
                 }
@@ -68,10 +70,45 @@ minecraft {
             workingDirectory project.file('run-config-smoke')
             property 'samcnpc.configSmoke', 'true'
             property 'samcnpc.configSmokeCompanionReport', 'tool-settings-behavior-result.txt'
+            property 'samcnpc.toolSettingsVariant', providers.gradleProperty('toolSettingsVariant').orElse('missing').get()
             mods {
                 samcnpc_core { source project(':samcnpc-core').sourceSets.test }
                 samcnpc_behavior { source sourceSets.test }
             }
+        }
+        clientConfigSmokeBare {
+            parent runs.clientConfigSmoke
+            workingDirectory project.file('run-config-bare-smoke')
+            property 'samcnpc.toolSettingsVariant', 'bare_hands'
+        }
+        clientConfigSmokeDurable {
+            parent runs.clientConfigSmoke
+            workingDirectory project.file('run-config-durable-smoke')
+            property 'samcnpc.toolSettingsVariant', 'durable'
+        }
+        clientTaskSmoke {
+            parent runs.client
+            workingDirectory project.file('run-task-smoke')
+            property 'samcnpc.taskSmoke', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        clientTaskCombatSmoke {
+            parent runs.client
+            workingDirectory project.file('run-task-combat-smoke')
+            property 'samcnpc.taskCombatSmoke', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        clientRetaliationSmoke {
+            parent runs.client
+            workingDirectory project.file('run-retaliation-smoke')
+            property 'samcnpc.retaliationSmoke', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        clientFollowSmoke {
+            parent runs.client
+            workingDirectory project.file('run-follow-smoke')
+            property 'samcnpc.followSmoke', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
         }
         clientLumberjackSmoke {
             parent runs.client
@@ -89,7 +126,35 @@ minecraft {
             mods { samcnpc_behavior { source sourceSets.test } }
         }
         server { args '--nogui' }
-        gameTestServer { workingDirectory project.file('run-gametest') }
+        gameTestServer {
+            workingDirectory project.file('run-gametest')
+            // Manual fixture geometry extends beyond the template's reset box. Never inherit
+            // old containers/entities when the suite layout changes between invocations.
+            args '--world', "gametest-${System.currentTimeMillis()}"
+        }
+    }
+}
+
+def forestSnapshot = providers.gradleProperty('forestSnapshot')
+def prepareForestRepairSmoke = tasks.register('prepareForestRepairSmoke', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-forest-repair')
+    into("saves/${forestSmokeWorld}") {
+        from { forestSnapshot.isPresent() ? project.file(forestSnapshot.get()) : project.files() }
+    }
+    doFirst {
+        if (!forestSnapshot.isPresent() || !new File(project.file(forestSnapshot.get()), 'level.dat').isFile()) {
+            throw new GradleException('Supply -PforestSnapshot=<paused regression world copy> containing level.dat')
+        }
+    }
+}
+
+tasks.matching { it.name == 'runClientForestRepairSmoke' }.configureEach {
+    dependsOn prepareForestRepairSmoke
+    def report = layout.projectDirectory.file('run-forest-repair/forest-repair-result.txt').asFile
+    doFirst { report.text = 'RUNNING\n' }
+    doLast {
+        if (!report.text.trim().endsWith('PASS')) throw new GradleException("Forest repair smoke failed: ${report}")
     }
 }
 
@@ -123,29 +188,16 @@ tasks.named('jar', Jar).configure {
     finalizedBy 'reobfJar'
 }
 
-tasks.register('verifyProductionKotlin') {
-    group = 'verification'
-    doLast {
-        def javaSources = fileTree('src/main') { include '**/*.java' }.files
-        if (!javaSources.empty) {
-            throw new GradleException("Production source must be Kotlin: ${javaSources.join(', ')}")
-        }
-    }
-}
-
-tasks.named('check').configure {
-    dependsOn tasks.named('verifyProductionKotlin')
-}
-
-// Command-line userdev needs the JSON packs and SNBT fixtures on its game resource path.
-// Stage them for every Behavior dev run, including a fresh client/server without an IDE.
+// Stage JSON packs and fixtures for fresh command-line userdev runs without an IDE.
 def prepareRunResources = tasks.register('prepareRunResources', Copy) {
     from layout.projectDirectory.dir('src/main/resources')
     into layout.projectDirectory.dir('run')
 }
 
-tasks.matching { it.name in ['runClient', 'runServer'] }.configureEach {
-    dependsOn prepareRunResources
+tasks.configureEach {
+    if (name in ['runClient', 'runServer']) {
+        dependsOn prepareRunResources
+    }
 }
 
 // A normal dev world's water/terrain must never leak into GameTest fixtures.
@@ -162,20 +214,6 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
 def prepareLumberjackSmokeResources = tasks.register('prepareLumberjackSmokeResources', Copy) {
     from layout.projectDirectory.dir('src/main/resources')
     into layout.projectDirectory.dir('run-lumberjack-smoke')
-}
-
-tasks.matching { it.name == 'runClientLumberjackSmoke' }.configureEach {
-    dependsOn prepareLumberjackSmokeResources
-    def report = layout.projectDirectory.file('run-lumberjack-smoke/lumberjack-smoke-result.txt').asFile
-    doFirst {
-        report.parentFile.mkdirs()
-        report.text = 'RUNNING\n'
-    }
-    doLast {
-        if (!report.exists() || !report.text.trim().endsWith('PASS')) {
-            throw new GradleException("Lumberjack client smoke did not pass: ${report}")
-        }
-    }
 }
 
 def prepareConfigSmokeResources = tasks.register('prepareConfigSmokeResources', Copy) {
@@ -199,25 +237,110 @@ tasks.matching { it.name == 'runClientConfigSmoke' }.configureEach {
     }
 }
 
-def forestSnapshot = providers.gradleProperty('forestSnapshot')
-def prepareForestRepairSmoke = tasks.register('prepareForestRepairSmoke', Copy) {
-    from layout.projectDirectory.dir('src/main/resources')
-    into layout.projectDirectory.dir('run-forest-repair')
-    into("saves/${forestSmokeWorld}") {
-        from { forestSnapshot.isPresent() ? project.file(forestSnapshot.get()) : project.files() }
-    }
+tasks.matching { it.name == 'runClientLumberjackSmoke' }.configureEach {
+    dependsOn prepareLumberjackSmokeResources
+    def report = layout.projectDirectory.file('run-lumberjack-smoke/lumberjack-smoke-result.txt').asFile
     doFirst {
-        if (!forestSnapshot.isPresent() || !new File(project.file(forestSnapshot.get()), 'level.dat').isFile()) {
-            throw new GradleException('Supply -PforestSnapshot=<paused regression world copy> containing level.dat')
+        report.parentFile.mkdirs()
+        report.text = 'RUNNING\n'
+    }
+    doLast {
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) {
+            throw new GradleException("Lumberjack client smoke did not pass: ${report}")
         }
     }
 }
 
-tasks.matching { it.name == 'runClientForestRepairSmoke' }.configureEach {
-    dependsOn prepareForestRepairSmoke
-    def report = layout.projectDirectory.file('run-forest-repair/forest-repair-result.txt').asFile
-    doFirst { report.text = 'RUNNING\n' }
+// P04 drives actual commands, saves/closes the integrated server and reopens the same world.
+def prepareTaskSmokeResources = tasks.register('prepareTaskSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-task-smoke')
+}
+tasks.matching { it.name == 'runClientTaskSmoke' }.configureEach {
+    dependsOn prepareTaskSmokeResources
+    def report = layout.projectDirectory.file('run-task-smoke/task-smoke-result.txt').asFile
+    doFirst { report.parentFile.mkdirs(); report.text = 'RUNNING\n' }
     doLast {
-        if (!report.text.trim().endsWith('PASS')) throw new GradleException("Forest repair smoke failed: ${report}")
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) throw new GradleException("Task client smoke failed: ${report}")
     }
+}
+
+// P06 exercises the same physical follow scenario with a real connected client.
+def prepareFollowSmokeResources = tasks.register('prepareFollowSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-follow-smoke')
+}
+tasks.matching { it.name == 'runClientFollowSmoke' }.configureEach {
+    dependsOn prepareFollowSmokeResources
+    def report = layout.projectDirectory.file('run-follow-smoke/follow-smoke-result.txt').asFile
+    doFirst { report.parentFile.mkdirs(); report.text = 'RUNNING\n' }
+    doLast {
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) throw new GradleException("Follow client smoke failed: ${report}")
+    }
+}
+
+// P06 shares physical retaliation/permission/lifecycle assertions with the real client.
+def prepareRetaliationSmokeResources = tasks.register('prepareRetaliationSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-retaliation-smoke')
+}
+tasks.matching { it.name == 'runClientRetaliationSmoke' }.configureEach {
+    dependsOn prepareRetaliationSmokeResources
+    def report = layout.projectDirectory.file('run-retaliation-smoke/retaliation-smoke-result.txt').asFile
+    doFirst { report.parentFile.mkdirs(); report.text = 'RUNNING\n' }
+    doLast {
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) throw new GradleException("Retaliation client smoke failed: ${report}")
+    }
+}
+
+// P06 proves a complete physical work -> damage -> combat -> resumed delivery cycle.
+def prepareTaskCombatSmokeResources = tasks.register('prepareTaskCombatSmokeResources', Copy) {
+    from layout.projectDirectory.dir('src/main/resources')
+    into layout.projectDirectory.dir('run-task-combat-smoke')
+}
+tasks.matching { it.name == 'runClientTaskCombatSmoke' }.configureEach {
+    dependsOn prepareTaskCombatSmokeResources
+    def report = layout.projectDirectory.file('run-task-combat-smoke/task-combat-smoke-result.txt').asFile
+    doFirst { report.parentFile.mkdirs(); report.text = 'RUNNING\n' }
+    doLast {
+        if (!report.exists() || !report.text.trim().endsWith('PASS')) throw new GradleException("Task combat client smoke failed: ${report}")
+    }
+}
+
+
+// Separate run directories preserve each GUI variant's report during verifyAll.
+['Bare': 'bare', 'Durable': 'durable'].each { suffix, folder ->
+    def stage = tasks.register("prepareConfig${suffix}SmokeResources", Copy) {
+        from layout.projectDirectory.dir('src/main/resources')
+        into layout.projectDirectory.dir("run-config-${folder}-smoke")
+    }
+    tasks.matching { it.name == "runClientConfigSmoke${suffix}" }.configureEach {
+        dependsOn stage, ':samcnpc-core:testClasses'
+        def report = project.file("run-config-${folder}-smoke/config-smoke-result.txt")
+        def companion = project.file("run-config-${folder}-smoke/tool-settings-behavior-result.txt")
+        doFirst {
+            report.parentFile.mkdirs()
+            report.text = 'RUNNING\n'
+            companion.text = 'RUNNING\n'
+        }
+        doLast {
+            if (!report.text.trim().endsWith('PASS') || !companion.text.trim().endsWith('PASS')) {
+                throw new GradleException("${suffix} configuration smoke failed: ${report}")
+            }
+        }
+    }
+}
+
+tasks.register('verifyProductionKotlin') {
+    group = 'verification'
+    doLast {
+        def javaSources = fileTree('src/main') { include '**/*.java' }.files
+        if (!javaSources.empty) {
+            throw new GradleException("Production source must be Kotlin: ${javaSources.join(', ')}")
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyProductionKotlin')
 }

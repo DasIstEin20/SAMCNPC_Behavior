@@ -8,6 +8,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import org.junit.jupiter.api.Test
 import java.util.UUID
+import io.samcnpc.core.api.NpcActionStatus
 import kotlin.test.assertEquals
 import io.samcnpc.behavior.lumberjack.model.LumberjackChestAccessStage
 import kotlin.test.assertNotNull
@@ -80,7 +81,7 @@ class LumberjackPersistenceTest {
         entry.putInt("scaffoldRecoveryAttempts", 2)
         val store = LumberjackDemoStore.load(root)
         val saved = store.save(CompoundTag())
-        assertEquals(18, saved.getInt("version"))
+        assertEquals(19, saved.getInt("version"))
         val restored = assertNotNull(LumberjackDemoStore.load(saved).jobFor(npcUuid))
         assertEquals(LumberjackDemoPhase.COLLECT_TREE_DROPS, restored.phase)
         assertEquals(88, restored.pickupTicks)
@@ -171,6 +172,149 @@ class LumberjackPersistenceTest {
         assertEquals(NpcBlockPosition(2, 2, 0), legacy.chestAccessTarget)
     }
 
+    @Test
+    fun `future and oversized files stay unchanged and cannot accept another job`() {
+        val valid = assertNotNull(LumberjackDemoStore.load(fixture(19).first).jobFor(npcUuid))
+        val future = fixture(99).first.apply { putString("futureField", "retain me") }
+        val oversized = fixture(19).first
+        val entries = oversized.getList("jobs", 10)
+        repeat(128) { entries.add(entries.getCompound(0).copy().apply { putUUID("npcUuid", UUID(0, it.toLong())) }) }
+        for (root in listOf(future, oversized, fixture(19).first.apply { putString("version", "18") })) {
+            val store = LumberjackDemoStore.load(root)
+            assertNull(store.jobFor(npcUuid))
+            assertNotNull(store.problemFor(npcUuid))
+            assertEquals(NpcActionStatus.REJECTED, store.put(valid).status)
+            assertEquals(root, store.save(CompoundTag()))
+        }
+    }
+
+    @Test
+    fun `duplicate jobs preserve both conflicting scaffold obligations`() {
+        val (root, entry) = fixture(19)
+        val duplicate = entry.copy().apply { put("pillarSession", pillarFixture().apply { putString("state", "DESCEND_BREAK") }) }
+        root.getList("jobs", 10).add(duplicate)
+        val store = LumberjackDemoStore.load(root)
+        assertNull(store.jobFor(npcUuid))
+        assertTrue(assertNotNull(store.problemFor(npcUuid)).contains("duplicate"))
+        assertEquals(root, store.save(CompoundTag()))
+    }
+
+    @Test
+    fun `bad dimensions positions list types and pillars are quarantined rather than dropped`() {
+        val mutations: List<(CompoundTag) -> Unit> = listOf(
+            { it.putString("dimension", "bad dimension") },
+            { it.getCompound("chest").putString("x", "0") },
+            { it.putString("previousPacks", "minecraft:idle") },
+            { it.put("pillarSession", pillarFixture().apply { putString("state", "future state") }) },
+            { it.put("pillarSession", pillarFixture()) },
+            { it.putString("pickupTicks", "10") },
+        )
+        for (mutate in mutations) {
+            val (root, entry) = fixture(19)
+            mutate(entry)
+            val store = LumberjackDemoStore.load(root)
+            assertNull(store.jobFor(npcUuid))
+            assertNotNull(store.problemFor(npcUuid))
+            assertEquals(root, store.save(CompoundTag()))
+        }
+    }
+
+    @Test
+    fun `valid v19 neighbors keep running but malformed older files retain their source version`() {
+        val (root, bad) = fixture(19)
+        val goodId = UUID(0, 9)
+        val good = bad.copy().apply { putUUID("npcUuid", goodId); putInt("scanCursor", 54) }
+        bad.putString("phase", "unknown phase")
+        root.getList("jobs", 10).add(good)
+        val current = LumberjackDemoStore.load(root)
+        assertNull(current.jobFor(npcUuid))
+        assertEquals(54, assertNotNull(current.jobFor(goodId)).scanCursor)
+        val saved = current.save(CompoundTag())
+        assertTrue(saved.getList("jobs", 10).any { it == bad })
+        root.putInt("version", 4)
+        val legacy = LumberjackDemoStore.load(root)
+        assertNull(legacy.jobFor(goodId))
+        assertNotNull(legacy.problemFor(goodId))
+        assertEquals(root, legacy.save(CompoundTag()))
+    }
+
+    @Test
+    fun `all supported legacy versions preserve identity and established scan migration`() {
+        for (version in 0..19) {
+            val (root, entry) = fixture(version)
+            entry.putInt("scanCursor", 54)
+            val store = LumberjackDemoStore.load(root)
+            assertNull(store.problemFor(npcUuid))
+            val job = assertNotNull(store.jobFor(npcUuid))
+            assertEquals(if (version < 5) 2 else 54, job.scanCursor)
+            val restored = assertNotNull(LumberjackDemoStore.load(store.save(CompoundTag())).jobFor(npcUuid))
+            assertEquals(job.npcUuid, restored.npcUuid)
+            assertEquals(job.scanCursor, restored.scanCursor)
+        }
+    }
+
+    @Test
+    fun `assignment enforces the same 128 job limit as loading`() {
+        val (root, entry) = fixture(19)
+        val entries = root.getList("jobs", 10)
+        entries.clear()
+        repeat(128) { entries.add(entry.copy().apply { putUUID("npcUuid", UUID(0, it.toLong())) }) }
+        val store = LumberjackDemoStore.load(root)
+        val additional = assertNotNull(LumberjackDemoStore.load(fixture(19).first).jobFor(npcUuid))
+        assertEquals(NpcActionStatus.REJECTED, store.put(additional).status)
+        assertEquals(128, store.save(CompoundTag()).getList("jobs", 10).size)
+        assertNull(store.jobFor(npcUuid))
+    }
+
+    @Test
+    fun `confirmed support identities round trip and transient validation is rebuilt`() {
+        val (root, entry) = fixture(18)
+        val pillar = pillarFixture().apply {
+            putString("state", "DESCEND_BREAK")
+            put("placedPositions", ListTag().apply { add(position(3, 1, 3)) })
+        }
+        entry.put("pillarSession", pillar)
+        val store = LumberjackDemoStore.load(root)
+        val session = assertNotNull(assertNotNull(store.jobFor(npcUuid)).pillarSession)
+        assertEquals("minecraft:oak_log", session.placedBlockIds[NpcBlockPosition(3, 1, 3)])
+        session.revalidateSupports = false
+        val saved = store.save(CompoundTag())
+        assertEquals(19, saved.getInt("version"))
+        val restored = assertNotNull(assertNotNull(LumberjackDemoStore.load(saved).jobFor(npcUuid)).pillarSession)
+        assertEquals(session.placedBlockIds, restored.placedBlockIds)
+        assertTrue(restored.revalidateSupports)
+        assertTrue(!saved.toString().contains("revalidateSupports"))
+    }
+
+    @Test
+    fun `arbitrary legacy item names do not manufacture block identity receipts`() {
+        val (root, entry) = fixture(18)
+        entry.put("pillarSession", pillarFixture().apply {
+            putString("state", "DESCEND_BREAK"); putString("materialItemId", "example:unrelated_item_name")
+            put("placedPositions", ListTag().apply { add(position(3, 1, 3)) })
+        })
+        val store = LumberjackDemoStore.load(root)
+        val session = assertNotNull(assertNotNull(store.jobFor(npcUuid)).pillarSession)
+        assertTrue(session.placedBlockIds.isEmpty())
+        val restored = assertNotNull(assertNotNull(LumberjackDemoStore.load(store.save(CompoundTag())).jobFor(npcUuid)).pillarSession)
+        assertEquals(session.placedPositions, restored.placedPositions)
+        assertTrue(restored.placedBlockIds.isEmpty())
+    }
+
+    @Test
+    fun `support identity cannot extend the recorded footprint`() {
+        val (root, entry) = fixture(19)
+        entry.put("pillarSession", pillarFixture().apply {
+            putString("state", "DESCEND_BREAK")
+            put("placedPositions", ListTag().apply { add(position(3, 1, 3)) })
+            put("placedBlocks", ListTag().apply { add(position(5, 1, 3).apply { putString("blockId", "minecraft:dirt") }) })
+        })
+        val store = LumberjackDemoStore.load(root)
+        assertNull(store.jobFor(npcUuid))
+        assertNotNull(store.problemFor(npcUuid))
+        assertEquals(root, store.save(CompoundTag()))
+    }
+
     private fun fixture(version: Int): Pair<CompoundTag, CompoundTag> {
         val root = CompoundTag()
         root.putInt("version", version)
@@ -196,6 +340,7 @@ class LumberjackPersistenceTest {
         pillar.putInt("activeSlot", 2)
         pillar.putString("materialItemId", "minecraft:oak_log")
         pillar.putInt("estimatedLevels", 3)
+        pillar.put("placedBlocks", ListTag())
         return pillar
     }
 

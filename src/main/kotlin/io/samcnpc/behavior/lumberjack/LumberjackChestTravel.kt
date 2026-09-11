@@ -17,9 +17,10 @@ internal object LumberjackChestTravel {
     const val MAX_ACCESS_BLOCKS = 24
     const val MAX_ACCESS_TICKS = 100
     private const val ARRIVAL_DISTANCE = 3.5
-    // Ground navigation may finish about one block before its requested node. Keep that
-    // tolerance inside the interaction envelope instead of stopping at its outer edge.
     private const val APPROACH_DISTANCE = 2.5
+    // Native pathfinding may choose a node one block short and then apply its waypoint
+    // tolerance. Prefer adjacent stances so both margins fit inside the arrival envelope.
+    private const val PREFERRED_APPROACH_DISTANCE = 1.5
 
     fun move(npc: NpcFacade, world: NpcWorldView, job: LumberjackDemoJob): MoveTowardProgress {
         val origin = npc.snapshot().position
@@ -34,7 +35,13 @@ internal object LumberjackChestTravel {
                     candidates.add(candidate)
                 }
             }
-            job.chestApproach = candidates.minWithOrNull(
+            val adjacent = candidates.filter { candidate ->
+                isWithinDistance(blockNavigationPosition(candidate), chest, PREFERRED_APPROACH_DISTANCE)
+            }
+            // Retain wider supported stances for containers on unusual elevations when
+            // no adjacent standing cell exists; do not reject an otherwise valid route.
+            val approaches = if (adjacent.isEmpty()) candidates else adjacent
+            job.chestApproach = approaches.minWithOrNull(
                 compareBy<NpcBlockPosition> { distanceSquared(origin, blockNavigationPosition(it)) }
                     .thenBy { it.x }.thenBy { it.y }.thenBy { it.z },
             )

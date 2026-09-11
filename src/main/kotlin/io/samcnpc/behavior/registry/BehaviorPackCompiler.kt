@@ -5,12 +5,10 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.samcnpc.behavior.api.ValidationReport
-import io.samcnpc.behavior.model.ActionDefinition
 import io.samcnpc.behavior.model.BehaviorChannel
 import io.samcnpc.behavior.model.CompiledAction
 import io.samcnpc.behavior.model.CompiledPack
 import io.samcnpc.behavior.model.CompiledRule
-import io.samcnpc.behavior.model.ConditionDefinition
 import io.samcnpc.behavior.model.ConditionExpression
 
 data class CompileResult(
@@ -92,7 +90,7 @@ class BehaviorPackCompiler(
                 val definition = conditions[conditionId] ?: fail(context, "unknown condition '$conditionId'")
                 val args = test.optionalObject("$context test", "args")
                 definition.validateArgs(args)?.let { fail(context, "condition '$conditionId' $it") }
-                ConditionExpression.Test(conditionId, args.deepCopy())
+                ConditionExpression.Test(conditionId, definition.compile(args))
             }
             "all" -> ConditionExpression.All(parseChildren(context, value.requireArray(context, "all", 1, 16), depth))
             "any" -> ConditionExpression.Any(parseChildren(context, value.requireArray(context, "any", 1, 16), depth))
@@ -113,7 +111,7 @@ class BehaviorPackCompiler(
         }
         val args = value.optionalObject(context, "args")
         definition.validateArgs(args)?.let { fail(context, "action '$actionId' $it") }
-        return CompiledAction(actionId, args.deepCopy(), definition.channels)
+        return CompiledAction(actionId, definition.compile(args), definition.channels)
     }
 
     private fun rejected(source: String, message: String): CompileResult =
@@ -142,7 +140,7 @@ class BehaviorPackCompiler(
     }
 
     private fun JsonObject.requireString(context: String, name: String, maximum: Int): String {
-        val result = get(name).stringOrNull() ?: fail(context, "'$name' must be a string")
+        val result = get(name)?.stringOrNull() ?: fail(context, "'$name' must be a string")
         if (result.length > maximum) {
             fail(context, "'$name' exceeds $maximum characters")
         }

@@ -52,7 +52,8 @@ W grze jednoosobowej wystarczy instalacja w używanym profilu klienta Forge.
 
 Użyj JDK 17 i dołączonego wrappera Gradle. Core jest submodułem Git w `core/`, przypiętym do
 konkretnego opublikowanego commita, a nie zmiennej gałęzi. Klonowanie wymaga dostępu do obu repozytoriów.
-Aktualne przypięcie obejmuje konfigurację Forge, tryby narzędzi, efekty i poprawki podwójnych skrzynek w Core. Używaj
+Aktualne przypięcie obejmuje lifecycle akcji, obserwacje, respawn, zachowanie ekwipunku, dropy,
+punkty odradzania i automatyczne totemy w rezerwie Core. Używaj
 pasującego JAR-a Core z tego buildu; starsze buildy rozwojowe też mogą mieć numer `0.1.0`.
 
 ```powershell
@@ -108,8 +109,9 @@ Komendy dotyczące NPC przyjmują nazwę, UUID lub jednoznaczny prefiks w promie
 | `samcnpc:demo_lumberjack` | Eksperymentalne zadanie drwala; uruchamiaj je osobną komendą. |
 
 [Wbudowane pliki JSON](src/main/resources/data/samcnpc_behavior/behaviors) są edytowalnymi przykładami
-tego samego formatu, z którego korzystają własne zachowania. Akcje podążania i walki używają obecnie
-bezpośredniego sterowania ruchem; nie są pełnymi algorytmami nawigacji omijającymi przeszkody.
+tego samego formatu, z którego korzystają własne zachowania. Podążanie i walka ze wskazanym celem
+używają ograniczonej nawigacji Core z obserwacją rzeczywistego dojścia i gotowości ataku.
+Wybór celu i reakcje należą do Behavior.
 
 ## Własne paczki zachowań
 
@@ -137,7 +139,53 @@ Aktualne limity obejmują 64 pliki zewnętrzne, 128 KiB na plik zewnętrzny, 256
 a nie skanowane ani parsowane w każdym ticku NPC. Brak przypisanej paczki wstrzymuje wykonywanie
 reguł danej postaci i ustawia diagnostykę bezpiecznego bezczynnego stanu.
 
-## Demo drwala
+## Trwałe zadania
+
+Nawigacja, dostawa, zbiór wskazanego drewna i walka wręcz ze wskazanym celem współdzielą trwałe ID,
+ograniczone budżety, pause/resume/cancel, diagnostykę i ograniczone przerwania. Przykłady:
+
+```text
+/samcnpc behavior task assign Sam navigate 10 64 10 6000
+/samcnpc behavior task assign Sam deliver 14 64 0 minecraft:oak_log 12 4
+/samcnpc behavior task assign Sam lumberjack 0 64 4 23 73 26 14 64 0 samcnpc:oak 64 6000
+/samcnpc behavior task reaction Sam retaliate 24 600 false
+/samcnpc behavior task status Sam
+/samcnpc behavior task pause Sam
+/samcnpc behavior task resume Sam
+/samcnpc behavior task cancel Sam
+```
+
+Współrzędne są przykładowe: trzeba zapewnić właściwy teren, osiągalną skrzynię, narzędzia i materiały.
+Dostawa korzysta z noszonego ekwipunku, zachowuje `keepAtLeast` (ostatni argument) i raportuje
+faktycznie przekazaną liczbę. Nie pobiera jeszcze ładunku z drugiej skrzyni.
+
+Argumenty drwala: `npc minX minY minZ maxX maxY maxZ chestX chestY chestZ woodId quantity
+[durationTicks] [exclude minX minY minZ maxX maxY maxZ]`. Gotowe wybory drewna: `samcnpc:oak`,
+`samcnpc:birch`, `samcnpc:dark_oak` i `samcnpc:oak_and_birch`.
+Rozpoznawanie obejmuje ograniczone rozgałęzione korony i pnie 2x2 ciemnego dębu. Osiągnięcie
+ilości dostawy może zakończyć pracę po jednej kolumnie; nie obiecuje usunięcia całego drzewa.
+Początkowo noszone drewno jest chronione, podpory zużywają prawdziwe materiały, a raport
+rozróżnia zaopatrzenie, zbiór, zużycie, dostawę i zachowany zapas. Zmiana zawartości wspólnego
+pojemnika zatrzymuje obecnie trwałe zadanie przy niezgodności checkpointu; pełna wspólna
+logistyka i ponowne sadzenie pozostają w rozwoju.
+
+Jawny atak: `/samcnpc behavior task assign <npc> attack <targetUUID>
+[leash [durationTicks [allowPlayers]]]`. Domyślnie: stała granica 24 bloków, 600 ticków,
+bez atakowania graczy. Brak wskazanego celu nie wybiera zastępczej ofiary. Domyślna reakcja
+jest pasywna; `task reaction <npc> passive` wyłącza odwet. Jawnie włączony odwet przerywa
+pracę, zużywa jej pierwotny budżet i wznawia ją po ponownej obserwacji świata. Kolejne trafienia
+nie resetują bez końca kontrataku.
+
+NPC ma jedno zadanie główne i najwyżej dwa poziomy przerwania. Anuluj niedokończone zadanie
+przed zmianą. Ręczna pauza zamraża budżet i zwalnia sterowanie; reload/restart nie nadaje
+nowego limitu. Format zadań 4 migruje wcześniejsze wersje, a błędne/przyszłe zapisy zachowuje
+z diagnostyką. Publiczne API zlecania i kontroli zadań nie jest jeszcze udostępnione: obecnie
+służą do tego komendy, a dodatki mają mechaniczne API Core i walidację JSON Behavior.
+
+Obrona/atak obszaru, autonomiczny wybór broni dystansowej, patrol, mining, farming, ogólny
+transport i sadzenie nie są jeszcze ukończonymi funkcjami tej wersji.
+
+## Starsze demo drwala
 
 To **eksperymentalne zadanie integracyjne zmieniające prawdziwe bloki**. Wypróbuj je w testowym świecie z kopią zapasową.
 
@@ -174,7 +222,7 @@ Obie połówki podwójnej skrzyni udostępniają teraz wspólny ekwipunek przez 
 do skrzyni zadanie może usunąć widoczny blok liści lub pień, zebrać uzyskane drewno i wznowić
 przerwaną pracę. Nie próbuje stale kopać ukrytego liścia przez paproć/pień. Usuwanie liści
 na wysokości zachowuje pozycję na podporze, a powtarzanie całej próby podpory zużywa
-ograniczony budżet odzyskiwania. Format zapisu zadania 18 migruje starsze zadania i zachowuje
+ograniczony budżet odzyskiwania. Format zapisu zadania 19 migruje starsze zadania i zachowuje
 ich wznowienia. Zadania wcześniej anulowane wymagają ponownej komendy startu.
 
 Podpora ma limit ośmiu poziomów. Próba zbierania ma łączny limit 240 ticków i normalnie kończy się
@@ -197,6 +245,8 @@ i odzyskiwanie postępu przez wiele NPC nie są zweryfikowaną możliwością; t
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
 .\gradlew.bat :runClientLumberjackSmoke
+.\gradlew.bat :runClientTaskSmoke :runClientTaskCombatSmoke
+.\gradlew.bat :runClientFollowSmoke :runClientRetaliationSmoke
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
 .\gradlew.bat :runClientConfigSmoke
@@ -212,7 +262,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. Osiemnaście testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. 82 testy serwerowe sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -236,6 +286,14 @@ odtwarza pierwotną regresję z trzema NPC; wymaga przechwyconego świata i kopi
 Dodatki mogą sprawdzić dokument JSON bez jego aktywowania przez
 [`BehaviorPackValidationApi.validateCandidate(json)`](src/main/kotlin/io/samcnpc/behavior/api/BehaviorPackValidationApi.kt).
 Nowe wykonywalne akcje należą do zarejestrowanych handlerów Kotlin, a nie danych paczki.
+
+
+`runClientTaskSmoke` sprawdza trwały zbiór drewna, trzy ponowne otwarcia świata i dostawy dębu/ciemnego dębu.
+`runClientTaskCombatSmoke` przerywa dojście, kopanie, częściowy transfer i skok na podporę, po czym
+sprawdza walkę oraz wznowioną dostawę. `runClientFollowSmoke` i `runClientRetaliationSmoke` sprawdzają
+odpowiednie fizyczne zachowania. Behavior ma obecnie 124 testy jednostkowe; asercje runtime pozostają
+włączone. Warianty GUI `runClientConfigSmokeBare` i `runClientConfigSmokeDurable` używają osobnych
+katalogów i sprawdzają rzeczywiście wybrane ustawienia.
 
 ## Stan projektu i licencja
 

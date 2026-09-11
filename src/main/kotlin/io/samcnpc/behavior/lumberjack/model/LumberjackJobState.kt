@@ -51,6 +51,13 @@ internal data class LumberjackDemoJob(
     var chestAccessQuietTicks: Int = 0,
     /** Cached route endpoint; reselected from current geometry after reload, never persisted. */
     var chestApproach: NpcBlockPosition? = null,
+    /** Transient handoff: the enclosing task/store consumes it in the same selected step. */
+    var executionFinished: Boolean = false,
+    /** Rebound from the parent task definition after load; legacy jobs keep their old scan. */
+    var workSelection: LumberjackWorkSelection? = null,
+    /** Recomputed from actual delivered/carried stock by the finite parent task. */
+    var finishAfterCurrentTree: Boolean = false,
+    var scanUnavailable: Boolean = false,
 )
 
 internal enum class LumberjackChestAccessStage { CLEAR_FOLIAGE, CUT_WOOD, COLLECT_WOOD }

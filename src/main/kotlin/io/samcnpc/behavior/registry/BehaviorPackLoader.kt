@@ -9,10 +9,12 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.stream.Collectors
 
-data class BehaviorRegistrySnapshot(
-    val packs: Map<String, CompiledPack>,
-    val diagnostics: List<String>,
+class BehaviorRegistrySnapshot(
+    packs: Map<String, CompiledPack>,
+    diagnostics: List<String>,
 ) {
+    val packs: Map<String, CompiledPack> = java.util.Map.copyOf(packs)
+    val diagnostics: List<String> = java.util.List.copyOf(diagnostics)
     companion object {
         val EMPTY = BehaviorRegistrySnapshot(emptyMap(), listOf("No behavior packs have been activated; NPCs are safely idle."))
     }
@@ -109,6 +111,10 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             "data/samcnpc_behavior/behaviors/follow_summoner.json",
             "data/samcnpc_behavior/behaviors/retaliate.json",
             "data/samcnpc_behavior/behaviors/demo_lumberjack.json",
+            "data/samcnpc_behavior/behaviors/task_navigation.json",
+            "data/samcnpc_behavior/behaviors/task_delivery.json",
+            "data/samcnpc_behavior/behaviors/task_lumberjack.json",
+            "data/samcnpc_behavior/behaviors/task_combat.json",
         )
     }
 }

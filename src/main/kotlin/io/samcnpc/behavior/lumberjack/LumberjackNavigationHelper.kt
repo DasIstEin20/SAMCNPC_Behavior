@@ -11,6 +11,7 @@ import io.samcnpc.core.api.NpcActionStatus
 import io.samcnpc.core.api.NpcBlockPosition
 import io.samcnpc.core.api.NpcFacade
 import io.samcnpc.core.api.NpcLookRotation
+import io.samcnpc.core.api.NpcNavigationRequest
 import io.samcnpc.core.api.NpcPosition
 import io.samcnpc.core.api.NpcSnapshot
 import io.samcnpc.core.api.NpcRaycastRequest
@@ -63,7 +64,11 @@ internal fun navigateAndLook(
     navigationTarget: NpcPosition,
     lookTarget: NpcPosition,
 ): MoveTowardProgress {
-    val navigation = npc.navigateTo(navigationTarget, NAVIGATION_SPEED_MULTIPLIER)
+    // A work stance needs closer approach than the general navigation default. Otherwise the
+    // body can stop on the edge of a higher block before stepping down into its supplied cell.
+    val navigation = npc.navigateTo(NpcNavigationRequest(
+        navigationTarget, NAVIGATION_SPEED_MULTIPLIER, arrivalDistance = WORK_NAVIGATION_ARRIVAL_DISTANCE,
+    ))
     if (navigation.isFailure()) {
         return MoveTowardProgress.FAILED(navigation)
     }
@@ -90,18 +95,19 @@ internal fun selectMiningStance(
     trunkBase: NpcBlockPosition,
     world: NpcWorldView,
     excluded: Set<NpcBlockPosition> = emptySet(),
-): NpcBlockPosition? = miningStanceCandidates(trunkBase)
-    .asSequence()
-    .filter { it !in excluded }
-    .filter { world.isClearPlayerStandingCell(it) }
-    .minWithOrNull(
-        compareBy<NpcBlockPosition> { candidate ->
-            val destination = blockNavigationPosition(candidate)
-            val dx = destination.x - origin.x
-            val dz = destination.z - origin.z
-            dx * dx + dz * dz
-        }.thenBy { it.x }.thenBy { it.y }.thenBy { it.z },
-    )
+): NpcBlockPosition? {
+    fun nearest(candidates: List<NpcBlockPosition>): NpcBlockPosition? = candidates.asSequence()
+        .filter { it !in excluded && world.isClearPlayerStandingCell(it) }
+        .minWithOrNull(compareBy<NpcBlockPosition> { candidate ->
+            distanceSquared(origin, blockNavigationPosition(candidate))
+        }.thenBy { it.x }.thenBy { it.y }.thenBy { it.z })
+    val normal = nearest(miningStanceCandidates(trunkBase))
+    if (normal != null) return normal
+    // Bent crowns have detached vertical columns. Their first log is not ground height;
+    // use only observed supported feet cells, within the existing eight-level elevation bound.
+    val lower = (1..8).flatMap { depth -> miningStanceCandidates(trunkBase.copy(y = trunkBase.y - depth)) }
+    return nearest(lower)
+}
 
 internal fun rememberRejectedStance(job: LumberjackDemoJob, stance: NpcBlockPosition) {
     if (stance !in job.rejectedMiningStances && job.rejectedMiningStances.size < MAX_REJECTED_MINING_STANCES) {
@@ -350,6 +356,7 @@ private fun NpcActionResult.isFailure(): Boolean = status in setOf(
 
 private data class NavigationAxis(val stepX: Int, val stepZ: Int, val steps: Int)
 
+private const val WORK_NAVIGATION_ARRIVAL_DISTANCE = 0.5
 private const val MINING_STANCE_OFFSET = 2
 // Navigation settles a Mob around the requested cell rather than exactly at its centre. This
 // still leaves the hull clear of the trunk at the two-cell stance offset; Core remains the

@@ -1,6 +1,6 @@
 package io.samcnpc.behavior.model
 
-import com.google.gson.JsonObject
+import io.samcnpc.core.api.NpcActionResult
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 
@@ -37,7 +37,7 @@ class BehaviorArbiterTest {
         assertEquals(listOf(alpha), BehaviorArbiter.choose(listOf(beta, alpha)))
     }
 
-    private fun action(id: String, channels: Set<BehaviorChannel>) = CompiledAction(id, JsonObject(), channels)
+    private fun action(id: String, channels: Set<BehaviorChannel>) = CompiledAction(id, { _, _, _ -> NpcActionResult.succeeded("test action") }, channels)
 
     private fun intent(pack: String, packPriority: Int, rule: String, rulePriority: Int, index: Int, action: CompiledAction) =
         ActionIntent(pack, packPriority, rule, rulePriority, index, action)

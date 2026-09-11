@@ -45,6 +45,7 @@ object LumberjackForestRegressionGameTests {
         var started = false
         var finished = false
         var sawScaffoldAccess = false
+        var lastReturnState = "return phase not reached"
         var quietTicks = 0
         val supports = mutableSetOf<NpcBlockPosition>()
         val pillarTasks = mutableSetOf<UUID>()
@@ -67,6 +68,10 @@ object LumberjackForestRegressionGameTests {
             }
             if (!started) return@onEachTick
             val job = LumberjackDemoStore.forServer(helper.level.server).jobFor(body.uuid)
+            if (job?.phase == LumberjackDemoPhase.RETURN_TO_CHEST) {
+                lastReturnState = "position=${npc.snapshot().position}; chest=${job.chestPosition}; " +
+                    "approach=${job.chestApproach}; ${LumberjackService.status(helper.level.server, body.uuid)}"
+            }
             job?.pillarSession?.let { session ->
                 supports.addAll(session.placedPositions)
                 pillarTasks.add(session.taskId)
@@ -77,13 +82,44 @@ object LumberjackForestRegressionGameTests {
             check(helper.level.getBlockState(target).isAir) { "The supplied upper log was abandoned" }
             check(sawScaffoldAccess) { "The fixture never resolved foliage from its elevated work stance" }
             check(supports.isNotEmpty() && supports.all { helper.level.getBlockState(BlockPos(it.x, it.y, it.z)).isAir }) { "Abandoned scaffold: $supports" }
-            check(woodCount(chest) == 5) { "Expected the four recovered logs plus the target log, got ${woodCount(chest)}" }
+            check(woodCount(chest) == 5) { "Expected the four recovered logs plus the target log, got ${woodCount(chest)}; $lastReturnState" }
             check(npc.inventoryContents().none { it.stack.itemId == "minecraft:spruce_log" })
             if (++quietTicks >= 40) {
                 finished = true
                 body.discard()
                 helper.succeed()
             }
+        }
+    }
+
+    @JvmStatic
+    @GameTest(template = "lumberjackdemogametests.empty", timeoutTicks = 180, batch = "forest_chest_approach")
+    fun chestReturnMovesInsideReachAfterNativePathStopsShort(helper: GameTestHelper) {
+        floor(helper)
+        val chest = chest(helper, BlockPos(1, 1, 5))
+        // The previous approach selected (3,1,4), whose native path considered this
+        // position close enough while it remained outside Behavior interaction reach.
+        val body = body(helper, BlockPos(4, 1, 4), 0.8902000605043, 0.6293887944601435)
+        var started = false
+        var finished = false
+        helper.onEachTick {
+            if (finished) return@onEachTick
+            val service = CoreNpcApi.service(helper.level.server)
+            val npc = service.find(body.uuid)?.let(service::runtime) ?: return@onEachTick
+            if (!started && body.onGround()) {
+                check(LumberjackService.start(helper.level.server, npc, npc.worldView()).status == NpcActionStatus.SUCCEEDED)
+                val job = checkNotNull(LumberjackDemoStore.forServer(helper.level.server).jobFor(body.uuid))
+                job.phase = LumberjackDemoPhase.RETURN_TO_CHEST
+                job.scanCursor = 2500
+                giveRealDrop(helper, body, 1)
+                started = true
+            }
+            if (!started || LumberjackDemoStore.forServer(helper.level.server).jobFor(body.uuid) != null) return@onEachTick
+            check(woodCount(chest) == 1) { "Return ended before delivering the actual carried log" }
+            check(npc.inventoryContents().none { it.stack.itemId == "minecraft:spruce_log" })
+            finished = true
+            body.discard()
+            helper.succeed()
         }
     }
 

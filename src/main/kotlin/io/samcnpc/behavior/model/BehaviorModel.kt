@@ -1,54 +1,82 @@
 package io.samcnpc.behavior.model
 
-import com.google.gson.JsonObject
 import io.samcnpc.core.api.NpcActionResult
+import io.samcnpc.core.api.NpcActionStatus
+import io.samcnpc.core.api.NpcEntityObservation
 import io.samcnpc.core.api.NpcFacade
 import io.samcnpc.core.api.NpcSnapshot
 import io.samcnpc.core.api.NpcWorldView
 
 enum class BehaviorChannel {
-    MOVEMENT,
-    LOOK,
-    MAIN_HAND,
-    OFF_HAND,
-    COMBAT,
-    INTERACTION,
-    BLOCK_ACTION,
-    INVENTORY;
+    MOVEMENT, LOOK, MAIN_HAND, OFF_HAND, COMBAT, INTERACTION, BLOCK_ACTION, INVENTORY;
 
     companion object {
         fun parse(value: String): BehaviorChannel? = entries.firstOrNull { it.name.lowercase() == value }
     }
 }
 
-sealed interface ConditionExpression {
-    data class Test(val conditionId: String, val args: JsonObject) : ConditionExpression
-    data class All(val children: List<ConditionExpression>) : ConditionExpression
-    data class Any(val children: List<ConditionExpression>) : ConditionExpression
-    data class Not(val child: ConditionExpression) : ConditionExpression
-}
-
-data class CompiledAction(
-    val actionId: String,
-    val args: JsonObject,
-    val channels: Set<BehaviorChannel>,
+/** A decision reads already captured facts. It cannot call actuators or query mutable world state. */
+data class BehaviorReadContext(
+    val snapshot: NpcSnapshot,
+    val summoner: NpcEntityObservation?,
+    val attackTarget: NpcEntityObservation?,
+    val taskReady: Boolean = false,
+    val unhandledDamage: Boolean = false,
+    val taskCombatReady: Boolean = false,
+    val taskReactionReady: Boolean = false,
 )
 
-data class CompiledRule(
+sealed interface ConditionExpression {
+    fun evaluate(context: BehaviorReadContext): Boolean
+
+    class Test(val conditionId: String, val handler: ConditionHandler) : ConditionExpression {
+        override fun evaluate(context: BehaviorReadContext): Boolean = handler.evaluate(context)
+    }
+
+    class All(children: List<ConditionExpression>) : ConditionExpression {
+        val children: List<ConditionExpression> = java.util.List.copyOf(children)
+        override fun evaluate(context: BehaviorReadContext): Boolean = children.all { it.evaluate(context) }
+    }
+
+    class Any(children: List<ConditionExpression>) : ConditionExpression {
+        val children: List<ConditionExpression> = java.util.List.copyOf(children)
+        override fun evaluate(context: BehaviorReadContext): Boolean = children.any { it.evaluate(context) }
+    }
+
+    class Not(val child: ConditionExpression) : ConditionExpression {
+        override fun evaluate(context: BehaviorReadContext): Boolean = !child.evaluate(context)
+    }
+}
+
+class CompiledAction(
+    val actionId: String,
+    val handler: ActionHandler,
+    channels: Set<BehaviorChannel>,
+) {
+    val channels: Set<BehaviorChannel> = java.util.Set.copyOf(channels)
+    val channelMask: Int = channels.fold(0) { mask, channel -> mask or (1 shl channel.ordinal) }
+}
+
+class CompiledRule(
     val id: String,
     val priority: Int,
     val cooldownTicks: Int,
     val whenExpression: ConditionExpression,
-    val actions: List<CompiledAction>,
-)
+    actions: List<CompiledAction>,
+) {
+    val actions: List<CompiledAction> = java.util.List.copyOf(actions)
+}
 
-data class CompiledPack(
+class CompiledPack(
     val id: String,
     val description: String,
     val priority: Int,
-    val allowedChannels: Set<BehaviorChannel>,
-    val rules: List<CompiledRule>,
-)
+    allowedChannels: Set<BehaviorChannel>,
+    rules: List<CompiledRule>,
+) {
+    val allowedChannels: Set<BehaviorChannel> = java.util.Set.copyOf(allowedChannels)
+    val rules: List<CompiledRule> = java.util.List.copyOf(rules)
+}
 
 data class ActionIntent(
     val packId: String,
@@ -57,11 +85,15 @@ data class ActionIntent(
     val rulePriority: Int,
     val actionIndex: Int,
     val action: CompiledAction,
+    val cooldownTicks: Int = 0,
 ) {
-    val channels: Set<BehaviorChannel>
-        get() = action.channels
+    val channels: Set<BehaviorChannel> get() = action.channels
+    val cooldownKey: String = "$packId/$ruleId"
+    val diagnosticPrefix: String = "$packId/$ruleId/${action.actionId}"
+    private val resultLabels: List<String> = NpcActionStatus.entries.map { "$diagnosticPrefix:$it" }
 
-    /** Explicit stable arbitration order; larger priorities win, names/index break ties. */
+    fun resultLabel(status: NpcActionStatus): String = resultLabels[status.ordinal]
+
     companion object {
         val WINNER_FIRST: Comparator<ActionIntent> = compareByDescending<ActionIntent> { it.rulePriority }
             .thenByDescending { it.packPriority }
@@ -72,22 +104,9 @@ data class ActionIntent(
 }
 
 fun interface ConditionHandler {
-    fun evaluate(npc: NpcFacade, world: NpcWorldView, snapshot: NpcSnapshot, args: JsonObject): Boolean
+    fun evaluate(context: BehaviorReadContext): Boolean
 }
 
 fun interface ActionHandler {
-    fun execute(npc: NpcFacade, world: NpcWorldView, args: JsonObject): NpcActionResult
+    fun execute(npc: NpcFacade, world: NpcWorldView, context: BehaviorReadContext): NpcActionResult
 }
-
-data class ConditionDefinition(
-    val id: String,
-    val validateArgs: (JsonObject) -> String?,
-    val handler: ConditionHandler,
-)
-
-data class ActionDefinition(
-    val id: String,
-    val channels: Set<BehaviorChannel>,
-    val validateArgs: (JsonObject) -> String?,
-    val handler: ActionHandler,
-)

@@ -52,7 +52,8 @@ For single-player, install them in your Forge client profile.
 
 Use JDK 17 and the included Gradle wrapper. Core is a Git submodule at `core/`, pinned to a
 specific published commit rather than a floating branch. Cloning requires access to both repositories.
-The current pin includes Core's Forge configuration, tool modes, effects and double-chest fixes. Use the matching
+The current pin includes Core action lifecycles, observations, respawn, keep inventory, death drops,
+spawn-point controls and automatic reserve totems. Use the matching
 Core JAR from this build; older development builds may also carry the `0.1.0` version number.
 
 ```powershell
@@ -108,8 +109,8 @@ NPC-specific commands accept a name, UUID, or unambiguous prefix within the curr
 | `samcnpc:demo_lumberjack` | Drive the experimental lumberjack job; start it through the dedicated command. |
 
 The [built-in JSON files](src/main/resources/data/samcnpc_behavior/behaviors) are editable examples
-of the same pack format used for custom behaviors. The follow/combat actions currently use direct
-steering; they are not full obstacle-solving navigation policies.
+of the same pack format used for custom behaviors. Follow and exact-target combat use bounded
+Core navigation with real arrival/cooldown observations. Their goals and reactions remain Behavior policy.
 
 ## Custom behavior packs
 
@@ -136,7 +137,51 @@ Current limits include 64 external files, 128 KiB per external file, 256 rules p
 not scanned or parsed on every NPC tick. Missing assigned packs suspend that NPC's rule execution
 with a safe-idle diagnostic.
 
-## Lumberjack demo
+## Durable tasks
+
+Navigation, delivery, selected wood gathering and exact-target melee share persistent task IDs,
+finite budgets, pause/resume/cancel, diagnostics and bounded interruptions. For example:
+
+```text
+/samcnpc behavior task assign Sam navigate 10 64 10 6000
+/samcnpc behavior task assign Sam deliver 14 64 0 minecraft:oak_log 12 4
+/samcnpc behavior task assign Sam lumberjack 0 64 4 23 73 26 14 64 0 samcnpc:oak 64 6000
+/samcnpc behavior task reaction Sam retaliate 24 600 false
+/samcnpc behavior task status Sam
+/samcnpc behavior task pause Sam
+/samcnpc behavior task resume Sam
+/samcnpc behavior task cancel Sam
+```
+
+Coordinates are examples for a matching world: put the destination on valid ground and provide a
+real reachable chest, tools and resources. Delivery uses carried stock, preserves `keepAtLeast`
+(the last argument) and reports actual transferred items. It does not yet take cargo from another chest.
+
+Wood task arguments are `npc minX minY minZ maxX maxY maxZ chestX chestY chestZ woodId quantity
+[durationTicks] [exclude minX minY minZ maxX maxY maxZ]`. Wood presets are `samcnpc:oak`,
+`samcnpc:birch`, `samcnpc:dark_oak` and `samcnpc:oak_and_birch`.
+Supported recognition includes bounded branching crowns and 2x2 dark-oak trunks. A delivered quota
+can finish after one column; it does not promise removal of the whole tree. Initial carried wood
+is protected, supports consume real materials, and the report distinguishes supplied, gathered,
+consumed, delivered and retained stock. Shared-container changes currently stop the durable task
+on a checkpoint mismatch; full shared logistics and replanting are still development work.
+
+An explicit attack uses `/samcnpc behavior task assign <npc> attack <targetUUID>
+[leash [durationTicks [allowPlayers]]]`. Defaults are a 24-block fixed leash, 600 ticks and no players.
+It never substitutes an unrelated target. Reaction defaults to passive; `task reaction <npc> passive`
+turns it off. Opt-in retaliation interrupts current work, consumes its original time budget and
+resumes only after observing current world state. A second hit does not keep resetting the attack.
+
+One NPC has one primary task and at most two bounded interruption frames. Cancel before replacing
+an unfinished task. Manual pause freezes the budget and releases controls; reload/restart does not
+grant a fresh allowance. Task save format 4 migrates earlier versions and preserves invalid/future
+records with a diagnostic. Stable public task assignment/control APIs are not yet exposed: current
+controls use commands, while add-ons can use Core's mechanical API and Behavior JSON validation.
+
+Area defense/attacks, autonomous ranged equipment selection, patrol, mining, farming, general
+transport and planting are not completed features of this snapshot.
+
+## Legacy lumberjack demo
 
 This is an **experimental integration job that changes real blocks**. Try it in a backed-up test world.
 
@@ -173,7 +218,7 @@ Both halves of a double chest now address its combined inventory through Core. O
 to a chest, the job may clear a visible blocking leaf or log, collect cut wood and resume the
 suspended task. It does not repeatedly target a hidden leaf through a fern/trunk. Elevated
 foliage clearing retains the existing scaffold stance, and full pillar retries consume the
-bounded recovery budget. Saved job format 18 preserves these continuations when loading
+bounded recovery budget. Saved job format 19 preserves these continuations when loading
 older jobs. Previously cancelled jobs still require a new start command.
 
 Scaffolds are limited to eight levels. A collection attempt has a 240-tick total budget and requires
@@ -196,6 +241,8 @@ recovery are not a verified capability; this remains a bounded demo, not a gener
 .\gradlew.bat clean build
 .\gradlew.bat :runGameTestServer
 .\gradlew.bat :runClientLumberjackSmoke
+.\gradlew.bat :runClientTaskSmoke :runClientTaskCombatSmoke
+.\gradlew.bat :runClientFollowSmoke :runClientRetaliationSmoke
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=dirt
 .\gradlew.bat :runClientLumberjackSmoke -PlumberjackGuiProbe=wood
 .\gradlew.bat :runClientConfigSmoke
@@ -211,7 +258,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. Eighteen dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. 82 dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -234,6 +281,14 @@ world as input and copies it into `run-forest-repair/`. The captured save is not
 Add-ons can validate a candidate JSON document without activating it through
 [`BehaviorPackValidationApi.validateCandidate(json)`](src/main/kotlin/io/samcnpc/behavior/api/BehaviorPackValidationApi.kt).
 New executable actions belong in Kotlin's registered handlers, not in pack data.
+
+
+`runClientTaskSmoke` covers durable wood gathering, three world reopens and real oak/dark-oak delivery.
+`runClientTaskCombatSmoke` covers interruption during approach, mining, partial transfer and a scaffold
+jump, then actual combat and resumed delivery. `runClientFollowSmoke` and `runClientRetaliationSmoke`
+exercise the corresponding physical policies. Current unit coverage is 124 Behavior tests; required
+runtime assertions remain enabled. GUI variants `runClientConfigSmokeBare` and
+`runClientConfigSmokeDurable` use separate directories and verify the actual selected settings.
 
 ## Project status and license
 

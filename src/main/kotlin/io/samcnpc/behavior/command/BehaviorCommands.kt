@@ -22,6 +22,7 @@ object BehaviorCommands {
     @SubscribeEvent
     fun register(event: RegisterCommandsEvent) {
         val branch = Commands.literal("behavior")
+            .then(TaskCommands.branch())
             .then(Commands.literal("reload").requires { it.hasPermission(2) }.executes { context ->
                 val report = BehaviorRuntimeService.reload()
                 if (report.accepted) {
@@ -56,7 +57,12 @@ object BehaviorCommands {
                             {
                                 Component.literal(
                                     if (diagnostic == null) "No behavior tick has run for ${npc.npcUuid}."
-                                    else "packs=${diagnostic.activePacks.joinToString(", ")}; intents=${diagnostic.selectedIntents.joinToString(", ")}; problem=${diagnostic.lastProblem.orEmpty()}",
+                                    else "packs=${diagnostic.activePacks.joinToString(", ")}; intents=${diagnostic.selectedIntents.joinToString(", ")}; " +
+                                        "problem=${diagnostic.lastProblem.orEmpty()}; tick=${diagnostic.gameTime}; " +
+                                        "decisions=${diagnostic.work.decisions}; ruleEvaluations=${diagnostic.work.evaluatedRules}; " +
+                                        "intents=${diagnostic.work.executedIntents}/${diagnostic.work.eligibleIntents}; " +
+                                        "queries=${diagnostic.work.lastObservations}; decisionNanos=${diagnostic.work.lastDecisionNanos ?: "profiling disabled"}; " +
+                                        "task=${diagnostic.taskStatus ?: "idle"}; combat=${diagnostic.combatStatus ?: "idle"}",
                                 )
                             },
                             false,
@@ -174,7 +180,7 @@ object BehaviorCommands {
         }
     }
 
-    private fun findNpc(player: ServerPlayer, rawId: String): NpcHandle? {
+    internal fun findNpc(player: ServerPlayer, rawId: String): NpcHandle? {
         val candidates = CoreNpcApi.service(player.server).loadedNearby(
             NpcLoadedQuery(
                 dimensionId = player.serverLevel().dimension().location().toString(),
@@ -199,7 +205,7 @@ object BehaviorCommands {
         }
     }
 
-    private fun canControl(player: ServerPlayer, handle: NpcHandle): Boolean =
+    internal fun canControl(player: ServerPlayer, handle: NpcHandle): Boolean =
         player.hasPermissions(2) || CoreNpcApi.service(player.server).runtime(handle)?.snapshot()?.summonerUuid == player.uuid
 
     private const val SEARCH_RADIUS = 256.0

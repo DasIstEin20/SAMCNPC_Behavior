@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:task_lumberjack",
+  "description": "Finite selected wood gathering in an assigned area, with observed resource and world checkpoints.",
+  "priority": 100,
+  "channels": [
+    "movement",
+    "look",
+    "main_hand",
+    "block_action",
+    "inventory",
+    "interaction",
+    "combat"
+  ],
+  "rules": [
+    {
+      "id": "new_damage",
+      "priority": 1000,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_reaction_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_reaction"
+        }
+      ]
+    },
+    {
+      "id": "advance_combat",
+      "priority": 900,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_combat_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_combat_task"
+        }
+      ]
+    },
+    {
+      "id": "advance_lumberjack",
+      "priority": 100,
+      "when": {
+        "all": [
+          {
+            "test": {
+              "condition": "samcnpc:task_ready"
+            }
+          },
+          {
+            "not": {
+              "test": {
+                "condition": "samcnpc:task_combat_ready"
+              }
+            }
+          }
+        ]
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_lumberjack_task"
+        }
+      ]
+    }
+  ]
+}

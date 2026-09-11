@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:task_delivery",
+  "description": "Deliver an assigned quantity from carried stock while retaining its reserve; reconcile before acting.",
+  "priority": 100,
+  "channels": [
+    "movement",
+    "look",
+    "inventory",
+    "interaction",
+    "combat",
+    "main_hand"
+  ],
+  "rules": [
+    {
+      "id": "new_damage",
+      "priority": 1000,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_reaction_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_reaction"
+        }
+      ]
+    },
+    {
+      "id": "advance_combat",
+      "priority": 900,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_combat_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_combat_task"
+        }
+      ]
+    },
+    {
+      "id": "advance_delivery",
+      "priority": 100,
+      "when": {
+        "all": [
+          {
+            "test": {
+              "condition": "samcnpc:task_ready"
+            }
+          },
+          {
+            "not": {
+              "test": {
+                "condition": "samcnpc:task_combat_ready"
+              }
+            }
+          }
+        ]
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_delivery_task"
+        }
+      ]
+    }
+  ]
+}
