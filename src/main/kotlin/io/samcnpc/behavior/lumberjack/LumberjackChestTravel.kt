@@ -1,5 +1,6 @@
 package io.samcnpc.behavior.lumberjack
 
+import io.samcnpc.behavior.kernel.navigation.ContainerApproachKernel
 import io.samcnpc.behavior.kernel.navigation.isClearPlayerStandingCell
 import io.samcnpc.behavior.kernel.navigation.isLeafOrSupportedSnowObstacle
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoJob
@@ -27,24 +28,14 @@ internal object LumberjackChestTravel {
         if (isWithinDistance(origin, job.chestPosition, ARRIVAL_DISTANCE)) return MoveTowardProgress.ARRIVED
         val previous = job.chestApproach
         if (previous == null || !world.isClearPlayerStandingCell(previous)) {
+            if (!ContainerApproachKernel.admitSelection(world, 2)) return MoveTowardProgress.MOVING
             val chest = job.chestPosition
-            val candidates = mutableListOf<NpcBlockPosition>()
-            for (x in -2..2) for (z in -2..2) for (y in -2..2) {
-                val candidate = NpcBlockPosition(chest.x + x, chest.y + y, chest.z + z)
-                if (isWithinDistance(blockNavigationPosition(candidate), chest, APPROACH_DISTANCE) && world.isClearPlayerStandingCell(candidate)) {
-                    candidates.add(candidate)
-                }
-            }
-            val adjacent = candidates.filter { candidate ->
-                isWithinDistance(blockNavigationPosition(candidate), chest, PREFERRED_APPROACH_DISTANCE)
-            }
-            // Retain wider supported stances for containers on unusual elevations when
-            // no adjacent standing cell exists; do not reject an otherwise valid route.
-            val approaches = if (adjacent.isEmpty()) candidates else adjacent
-            job.chestApproach = approaches.minWithOrNull(
-                compareBy<NpcBlockPosition> { distanceSquared(origin, blockNavigationPosition(it)) }
-                    .thenBy { it.x }.thenBy { it.y }.thenBy { it.z },
-            )
+            val position = ContainerApproachKernel.select(world, chest, origin, offset = 2,
+                maximumDistance = APPROACH_DISTANCE, preferredDistance = PREFERRED_APPROACH_DISTANCE,
+                skipColumn = false, allowed = { cell ->
+                    !world.isLeafOrSupportedSnowObstacle(cell) && !world.isLeafOrSupportedSnowObstacle(NpcBlockPosition(cell.x, cell.y + 1, cell.z))
+                })
+            job.chestApproach = position?.let { NpcBlockPosition(kotlin.math.floor(it.x).toInt(), it.y.toInt(), kotlin.math.floor(it.z).toInt()) }
         }
         val approach = job.chestApproach ?: return MoveTowardProgress.FAILED(
             NpcActionResult.failed("no supported standing cell is available within chest interaction reach", NpcActionCode.NOT_FOUND),

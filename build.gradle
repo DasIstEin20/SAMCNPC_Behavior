@@ -39,9 +39,12 @@ tasks.withType(Test).configureEach {
 }
 
 // The published Core build supplies the source set used by ForgeGradle's dev remapping.
+ext.fullVerificationId = null
 evaluationDependsOn(':samcnpc-core')
 
 def forestSmokeWorld = "forest-repair-${System.currentTimeMillis()}"
+def operationsSmokeId = providers.gradleProperty('operationsSmokeId').orElse(rootProject.ext.fullVerificationId ?: 'manual').get()
+if (!(operationsSmokeId ==~ /[A-Za-z0-9_-]+/)) throw new GradleException('operationsSmokeId must contain only letters, digits, underscores or hyphens')
 
 minecraft {
     mappings channel: 'official', version: minecraft_version
@@ -90,7 +93,11 @@ minecraft {
             parent runs.client
             workingDirectory project.file('run-task-smoke')
             property 'samcnpc.taskSmoke', 'true'
-            mods { samcnpc_behavior { source sourceSets.test } }
+            property 'samcnpc.coreLifecycleProbe', 'true'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
         }
         clientTaskCombatSmoke {
             parent runs.client
@@ -125,7 +132,58 @@ minecraft {
             property 'samcnpc.forestSam3Only', providers.gradleProperty('forestSam3Only').orElse('false').get()
             mods { samcnpc_behavior { source sourceSets.test } }
         }
+        clientOperationsSmoke {
+            parent runs.client
+            workingDirectory project.file("run-operations-client-${operationsSmokeId}")
+            property 'samcnpc.operationsClient', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
         server { args '--nogui' }
+        serverOperationsSmokeSave {
+            taskName 'runOperationsSmokeSave'
+            parent runs.server
+            workingDirectory project.file("run-operations-${operationsSmokeId}")
+            property 'samcnpc.operationsRestart', 'save'
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        serverOperationsSmokeLoad {
+            taskName 'runOperationsSmokeLoad'
+            parent runs.server
+            workingDirectory project.file("run-operations-${operationsSmokeId}")
+            property 'samcnpc.operationsRestart', 'load'
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        serverOperationsLifecycle {
+            taskName 'runOperationsLifecycle'
+            parent runs.server
+            workingDirectory project.file("run-operations-lifecycle-${operationsSmokeId}")
+            property 'samcnpc.operationsLifecycle', 'true'
+            property 'samcnpc.coreLifecycleProbe', 'true'
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
+        }
+        serverOperationsPerformance {
+            taskName 'runOperationsPerformance'
+            parent runs.server
+            workingDirectory project.file("run-operations-performance-${operationsSmokeId}")
+            property 'samcnpc.operationsPerformance', 'true'
+            property 'samcnpc.behavior.profile', 'true'
+            jvmArgs '-Xms2G', '-Xmx4G'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        serverOperationsSoak {
+            taskName 'runOperationsSoak'
+            parent runs.server
+            workingDirectory project.file("run-operations-soak-${operationsSmokeId}")
+            property 'samcnpc.operationsSoak', 'true'
+            jvmArgs '-Xms2G', '-Xmx4G'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
         gameTestServer {
             workingDirectory project.file('run-gametest')
             // Manual fixture geometry extends beyond the template's reset box. Never inherit
@@ -164,6 +222,13 @@ dependencies {
     implementation "thedarkcolour:kotlinforforge:${kotlin_for_forge_version}"
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"
+}
+
+// Plain JVM tests use development names, just like Forge's source-set dev runs. The packaged
+// Core JAR is reobfuscated for distribution and cannot call mapped Minecraft methods in JUnit.
+tasks.withType(Test).configureEach {
+    dependsOn ':samcnpc-core:classes'
+    classpath = files(project(':samcnpc-core').sourceSets.main.output) + classpath
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -331,6 +396,70 @@ tasks.matching { it.name == 'runClientTaskCombatSmoke' }.configureEach {
     }
 }
 
+
+// Ordinary dedicated runs retain Minecraft's actual pacing and save/load through separate JVMs.
+def operationRuns = [
+    runOperationsSmokeSave: [directory: "run-operations-${operationsSmokeId}", report: 'operations-save.txt', port: 25577],
+    runOperationsSmokeLoad: [directory: "run-operations-${operationsSmokeId}", report: 'operations-load.txt', port: 25577],
+    runOperationsLifecycle: [directory: "run-operations-lifecycle-${operationsSmokeId}", report: 'operations-lifecycle.txt', port: 25580],
+    runOperationsPerformance: [directory: "run-operations-performance-${operationsSmokeId}", report: 'operations-performance.txt', port: 25578],
+    runOperationsSoak: [directory: "run-operations-soak-${operationsSmokeId}", report: 'operations-soak.txt', port: 25579],
+    runClientOperationsSmoke: [directory: "run-operations-client-${operationsSmokeId}", report: 'operations-client.txt'],
+]
+operationRuns.each { taskName, config ->
+    def resources = tasks.register("prepare${taskName.substring(3)}Resources", Copy) {
+        from layout.projectDirectory.dir('src/main/resources')
+        into layout.projectDirectory.dir(config.directory)
+    }
+    tasks.matching { it.name == taskName }.configureEach {
+        dependsOn resources
+        def report = project.file("${config.directory}/${config.report}")
+        doFirst {
+            report.parentFile.mkdirs()
+            report.text = 'RUNNING\n'
+            if (config.port != null) {
+                // Project-scoped EULA authorization: root AGENTS.md section12.
+                new File(report.parentFile, 'eula.txt').text = 'eula=true\n'
+                def settings = new File(report.parentFile, 'server.properties')
+                if (!settings.exists()) settings.text = """server-ip=127.0.0.1
+server-port=${config.port}
+online-mode=true
+level-name=world
+level-type=minecraft:flat
+level-seed=0
+generate-structures=false
+view-distance=4
+simulation-distance=4
+max-players=1
+spawn-protection=0
+"""
+            }
+        }
+        doLast { if (!report.text.startsWith('PASS ')) throw new GradleException("Operations verification failed: ${report}") }
+    }
+}
+tasks.matching { it.name == 'runOperationsSmokeLoad' }.configureEach {
+    mustRunAfter tasks.matching { it.name == 'runOperationsSmokeSave' }
+    if (rootProject.ext.fullVerificationId != null || gradle.startParameter.taskNames.any { it.tokenize(':').last() == 'runOperationsSmokeSave' }) dependsOn 'runOperationsSmokeSave'
+}
+
+// The Core observer verifies final disposal in the same real server/client lifecycles.
+[
+    runClientTaskSmoke: [directory: 'run-task-smoke', count: 4],
+    runOperationsLifecycle: [directory: "run-operations-lifecycle-${operationsSmokeId}", count: 1],
+].each { taskName, config ->
+    tasks.matching { it.name == taskName }.configureEach {
+        dependsOn ':samcnpc-core:testClasses'
+        def report = project.file("${config.directory}/core-lifecycle-result.txt")
+        doFirst { report.parentFile.mkdirs(); report.text = 'RUNNING\n' }
+        doLast {
+            if (!report.exists() || !report.text.startsWith("PASS started=${config.count} stopped=${config.count} ")) {
+                throw new GradleException("Core server lifecycle did not pass: ${report}")
+            }
+        }
+    }
+}
+
 tasks.register('verifyProductionKotlin') {
     group = 'verification'
     doLast {
@@ -343,4 +472,18 @@ tasks.register('verifyProductionKotlin') {
 
 tasks.named('check').configure {
     dependsOn tasks.named('verifyProductionKotlin')
+}
+
+// A flaky retry can fail after vanilla's original batch tracker has already advanced. Its final
+// aggregate/exit may still be green; an explicit required failure in this run always fails the gate.
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doLast {
+        def report = new File(workingDir, 'logs/latest.log')
+        if (!report.isFile()) throw new GradleException("GameTest result log is missing: ${report}")
+        def failures = []
+        report.eachLine('UTF-8') { line ->
+            if (line.contains('/ERROR]') && line.contains('LogTestReporter') && line.contains(' failed!')) failures.add(line)
+        }
+        if (!failures.isEmpty()) throw new GradleException("${failures.size()} required GameTest failure(s) despite runner exit: ${failures.first()}. See ${report}")
+    }
 }

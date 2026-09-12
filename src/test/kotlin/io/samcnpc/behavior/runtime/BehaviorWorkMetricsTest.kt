@@ -66,6 +66,30 @@ class BehaviorWorkMetricsTest {
     }
 
     @Test
+    fun combatFactsPassThroughMeasurementWithTheirExactFilterAndVisibility() {
+        val observations = io.samcnpc.behavior.combat.CombatPolicyWorld()
+        val entity = observations.enemy(3, 2.0, "minecraft:pillager")
+        observations.tags[entity.uuid] = setOf("minecraft:raiders")
+        val feet = NpcPosition(2.0, 64.0, 2.0)
+        val delegate = object : NpcWorldView by observations {
+            override fun visibleFrom(feet: NpcPosition, target: UUID): Boolean? {
+                assertEquals(entity.uuid, target)
+                assertEquals(NpcPosition(2.0, 64.0, 2.0), feet)
+                return false
+            }
+        }
+        val metrics = BehaviorWorkMetrics()
+        val started = metrics.begin()
+        val world = MeasuredWorldView(delegate, metrics)
+        assertEquals(entity, world.observeEntity(entity.uuid, NpcEntityTypeFilter.of(tagIds = setOf("minecraft:raiders"))))
+        assertNull(world.observeEntity(entity.uuid, NpcEntityTypeFilter.of(tagIds = setOf("test:unmatched"))))
+        assertEquals(false, world.visibleFrom(feet, entity.uuid))
+        metrics.finish(null, started)
+        assertEquals(2L, metrics.snapshot().observations[BehaviorObservationKind.ENTITY])
+        assertEquals(1L, metrics.snapshot().observations[BehaviorObservationKind.RAYCAST])
+    }
+
+    @Test
     fun ruleCooldownsAndChannelRejectionsHaveDifferentWorkCounts() {
         fun action(id: String, channel: BehaviorChannel) =
             CompiledAction(id, { _, _, _ -> error("test executor handles effects") }, setOf(channel))

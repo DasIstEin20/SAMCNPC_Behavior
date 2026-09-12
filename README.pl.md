@@ -141,8 +141,11 @@ reguł danej postaci i ustawia diagnostykę bezpiecznego bezczynnego stanu.
 
 ## Trwałe zadania
 
-Nawigacja, dostawa, zbiór wskazanego drewna i walka wręcz ze wskazanym celem współdzielą trwałe ID,
-ograniczone budżety, pause/resume/cancel, diagnostykę i ograniczone przerwania. Przykłady:
+Nawigacja, dostawy, zbieranie drewna z ponownym sadzeniem, kopanie, rolnictwo, zdobywanie żywności,
+sadzenie drzew, transport między kontenerami, obrona, patrol i walka korzystają z trwałych ID zadań,
+ograniczonych budżetów, pauzy/wznowienia/anulowania, rozliczania zasobów i ograniczonych przerwań.
+Komendy pozwalają określić ilości, zasoby, obszary pracy, odbiorców, zaopatrzenie oraz obsługiwane
+taktyki. Obsługiwane zmiany ilości, odbiorcy i zasobu przechodzą walidację także w trwającym zadaniu.
 
 ```text
 /samcnpc behavior task assign Sam navigate 10 64 10 6000
@@ -155,35 +158,30 @@ ograniczone budżety, pause/resume/cancel, diagnostykę i ograniczone przerwania
 /samcnpc behavior task cancel Sam
 ```
 
-Współrzędne są przykładowe: trzeba zapewnić właściwy teren, osiągalną skrzynię, narzędzia i materiały.
-Dostawa korzysta z noszonego ekwipunku, zachowuje `keepAtLeast` (ostatni argument) i raportuje
-faktycznie przekazaną liczbę. Nie pobiera jeszcze ładunku z drugiej skrzyni.
+Współrzędne są przykładowe: zapewnij w swoim świecie dostępny grunt, kontenery, narzędzia i zasoby.
+`deliver` przekazuje noszony zapas i zachowuje końcowe `keepAtLeast`; osobne zadanie transportu
+pobiera ładunek ze wskazanego kontenera. Podpowiedzi komend pokazują dostępne rodzaje zadań
+i argumenty. Dokładne ograniczenia zawierają [implementacje komend](src/main/kotlin/io/samcnpc/behavior/command).
 
-Argumenty drwala: `npc minX minY minZ maxX maxY maxZ chestX chestY chestZ woodId quantity
-[durationTicks] [exclude minX minY minZ maxX maxY maxZ]`. Gotowe wybory drewna: `samcnpc:oak`,
-`samcnpc:birch`, `samcnpc:dark_oak` i `samcnpc:oak_and_birch`.
-Rozpoznawanie obejmuje ograniczone rozgałęzione korony i pnie 2x2 ciemnego dębu. Osiągnięcie
-ilości dostawy może zakończyć pracę po jednej kolumnie; nie obiecuje usunięcia całego drzewa.
-Początkowo noszone drewno jest chronione, podpory zużywają prawdziwe materiały, a raport
-rozróżnia zaopatrzenie, zbiór, zużycie, dostawę i zachowany zapas. Zmiana zawartości wspólnego
-pojemnika zatrzymuje obecnie trwałe zadanie przy niezgodności checkpointu; pełna wspólna
-logistyka i ponowne sadzenie pozostają w rozwoju.
+Presety drewna obejmują `samcnpc:oak`, `samcnpc:birch`, `samcnpc:dark_oak` i `samcnpc:oak_and_birch`.
+Początkowy zapas jest chroniony, podpory zużywają prawdziwe materiały, a raporty rozróżniają przedmioty
+pobrane, zebrane, zużyte, dostarczone i zachowane. Osiągnięcie wymaganej dostawy może zakończyć pracę
+przed usunięciem całego drzewa. Rezerwacje pracy/kontenerów i ustępowanie w przejściach koordynują
+zadania; ponowne sadzenie i dobór zaopatrzenia mają jawne reguły. Raport kopania podaje przyczyny
+odmowy, m.in. spadające bloki, niezniszczalne bloki i brak narzędzia. Zbieranie plonów obejmuje
+płytką wodę nawadniającą pole.
 
-Jawny atak: `/samcnpc behavior task assign <npc> attack <targetUUID>
-[leash [durationTicks [allowPlayers]]]`. Domyślnie: stała granica 24 bloków, 600 ticków,
-bez atakowania graczy. Brak wskazanego celu nie wybiera zastępczej ofiary. Domyślna reakcja
-jest pasywna; `task reaction <npc> passive` wyłącza odwet. Jawnie włączony odwet przerywa
-pracę, zużywa jej pierwotny budżet i wznawia ją po ponownej obserwacji świata. Kolejne trafienia
-nie resetują bez końca kontrataku.
+Obrona może chronić przywołującego gracza lub innego NPC; patrol i walka obszarowa mają ograniczony
+obszar i sprawdzane cele. Obsługiwane taktyki obejmują broń dystansową, tarcze oraz leczenie. Włączone
+reakcje przerywają pracę i wznawiają ją po sprawdzeniu aktualnego świata. Akcje nie tworzą darmowych zasobów.
 
-NPC ma jedno zadanie główne i najwyżej dwa poziomy przerwania. Anuluj niedokończone zadanie
-przed zmianą. Ręczna pauza zamraża budżet i zwalnia sterowanie; reload/restart nie nadaje
-nowego limitu. Format zadań 4 migruje wcześniejsze wersje, a błędne/przyszłe zapisy zachowuje
-z diagnostyką. Publiczne API zlecania i kontroli zadań nie jest jeszcze udostępnione: obecnie
-służą do tego komendy, a dodatki mają mechaniczne API Core i walidację JSON Behavior.
+NPC ma jedno główne zadanie i najwyżej dwie ramki przerwań. Ręczna pauza zatrzymuje budżet i zwalnia
+sterowanie; restart nie odnawia limitu. Format zapisu zadań 5 migruje starsze rekordy i zachowuje
+odrzucone dane z diagnostyką. Magazyn zadań ma limit 4096 wpisów; zapełnienie jawnie odrzuca nowy wpis.
 
-Obrona/atak obszaru, autonomiczny wybór broni dystansowej, patrol, mining, farming, ogólny
-transport i sadzenie nie są jeszcze ukończonymi funkcjami tej wersji.
+Stabilne publiczne API zlecania/kontroli operacji i rozszerzony katalog JSON pozostają do wykonania.
+Obecne operacje obsługuje się komendami; dotychczasowa walidacja JSON paczek zachowań jest dostępna.
+Opcjonalny dostawca LLM i integracja craftingu są odłożone.
 
 ## Starsze demo drwala
 
@@ -262,7 +260,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. 82 testy serwerowe sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. 165 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -291,11 +289,18 @@ Nowe wykonywalne akcje należą do zarejestrowanych handlerów Kotlin, a nie dan
 `runClientTaskSmoke` sprawdza trwały zbiór drewna, trzy ponowne otwarcia świata i dostawy dębu/ciemnego dębu.
 `runClientTaskCombatSmoke` przerywa dojście, kopanie, częściowy transfer i skok na podporę, po czym
 sprawdza walkę oraz wznowioną dostawę. `runClientFollowSmoke` i `runClientRetaliationSmoke` sprawdzają
-odpowiednie fizyczne zachowania. Behavior ma obecnie 124 testy jednostkowe; asercje runtime pozostają
+odpowiednie fizyczne zachowania. Behavior ma obecnie 238 testów jednostkowych; asercje runtime pozostają
 włączone. Warianty GUI `runClientConfigSmokeBare` i `runClientConfigSmokeDurable` używają osobnych
 katalogów i sprawdzają rzeczywiście wybrane ustawienia.
 
 ## Stan projektu i licencja
+
+Zweryfikowany kod z 12 września 2026 przeszedł 17 punktów zapisu/wczytania w osobnych JVM,
+18 scenariuszy cyklu życia/ochrony/kopania oraz 12 przypadków w prawdziwym kliencie. Test ciągły
+trwał 30 minut i zakończył 534 zadania. Wyniki obejmują te scenariusze; nie oznaczają zakończenia
+całego projektu. Pozostaje test skórek na dwóch zalogowanych kontach oraz finalizacja publicznego
+API/JSON i wydania. Test ciągły odnotował diagnostykę domyślnego płaskiego świata i jeden timeout
+zbierania nadmiarowych nasion; wymagane dostawy i ponowne sadzenie zostały spełnione.
 
 Wersja rozwojowa **0.1.0**. Repozytorium publikuje Behavior i przypina jego zależność Core;
 nie zawiera opcjonalnego modułu LLM. Zgodność API i zaawansowane przypadki rozgrywki pozostają

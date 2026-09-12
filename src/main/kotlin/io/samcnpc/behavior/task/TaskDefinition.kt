@@ -53,10 +53,14 @@ internal data class DeliveryTaskDefinition(
     val keepAtLeast: Int = 0,
     override val budget: TaskBudget = TaskBudget(),
     override val version: Int = 1,
+    val anchor: NpcPosition? = null,
 ) : TaskDefinition {
     override val operationId: String = ID
     override fun validationProblem(): String? = when {
-        version != 1 -> "unsupported $ID definition version $version"
+        version !in 1..2 -> "unsupported $ID definition version $version"
+        version == 1 && anchor != null -> "v1 delivery cannot contain an adaptive anchor"
+        version == 2 && (anchor == null || !anchor.x.isFinite() || !anchor.y.isFinite() || !anchor.z.isFinite()) -> "v2 delivery requires a finite fixed anchor"
+        anchor != null && TaskNavigator.distanceSquared(anchor, TransportTaskDefinition.center(destination)) > 60.0 * 60.0 -> "delivery recipient must be within 60 blocks of its fixed anchor"
         itemId.length > 256 || !ITEM_ID.matches(itemId) -> "item must be a bounded namespaced ID"
         quantity !in 1..2304 -> "delivery quantity must be 1..2304"
         keepAtLeast !in 0..2304 -> "retained reserve must be 0..2304"

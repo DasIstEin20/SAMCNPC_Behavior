@@ -79,7 +79,7 @@ class TaskPersistenceTest {
     }
 
     private fun root(vararg entries: CompoundTag) = CompoundTag().apply {
-        putInt("version", 2)
+        putInt("version", 5)
         put("tasks", ListTag().apply { entries.forEach(::add) })
     }
 }

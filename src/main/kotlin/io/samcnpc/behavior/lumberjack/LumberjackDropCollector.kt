@@ -30,12 +30,13 @@ internal object LumberjackCollectionBudget {
 
 /** Task-local item selection and normal pickup, separate from trunk/elevation sequencing. */
 internal object LumberjackDropCollector {
+    private val logger = com.mojang.logging.LogUtils.getLogger()
     sealed interface Result {
         data class Running(val action: NpcActionResult) : Result
         data class Complete(val remainingDrops: Int, val timedOut: Boolean) : Result
     }
 
-    fun tick(npc: NpcFacade, world: NpcWorldView, job: LumberjackDemoJob): Result {
+    fun tick(npc: NpcFacade, world: NpcWorldView, job: LumberjackDemoJob, permittedDrop: (NpcPosition) -> Boolean = { true }): Result {
         val anchor = job.trunkBasePosition ?: return Result.Complete(0, false)
         val snapshot = npc.snapshot()
         // Anchor observation to the tree, not its moving collector: chasing a nearer drop
@@ -43,15 +44,22 @@ internal object LumberjackDropCollector {
         val drops = world.queryEntities(NpcEntityQuery(
             center = NpcPosition(anchor.x + 0.5, anchor.y.toDouble(), anchor.z + 0.5),
             radius = 16.0, limit = 64, typeIds = setOf("minecraft:item"),
-        )).filter { it.alive && it.isTaskDrop() && inTreeVolume(it.position, anchor) }
+        )).filter { it.alive && it.isTaskDrop() && inTreeVolume(it.position, anchor) && permittedDrop(it.position) }
         val budget = LumberjackCollectionBudget.advance(job.pickupTicks, job.pickupQuietTicks, drops.isNotEmpty(), snapshot.onGround)
         job.pickupTicks = budget.elapsed
         job.pickupQuietTicks = budget.quiet
         if (budget.complete) {
+            if (budget.timedOut && drops.isNotEmpty()) {
+                logger.warn("TREE_COLLECTION_TIMEOUT npc={} anchor={} position={} drops={}",
+                    npc.npcUuid, anchor, snapshot.position,
+                    drops.take(8).map { "${it.uuid}:${it.itemStack}@${it.position}" })
+            }
             npc.stopControl()
             return Result.Complete(drops.size, budget.timedOut)
         }
         // Falling items keep the window open, but never become floating navigation goals.
+        if (!ItemPickupApproach.admitSelection(snapshot.position, world, drops)) return Result.Running(
+            NpcActionResult.running("tree-drop approach deferred by shared planning budget; original collection deadline retained"))
         val selection = ItemPickupApproach.select(snapshot.position, world, drops)
         val drop = selection?.drop
         if (drop == null) {
@@ -69,6 +77,8 @@ internal object LumberjackDropCollector {
         }
         npc.stopControl()
         val pickup = npc.pickupItem(drop.uuid)
+        logger.debug("TREE_PICKUP npc={} anchor={} drop={} at={} count={} position={} result={}",
+            npc.npcUuid, anchor, drop.uuid, drop.position, drop.itemStack?.count, snapshot.position, pickup)
         return Result.Running(NpcActionResult.running("collecting a tree drop: ${pickup.code}: ${pickup.detail}"))
     }
 

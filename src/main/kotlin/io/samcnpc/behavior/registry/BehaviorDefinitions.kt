@@ -23,6 +23,8 @@ object BehaviorDefinitions {
         readCondition("samcnpc:task_ready") { it.taskReady },
         readCondition("samcnpc:task_combat_ready") { it.taskCombatReady },
         readCondition("samcnpc:task_reaction_ready") { it.taskReactionReady },
+        readCondition("samcnpc:task_inventory_ready") { it.taskInventoryReady },
+        readCondition("samcnpc:task_inventory_requested") { it.taskInventoryRequested },
         readCondition("samcnpc:has_summoner") { it.snapshot.summonerUuid != null },
         readCondition("samcnpc:summoner_online") { it.summoner?.alive == true && it.summoner.isPlayer },
         ConditionDefinition("samcnpc:distance_to_summoner", ::distanceArgs) { args ->
@@ -72,12 +74,21 @@ object BehaviorDefinitions {
         action("samcnpc:clear_attack_target", setOf(BehaviorChannel.COMBAT)) { _, _, context ->
             BehaviorTargetMemory.clear(context.snapshot.npcUuid)
         },
+        action(io.samcnpc.behavior.task.TaskService.INVENTORY_BEGIN_ACTION_ID, BehaviorChannel.entries.toSet()) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskLogistics.begin(server, npc, world)
+        },
+        action(io.samcnpc.behavior.task.TaskService.INVENTORY_ACTION_ID, setOf(BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK,
+            BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION)) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.INVENTORY_ACTION_ID)
+        },
         action(io.samcnpc.behavior.task.TaskService.REACTION_ACTION_ID, setOf(BehaviorChannel.COMBAT)) { npc, world, _ ->
             val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
             io.samcnpc.behavior.task.TaskCombatReactions.begin(server, npc, world)
         },
         action(io.samcnpc.behavior.task.TaskService.COMBAT_ACTION_ID, setOf(BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK,
-            BehaviorChannel.COMBAT, BehaviorChannel.MAIN_HAND)) { npc, world, _ ->
+            BehaviorChannel.COMBAT, BehaviorChannel.MAIN_HAND, BehaviorChannel.OFF_HAND, BehaviorChannel.INVENTORY)) { npc, world, _ ->
             val server = BehaviorRuntimeService.serverOrNull() ?: return@action NpcActionResult.rejected("behavior server is not ready")
             io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.COMBAT_ACTION_ID)
         },
@@ -92,6 +103,38 @@ object BehaviorDefinitions {
             val server = BehaviorRuntimeService.serverOrNull()
                 ?: return@action NpcActionResult.rejected("behavior server is not ready")
             io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.DELIVERY_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.MINING_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.MINING_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.FOOD_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.FOOD_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.PLANTING_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.PLANTING_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.FARM_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.FARM_ACTION_ID)
         },
         action(io.samcnpc.behavior.task.TaskService.LUMBERJACK_ACTION_ID, setOf(
             BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,

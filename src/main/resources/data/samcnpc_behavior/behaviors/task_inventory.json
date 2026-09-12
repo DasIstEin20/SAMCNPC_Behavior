@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "samcnpc:task_inventory",
+  "description": "Finite explicit supply, protected unload or nearby pickup, followed by a physical return.",
+  "priority": 100,
+  "channels": [
+    "movement",
+    "look",
+    "combat",
+    "main_hand",
+    "off_hand",
+    "inventory",
+    "interaction",
+    "block_action"
+  ],
+  "rules": [
+    {
+      "id": "new_damage",
+      "priority": 1000,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_reaction_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_reaction"
+        }
+      ]
+    },
+    {
+      "id": "advance_combat",
+      "priority": 900,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_combat_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_combat_task"
+        }
+      ]
+    },
+    {
+      "id": "advance_inventory",
+      "priority": 700,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_inventory_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_inventory_task"
+        }
+      ]
+    }
+  ]
+}

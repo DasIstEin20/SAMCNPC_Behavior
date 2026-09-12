@@ -47,7 +47,7 @@ internal class TaskStore private constructor() : SavedData() {
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_tasks"
-        private const val VERSION = 4
+        private const val VERSION = 5
         private const val MAX_RECORDS = 4096
         private val LOGGER = LogUtils.getLogger()
 
@@ -79,6 +79,7 @@ internal class TaskStore private constructor() : SavedData() {
                     require(tag.getInt("version") >= 3 || record.frames.none { it.definition is LumberjackTaskDefinition }) { "pre-v3 did not contain lumberjack tasks" }
                     require(tag.getInt("version") >= 4 || (record.frames.none { it.definition is AttackTaskDefinition } &&
                         record.reaction.policy == TaskReactionPolicy() && record.reaction.cooldownRemaining == 0 && record.lastCombat == null)) { "pre-v4 did not contain combat tasks/reactions" }
+                    require(tag.getInt("version") >= 5 || record.frames.none { it.definition is CombatMissionDefinition || it.definition is TransportTaskDefinition }) { "pre-v5 did not contain combat missions or transport" }
                     store.records[npcUuid] = record
                     firstEntries[npcUuid] = entry
                 } catch (error: IllegalArgumentException) {

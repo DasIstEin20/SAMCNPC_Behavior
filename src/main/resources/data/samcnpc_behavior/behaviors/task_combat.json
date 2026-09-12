@@ -1,13 +1,15 @@
 {
   "schemaVersion": 1,
   "id": "samcnpc:task_combat",
-  "description": "Finite exact-target melee task through normal Core navigation, permissions and cooldown.",
+  "description": "Bounded combat through shared equipment, distance and recovery policy with ordinary Core mechanics.",
   "priority": 100,
   "channels": [
     "movement",
     "look",
     "combat",
-    "main_hand"
+    "main_hand",
+    "off_hand",
+    "inventory"
   ],
   "rules": [
     {

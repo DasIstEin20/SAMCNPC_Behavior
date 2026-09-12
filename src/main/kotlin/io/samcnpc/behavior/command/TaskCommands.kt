@@ -28,7 +28,14 @@ import net.minecraft.server.level.ServerPlayer
 
 internal object TaskCommands {
     fun branch() = Commands.literal("task")
-        .then(TaskCombatCommands.reactionBranch())
+        .then(TaskHistoryCommands.history())
+        .then(TaskHistoryCommands.amendments())
+        .then(TaskHistoryCommands.inventory())
+        .then(TaskAmendmentCommands.branch())
+        .then(TaskAmendmentCommands.checkedBranch())
+        .then(TaskReactionCommands.branch())
+        .then(TaskTacticsCommands.branch())
+        .then(TaskInventoryCommands.policy())
         .then(Commands.literal("status").then(Commands.argument("npc", StringArgumentType.word()).executes { context ->
             withNpc(context) { player, npc ->
                 NpcActionResult.succeeded(TaskService.status(player.server, npc.npcUuid) ?: "NPC has no durable task")
@@ -45,7 +52,21 @@ internal object TaskCommands {
         }))
         .then(Commands.literal("assign").then(Commands.argument("npc", StringArgumentType.word())
             .then(lumberjackBranch())
+            .then(TaskWoodSupplyCommands.branch())
+            .then(TaskMiningCommands.branch())
+            .then(TaskFoodCommands.branch())
+            .then(TaskFarmCommands.branch())
+            .then(TaskTreeCommands.branch())
+            .then(TaskTreeCommands.woodBranch())
+            .then(TaskInventoryCommands.supply())
+            .then(TaskInventoryCommands.unload())
+            .then(TaskInventoryCommands.pickup())
+            .then(TaskTransportCommands.branch())
+            .then(TaskTransportCommands.alternativesBranch())
             .then(TaskCombatCommands.attackBranch())
+            .then(TaskMissionCommands.defendBranch())
+            .then(TaskMissionCommands.areaBranch())
+            .then(TaskMissionCommands.patrolBranch())
             .then(Commands.literal("navigate").then(Commands.argument("position", Vec3Argument.vec3())
                 .executes { context -> assign(context, 6000) }
                 .then(Commands.argument("durationTicks", IntegerArgumentType.integer(20, 72000))
@@ -89,7 +110,8 @@ internal object TaskCommands {
             if (exclude) listOf(WorkBox(block(context, "excludeMin"), block(context, "excludeMax"))) else emptyList())
         val definition = LumberjackTaskDefinition(npc.snapshot().dimensionId, area,
             WoodSelection(listOf(ResourceLocationArgument.getId(context, "wood").toString())), block(context, "container"),
-            IntegerArgumentType.getInteger(context, "quantity"), budget = TaskBudget(ticks = duration))
+            IntegerArgumentType.getInteger(context, "quantity"), budget = TaskBudget(ticks = duration), version = 2,
+            supplySources = io.samcnpc.behavior.task.ContainerChoices(listOf(block(context, "container"))))
         TaskService.assign(player.server, npc, definition)
     }
 
@@ -109,7 +131,7 @@ internal object TaskCommands {
         val position = BlockPosArgument.getBlockPos(context, "container")
         TaskService.assign(player.server, npc, DeliveryTaskDefinition(npc.snapshot().dimensionId,
             NpcBlockPosition(position.x, position.y, position.z), ResourceLocationArgument.getId(context, "item").toString(),
-            IntegerArgumentType.getInteger(context, "quantity"), keepAtLeast))
+            IntegerArgumentType.getInteger(context, "quantity"), keepAtLeast, version = 2, anchor = npc.snapshot().position))
     }
 
     internal fun withNpc(context: CommandContext<CommandSourceStack>, action: (ServerPlayer, NpcFacade) -> NpcActionResult): Int {

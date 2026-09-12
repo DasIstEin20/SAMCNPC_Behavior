@@ -47,7 +47,11 @@ internal class DarkOakWorkFixture(val origin: BlockPos, val seed: Long) {
         val chest = chest(level)
         chest.setItem(0, ItemStack(Items.DIAMOND_AXE))
         chest.setItem(1, ItemStack(Items.IRON_SHOVEL))
-        chest.setItem(2, ItemStack(Items.DIRT, 24))
+        // This fixture requires complete removal of unchanged supports. Dirt can legitimately
+        // turn into grass during long natural-tree work; its strict identity/report contract
+        // has a separate real grass-spread/reload test in ResumedPillarGameTests.
+        // Coarse dirt keeps the same hardness, shovel use and recoverable material budget.
+        chest.setItem(2, ItemStack(Items.COARSE_DIRT, 24))
         chest.setChanged()
     }
 

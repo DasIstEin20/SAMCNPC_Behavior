@@ -137,11 +137,14 @@ object BehaviorRuntimeService {
     @SubscribeEvent
     fun tick(event: NpcServerTickEvent) {
         val server = activeServer ?: return
-        TaskService.observeTick(server, event.snapshot, event.runtime)
         val runtime = runtimes.getOrPut(event.runtime.npcUuid) { RuntimeState(BehaviorWorkMetrics(measureDecisions)) }
         val started = runtime.metrics.begin()
-        val npc = MeasuredNpcFacade(event.runtime, runtime.metrics)
-        val world = MeasuredWorldView(event.world, runtime.metrics)
+        val planningTick = server.tickCount.toLong().and(0xffffffffL)
+        BehaviorPlanning.advance(planningTick)
+        val planning = BehaviorPlanning.forNpc(event.runtime.npcUuid, planningTick)
+        val npc = MeasuredNpcFacade(event.runtime, runtime.metrics, planning)
+        val world = MeasuredWorldView(event.world, runtime.metrics, planning)
+        TaskService.observeTick(server, event.snapshot, npc, world)
         runtime.lastGameTime = event.snapshot.gameTime
         val registry = activeRegistry.get()
         val assignedIds = BehaviorAssignmentStore.forServer(server).packsFor(npc.npcUuid)
@@ -181,7 +184,8 @@ object BehaviorRuntimeService {
         val summoner = if (observedSummoner?.alive == true && observedSummoner.isPlayer) observedSummoner else null
         val context = BehaviorReadContext(snapshot, summoner, target, TaskService.isReady(server, npc.npcUuid),
             BehaviorTargetMemory.hasUnhandledDamage(snapshot), TaskService.isCombatReady(server, npc.npcUuid),
-            TaskService.reactionRequested(server, snapshot))
+            TaskService.reactionRequested(server, snapshot, world), TaskService.isInventoryReady(server, npc.npcUuid),
+            io.samcnpc.behavior.task.TaskLogistics.requested(server, npc, world))
         val decision = plan.tick(context, runtime.cooldownUntil, beforeExecution = { selected ->
             runtime.actions.prepare(selected, npc) { released(npc.npcUuid, it) }
         }) { intent ->
@@ -197,6 +201,7 @@ object BehaviorRuntimeService {
 
     @SubscribeEvent
     fun remove(event: NpcRemovedEvent) {
+        BehaviorPlanning.release(event.handle.npcUuid)
         runtimes.remove(event.handle.npcUuid)
         BehaviorTargetMemory.remove(event.handle.npcUuid)
         FollowMovement.remove(event.handle.npcUuid)

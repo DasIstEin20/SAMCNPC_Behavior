@@ -97,6 +97,23 @@ class LumberjackTaskTest {
         assertIs<LumberjackWorkReconciliation.Result.Mismatch>(LumberjackWorkReconciliation.resume(state, world))
     }
 
+    @Test fun explicitResumeCanConfirmMatchingLiveInventoryBeforeANewPickupButNeverHideAMismatch() {
+        val record = task(); val resources = checkNotNull(record.primary.lumberjack).resources
+        var count = 0
+        val body = object : TestNpcFacade() {
+            override fun inventoryContents() = (0 until 36).map { NpcInventoryEntry(it,
+                if (it == 0 && count > 0) NpcItemStackSnapshot("minecraft:oak_log", count, 64, 0, 0) else NpcItemStackSnapshot.EMPTY) }
+            override fun equipmentContents() = NpcEquipmentSnapshot(NpcItemStackSnapshot.EMPTY, NpcItemStackSnapshot.EMPTY,
+                NpcItemStackSnapshot.EMPTY, NpcItemStackSnapshot.EMPTY, NpcItemStackSnapshot.EMPTY, NpcItemStackSnapshot.EMPTY)
+        }
+        TaskResumeObservation.prime(record, body); assertFalse(resources.mustReconcileLoad)
+        count = 1
+        assertNull(TaskLumberjack.observeInventory(record, body)); assertEquals(1, resources.entries["minecraft:oak_log"]?.gathered)
+        val stale = task()
+        TaskResumeObservation.prime(stale, body)
+        assertTrue(checkNotNull(stale.primary.lumberjack).resources.mustReconcileLoad)
+        assertNotNull(TaskLumberjack.observeInventory(stale, body))
+    }
     private fun task(): TaskRecord {
         val job = LumberjackDemoJob(npcId, definition.dimensionId, chest, chest, emptyList(), LumberjackDemoPhase.SEARCH_WOOD,
             0, 0, false, null, null, null, null, mutableListOf(), false, 0, 0, false, false, 0, false, emptyMap())
@@ -105,7 +122,7 @@ class LumberjackTaskTest {
         }
     }
     private fun work(tag: CompoundTag) = tag.getList("frames", 10).getCompound(0).getCompound("lumberjack")
-    private fun root(record: TaskRecord) = CompoundTag().apply { putInt("version", 3); put("tasks", ListTag().apply { add(TaskCodec.write(record)) }) }
+    private fun root(record: TaskRecord) = CompoundTag().apply { putInt("version", 5); put("tasks", ListTag().apply { add(TaskCodec.write(record)) }) }
     private class Body : TestNpcFacade() {
         var breaks = 0; var placements = 0
         override fun startBlockBreak(position: NpcBlockPosition): NpcActionResult { breaks++; return NpcActionResult.succeeded("observed start") }

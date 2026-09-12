@@ -13,6 +13,9 @@ class SamcnpcBehavior {
         MinecraftForge.EVENT_BUS.register(BehaviorRuntimeService)
         MinecraftForge.EVENT_BUS.register(BehaviorCommands)
         MinecraftForge.EVENT_BUS.register(LumberjackService)
+        MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.kernel.work.HarvestWorkClaims)
+        MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.task.FoodAccounting)
+        MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.task.FarmAccounting)
     }
 
     companion object {

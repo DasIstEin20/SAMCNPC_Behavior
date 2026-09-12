@@ -42,4 +42,17 @@ internal object CombatTargetSelector {
             .filter { it.typeId in typeIds && eligible(snapshot, it, area, allowPlayers) }
             .minWithOrNull(compareBy<NpcEntityObservation> { TaskNavigator.distanceSquared(snapshot.position, it.position) }.thenBy { it.uuid.toString() })
     }
+    fun filtered(snapshot: NpcSnapshot, world: NpcWorldView, area: Area, filter: NpcEntityTypeFilter,
+                 retained: UUID? = null, allowPlayers: Boolean = false, excluded: Set<UUID> = emptySet()): NpcEntityObservation? {
+        require(!filter.isEmpty) { "area combat requires an explicit type/tag filter" }
+        if (!area.contains(snapshot.position)) return null
+        if (retained != null && retained !in excluded) {
+            val target = world.observeEntity(retained, filter)
+            if (target != null && eligible(snapshot, target, area, allowPlayers)) return target
+        }
+        return world.queryEntities(NpcEntityQuery(area.center, area.radius, 64, typeFilter = filter))
+            .filter { it.uuid !in excluded && eligible(snapshot, it, area, allowPlayers) }
+            .minWithOrNull(compareBy<NpcEntityObservation> { TaskNavigator.distanceSquared(snapshot.position, it.position) }.thenBy { it.uuid.toString() })
+    }
+
 }

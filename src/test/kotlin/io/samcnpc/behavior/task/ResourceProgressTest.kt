@@ -96,12 +96,12 @@ class ResourceProgressTest {
 
     @Test fun v1NavigationMigratesWithoutAnyResourceHistoryOrExecutionHandle() {
         val record = TaskRecord.start(UUID(0, 2), NavigateTaskDefinition("minecraft:overworld", NpcPosition(2.5, 64.0, 2.5)), emptyList())
-        val root = CompoundTag().apply { putInt("version", 1); put("tasks", ListTag().apply { add(TaskCodec.write(record)) }) }
+        val root = CompoundTag().apply { putInt("version", 1); put("tasks", ListTag().apply { add(TaskCodec.write(record).apply { remove("reaction") }) }) }
         val store = TaskStore.load(root)
         val migrated = assertNotNull(store.get(record.npcUuid))
         assertEquals(record.id, migrated.id)
         assertNull(migrated.primary.resources)
-        assertEquals(4, store.save(CompoundTag()).getInt("version"))
+        assertEquals(5, store.save(CompoundTag()).getInt("version"))
         assertEquals(TaskReactionPolicy(), migrated.reaction.policy)
         assertEquals(0, migrated.reaction.cooldownRemaining)
         assertNull(migrated.lastCombat)

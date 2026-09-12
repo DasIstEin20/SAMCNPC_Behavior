@@ -1,6 +1,8 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.core.api.*
+import io.samcnpc.behavior.kernel.inventory.*
+import io.samcnpc.behavior.kernel.navigation.ContainerApproachKernel
 
 /** One actual inventory-to-container transfer per selected tick; no hidden supply policy. */
 internal object TaskDelivery {
@@ -18,6 +20,7 @@ internal object TaskDelivery {
 
     fun tick(record: TaskRecord, execution: TaskExecution, npc: NpcFacade, world: NpcWorldView): NpcActionResult {
         val definition = record.active.definition as DeliveryTaskDefinition
+        if (definition.version >= 2) return TaskTransport.tick(record, execution, npc, world)
         val progress = checkNotNull(record.active.resources)
         val snapshot = npc.snapshot()
         record.reconciledPosition = snapshot.position
@@ -53,7 +56,11 @@ internal object TaskDelivery {
         }
         val center = NpcPosition(definition.destination.x + 0.5, definition.destination.y + 0.5, definition.destination.z + 0.5)
         if (TaskNavigator.distanceSquared(snapshot.position, center) > 3.0 * 3.0 || !snapshot.onGround) {
-            val approach = execution.approach ?: selectApproach(world, definition.destination, snapshot.position)
+            if (execution.approach == null && !ContainerApproachKernel.admitSelection(world)) {
+                record.detail = "container approach deferred by the shared planning budget"
+                return NpcActionResult.running(record.detail)
+            }
+            val approach = execution.approach ?: ContainerApproachKernel.select(world, definition.destination, snapshot.position)
             if (approach == null) {
                 record.retry(TaskReason.DESTINATION_UNAVAILABLE, "no supported nearby standing cell for the selected container")
                 return NpcActionResult.running(record.detail)
@@ -73,7 +80,11 @@ internal object TaskDelivery {
             return NpcActionResult.running(record.detail)
         }
         val count = minOf(definition.quantity - progress.delivered, available, source.stack.count)
-        val result = npc.moveInventoryToBlockContainer(source.slot, NpcBlockContainerSlot(definition.destination, destination.slot), count)
+        val step = ContainerStepReservations.transfer(record.id, npc, world, definition.destination, definition.itemId, count,
+            ContainerTransferDirection.DEPOSIT, source.slot, destination.slot)
+        if (step.problem == ContainerTransferProblem.RESERVED) return step.action
+        if (step.problem == ContainerTransferProblem.UNCERTAIN) return mismatch(record, step.action.detail)
+        val result = step.action
         val after = world.observeBlockContainer(definition.destination)
             ?: return mismatch(record, "container became unobservable after transfer; effect is uncertain")
         val actualNpc = inventoryCount(npc, definition.itemId)
@@ -94,18 +105,6 @@ internal object TaskDelivery {
         record.active.resources?.uncertain = true
         record.finish(TaskStatus.FAILED, TaskReason.STATE_MISMATCH, detail)
         return NpcActionResult.failed(record.detail, NpcActionCode.WORLD_REJECTED)
-    }
-
-    private fun selectApproach(world: NpcWorldView, chest: NpcBlockPosition, origin: NpcPosition): NpcPosition? {
-        val candidates = ArrayList<NpcPosition>(24)
-        for (x in -1..1) for (z in -1..1) for (y in -1..1) {
-            if (x == 0 && z == 0) continue
-            val position = NpcPosition(chest.x + x + 0.5, (chest.y + y).toDouble(), chest.z + z + 0.5)
-            val standing = world.observeStandingSpace(position) ?: continue
-            if (standing.clear && standing.supported && !standing.inFluid) candidates.add(position)
-        }
-        return candidates.minWithOrNull(compareBy<NpcPosition> { TaskNavigator.distanceSquared(origin, it) }
-            .thenBy { it.x }.thenBy { it.y }.thenBy { it.z })
     }
 
     fun inventoryCount(npc: NpcFacade, itemId: String): Int = npc.inventoryContents().sumOf { if (it.stack.itemId == itemId) it.stack.count else 0 }

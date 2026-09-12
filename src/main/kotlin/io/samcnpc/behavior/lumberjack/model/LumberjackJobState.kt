@@ -8,7 +8,7 @@ import java.util.UUID
 internal data class LumberjackDemoJob(
     val npcUuid: UUID,
     val dimensionId: String,
-    val chestPosition: NpcBlockPosition,
+    var chestPosition: NpcBlockPosition,
     val workCenter: NpcBlockPosition,
     val previousPackIds: List<String>,
     var phase: LumberjackDemoPhase,
@@ -58,6 +58,13 @@ internal data class LumberjackDemoJob(
     /** Recomputed from actual delivered/carried stock by the finite parent task. */
     var finishAfterCurrentTree: Boolean = false,
     var scanUnavailable: Boolean = false,
+    /** Rebound by a v2 parent; legacy jobs retain their explicitly combined chest contract. */
+    var externalSuppliesAllowed: Boolean = true,
+    /** Finite tasks persist this bounded queue in their parent; the legacy demo leaves it disabled. */
+    val deferredWood: MutableList<LumberjackDeferredTarget> = mutableListOf(),
+    var deferredWoodEnabled: Boolean = false,
+    /** Rebound by a finite parent; a lease can never outlive or impersonate another task. */
+    var workTaskId: UUID = npcUuid,
 )
 
 internal enum class LumberjackChestAccessStage { CLEAR_FOLIAGE, CUT_WOOD, COLLECT_WOOD }
@@ -76,3 +83,12 @@ internal enum class LumberjackDemoPhase {
     PILLAR_UP,
     PILLAR_CLEANUP,
 }
+
+internal data class LumberjackDeferredTarget(
+    val target: NpcBlockPosition,
+    val targetBlockId: String,
+    val obstruction: NpcBlockPosition,
+    val obstructionBlockId: String,
+    val failedAttempts: Int,
+    var revisited: Boolean = false,
+)

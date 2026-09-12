@@ -7,7 +7,11 @@
     "movement",
     "look",
     "combat",
-    "main_hand"
+    "main_hand",
+    "off_hand",
+    "inventory",
+    "interaction",
+    "block_action"
   ],
   "rules": [
     {
@@ -39,6 +43,34 @@
       ]
     },
     {
+      "id": "begin_inventory",
+      "priority": 800,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_inventory_requested"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_inventory"
+        }
+      ]
+    },
+    {
+      "id": "advance_inventory",
+      "priority": 700,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_inventory_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_inventory_task"
+        }
+      ]
+    },
+    {
       "id": "advance_task",
       "priority": 100,
       "when": {
@@ -52,6 +84,20 @@
             "not": {
               "test": {
                 "condition": "samcnpc:task_combat_ready"
+              }
+            }
+          },
+          {
+            "not": {
+              "test": {
+                "condition": "samcnpc:task_inventory_ready"
+              }
+            }
+          },
+          {
+            "not": {
+              "test": {
+                "condition": "samcnpc:task_inventory_requested"
               }
             }
           }

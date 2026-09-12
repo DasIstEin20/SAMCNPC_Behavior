@@ -10,6 +10,9 @@ internal class WoodSelection(selectors: Collection<String>) {
         selectors.any { it !in PRESETS && it !in SUPPORTED_ITEMS } -> "unknown wood selection; supported presets are samcnpc:oak, samcnpc:birch, samcnpc:dark_oak and samcnpc:oak_and_birch"
         else -> null
     }
+    override fun equals(other: Any?): Boolean = other is WoodSelection && selectors == other.selectors
+    override fun hashCode(): Int = selectors.hashCode()
+    override fun toString(): String = selectors.sorted().joinToString(prefix = "WoodSelection[", postfix = "]")
     companion object {
         private val OAK = setOf("minecraft:oak_log", "minecraft:oak_wood", "minecraft:stripped_oak_log", "minecraft:stripped_oak_wood")
         private val BIRCH = setOf("minecraft:birch_log", "minecraft:birch_wood", "minecraft:stripped_birch_log", "minecraft:stripped_birch_wood")

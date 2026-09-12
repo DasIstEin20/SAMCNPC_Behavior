@@ -37,6 +37,8 @@ internal object LumberjackChestWoodCollector {
             job.chestAccessStage = LumberjackChestAccessStage.CLEAR_FOLIAGE
             return NpcActionResult.running("route wood collection finished; resuming the same chest approach")
         }
+        if (!ItemPickupApproach.admitSelection(snapshot.position, world, drops)) return NpcActionResult.running(
+            "route pickup planning deferred by shared budget; original collection deadline retained")
         val selection = ItemPickupApproach.select(snapshot.position, world, drops)
         val drop = selection?.drop
         if (drop == null) {
@@ -50,6 +52,8 @@ internal object LumberjackChestWoodCollector {
         }
         npc.stopControl()
         val pickup = npc.pickupItem(drop.uuid)
+        logger.debug("ROUTE_PICKUP npc={} anchor={} drop={} at={} count={} position={} result={}",
+            npc.npcUuid, anchor, drop.uuid, drop.position, drop.itemStack?.count, snapshot.position, pickup)
         return NpcActionResult.running("collecting route wood: ${pickup.code}: ${pickup.detail}")
     }
 

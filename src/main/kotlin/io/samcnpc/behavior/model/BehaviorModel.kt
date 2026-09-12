@@ -24,6 +24,8 @@ data class BehaviorReadContext(
     val unhandledDamage: Boolean = false,
     val taskCombatReady: Boolean = false,
     val taskReactionReady: Boolean = false,
+    val taskInventoryReady: Boolean = false,
+    val taskInventoryRequested: Boolean = false,
 )
 
 sealed interface ConditionExpression {

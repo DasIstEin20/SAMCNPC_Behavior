@@ -667,7 +667,7 @@ internal object TemporaryPillarKernel {
         if (hit != null && world.isLeafOrSupportedSnowObstacle(hit.position)) {
             return PillarProgress.BlockedByLeaf(hit.position)
         }
-        return fail(session, PillarResultCode.PILLAR_TARGET_OBSTRUCTED, "in-reach target $target is obscured by ${hit?.position}")
+        return fail(session, PillarResultCode.PILLAR_TARGET_OBSTRUCTED, "in-reach target $target is obscured by ${hit?.position}", hit?.position)
     }
 
     private fun retryOrFail(session: PillarSession, code: PillarResultCode): PillarProgress {
@@ -681,9 +681,9 @@ internal object TemporaryPillarKernel {
         return PillarProgress.Running("the legal placement window closed; returning to stable footing before one bounded retry")
     }
 
-    private fun fail(session: PillarSession, code: PillarResultCode, detail: String = ""): PillarProgress {
+    private fun fail(session: PillarSession, code: PillarResultCode, detail: String = "", obstruction: NpcBlockPosition? = null): PillarProgress {
         session.lastResult = code
-        return PillarProgress.Failed(code, detail)
+        return PillarProgress.Failed(code, detail, obstruction)
     }
 
     private fun lookAt(npc: NpcFacade, target: NpcPosition): NpcActionResult {
@@ -742,7 +742,7 @@ internal object TemporaryPillarKernel {
         data object TargetReached : PillarProgress
         data object TargetGone : PillarProgress
         data class BlockedByLeaf(val position: NpcBlockPosition) : PillarProgress
-        data class Failed(val code: PillarResultCode, val detail: String = "") : PillarProgress
+        data class Failed(val code: PillarResultCode, val detail: String = "", val obstruction: NpcBlockPosition? = null) : PillarProgress
         data object CleanupComplete : PillarProgress
         data object CleanupIncomplete : PillarProgress
     }

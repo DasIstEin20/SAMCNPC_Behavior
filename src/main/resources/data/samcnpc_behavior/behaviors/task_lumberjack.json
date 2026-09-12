@@ -10,7 +10,8 @@
     "block_action",
     "inventory",
     "interaction",
-    "combat"
+    "combat",
+    "off_hand"
   ],
   "rules": [
     {
@@ -38,6 +39,34 @@
       "actions": [
         {
           "action": "samcnpc:run_combat_task"
+        }
+      ]
+    },
+    {
+      "id": "begin_inventory",
+      "priority": 800,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_inventory_requested"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:begin_task_inventory"
+        }
+      ]
+    },
+    {
+      "id": "advance_inventory",
+      "priority": 700,
+      "when": {
+        "test": {
+          "condition": "samcnpc:task_inventory_ready"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:run_inventory_task"
         }
       ]
     },

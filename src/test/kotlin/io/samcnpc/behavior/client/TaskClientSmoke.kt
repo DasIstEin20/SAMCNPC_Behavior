@@ -218,7 +218,7 @@ object TaskClientSmoke {
         } else if (stage == 4) {
             val record = checkNotNull(TaskStore.forServer(server).get(uuid))
             check(!record.status.terminal) { TaskService.status(server, uuid).orEmpty() }
-            if (record.primary.resources?.delivered == 6) {
+            if (record.primary.transport?.ledger?.delivered == 6) {
                 check((body as LivingEntity).mainHandItem.count == 10)
                 command("pause $uuid")
                 savedRemaining = record.primary.remainingTicks
@@ -232,7 +232,7 @@ object TaskClientSmoke {
             val record = checkNotNull(TaskStore.forServer(server).get(uuid))
             val chest = level.getBlockEntity(deliveryChest) as Container
             check(record.id == taskId && record.status == TaskStatus.PAUSED && record.primary.remainingTicks == savedRemaining)
-            check(record.primary.resources?.delivered == 6 && record.primary.resources?.receipt?.sequence == 1)
+            check(record.primary.transport?.ledger?.delivered == 6 && record.primary.transport?.ledger?.transferCount == 1)
             check((body as LivingEntity).mainHandItem.count == 10 && chest.getItem(0).count == 64)
             if (stageAge >= 25) {
                 chest.setItem(1, ItemStack.EMPTY)
@@ -250,9 +250,10 @@ object TaskClientSmoke {
                     val stack = chest.getItem(slot)
                     if (stack.`is`(Items.OAK_LOG)) stack.count else 0
                 }
-                check(record.id == taskId && record.primary.resources?.delivered == 12 && record.primary.resources?.receipt?.sequence == 2)
+                check(record.id == taskId && record.primary.transport?.ledger?.delivered == 12 && record.primary.transport?.ledger?.transferCount == 2)
+                check(checkNotNull(record.primary.transport).ledger.valid())
                 check((body as LivingEntity).mainHandItem.count == 4 && total == 70)
-                deliveryEvidence = "Delivery $taskId: actual partial 6 -> pause -> second save/close/reopen -> confirmed receipt 1 preserved -> resume -> actual 12 delivered, 4 reserved, chest 70"
+                deliveryEvidence = "Delivery $taskId: actual partial 6 -> pause -> second save/close/reopen -> confirmed cargo transfer 1 preserved -> resume -> actual 12 delivered, 4 reserved, chest 70"
                 val fixture = LumberjackQuantityFixture(BlockPos(0, -61, 20))
                 fixture.prepare(level)
                 woodFixture = fixture

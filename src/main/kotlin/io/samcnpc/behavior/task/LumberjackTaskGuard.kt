@@ -3,6 +3,7 @@ package io.samcnpc.behavior.task
 import io.samcnpc.behavior.lumberjack.tree.isLumberjackLeafBlock
 import io.samcnpc.behavior.lumberjack.tree.isLumberjackSnowLayer
 import io.samcnpc.core.api.*
+import io.samcnpc.behavior.kernel.inventory.*
 
 /** Final policy fence around real Core calls. World observations are never altered. */
 internal class LumberjackTaskGuard(
@@ -23,6 +24,7 @@ internal class LumberjackTaskGuard(
         val result = delegate.startBlockBreak(position)
         if (result.status == NpcActionStatus.ACCEPTED || result.status == NpcActionStatus.RUNNING || result.status == NpcActionStatus.SUCCEEDED) {
             state.pendingBreak = WorkBlockCheckpoint(position, observed.blockId)
+            state.pendingActionId = result.actionId
         }
         return result
     }
@@ -47,13 +49,24 @@ internal class LumberjackTaskGuard(
         return result
     }
 
-    override fun moveInventoryToBlockContainer(inventorySlot: Int, destination: NpcBlockContainerSlot, count: Int): NpcActionResult =
-        if (destination.position == definition.destination) delegate.moveInventoryToBlockContainer(inventorySlot, destination, count)
-        else deny("delivery to an unassigned container")
+    override fun moveInventoryToBlockContainer(inventorySlot: Int, destination: NpcBlockContainerSlot, count: Int): NpcActionResult {
+        if (destination.position != definition.destination) return deny("delivery to an unassigned container")
+        val item = delegate.inventoryContents().firstOrNull { it.slot == inventorySlot }?.stack?.itemId ?: return deny("missing actual delivery source")
+        return checkedTransfer(ContainerStepReservations.transfer(state.job.workTaskId, delegate, world, destination.position, item, count,
+            ContainerTransferDirection.DEPOSIT, inventorySlot, destination.slot))
+    }
 
-    override fun moveBlockContainerToInventory(source: NpcBlockContainerSlot, count: Int): NpcActionResult =
-        if (source.position == definition.destination) delegate.moveBlockContainerToInventory(source, count)
-        else deny("supply from an unassigned container")
+    override fun moveBlockContainerToInventory(source: NpcBlockContainerSlot, count: Int): NpcActionResult {
+        if (definition.version == 1 && source.position != definition.destination || definition.version >= 2 && source.position !in definition.supplySources?.positions.orEmpty()) return deny("supply from an unassigned container")
+        val item = world.observeBlockContainer(source.position)?.slots?.firstOrNull { it.slot == source.slot }?.stack?.itemId ?: return deny("missing actual supply source")
+        return checkedTransfer(ContainerStepReservations.transfer(state.job.workTaskId, delegate, world, source.position, item, count,
+            ContainerTransferDirection.WITHDRAW, containerSlot = source.slot))
+    }
+
+    private fun checkedTransfer(step: ContainerTransferStep): NpcActionResult {
+        if (step.problem == ContainerTransferProblem.UNCERTAIN) problem = step.action.detail
+        return step.action
+    }
 
     override fun useItemOnBlock(hit: NpcBlockHit, hand: NpcHand): NpcActionResult = deny("unclassified block use is not part of this operation")
     override fun useInteractiveBlock(position: NpcBlockPosition): NpcActionResult = deny("unclassified block interaction is not part of this operation")

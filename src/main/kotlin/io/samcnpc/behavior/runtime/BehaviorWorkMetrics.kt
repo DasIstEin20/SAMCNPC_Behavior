@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.runtime
 
 import io.samcnpc.core.api.*
+import io.samcnpc.behavior.kernel.work.PlanningKind
 import java.util.UUID
 
 enum class BehaviorObservationKind {
@@ -73,36 +74,67 @@ internal class BehaviorWorkMetrics(
 internal class MeasuredWorldView(
     private val delegate: NpcWorldView,
     private val metrics: BehaviorWorkMetrics,
-) : NpcWorldView {
+    private val planning: ((Int, PlanningKind) -> Boolean)? = null,
+) : NpcWorldView, PlanningWorldView {
+    override fun admitPlanning(units: Int, kind: PlanningKind): Boolean = planning?.invoke(units, kind) ?: true
+    private fun observed(kind: BehaviorObservationKind) {
+        metrics.observed(kind)
+        if (planning != null) BehaviorPlanning.observedQuery()
+    }
     override val dimensionId: String get() = delegate.dimensionId
 
     override fun observeEntity(uuid: UUID): NpcEntityObservation? {
-        metrics.observed(BehaviorObservationKind.ENTITY)
+        observed(BehaviorObservationKind.ENTITY)
         return delegate.observeEntity(uuid)
     }
 
+    override fun observeEntity(uuid: UUID, filter: NpcEntityTypeFilter): NpcEntityObservation? {
+        observed(BehaviorObservationKind.ENTITY)
+        return delegate.observeEntity(uuid, filter)
+    }
+
+    override fun visibleFrom(feet: NpcPosition, target: UUID): Boolean? {
+        observed(BehaviorObservationKind.RAYCAST)
+        return delegate.visibleFrom(feet, target)
+    }
+
+    override fun visibleBlockFrom(feet: NpcPosition, target: NpcBlockPosition): Boolean? {
+        observed(BehaviorObservationKind.RAYCAST)
+        return delegate.visibleBlockFrom(feet, target)
+    }
+
     override fun queryEntities(query: NpcEntityQuery): List<NpcEntityObservation> {
-        metrics.observed(BehaviorObservationKind.ENTITIES)
+        observed(BehaviorObservationKind.ENTITIES)
         return delegate.queryEntities(query)
     }
 
     override fun observeBlock(position: NpcBlockPosition): NpcBlockObservation? {
-        metrics.observed(BehaviorObservationKind.BLOCK)
+        observed(BehaviorObservationKind.BLOCK)
         return delegate.observeBlock(position)
     }
 
+    override fun observeBlockDetails(position: NpcBlockPosition): NpcBlockObservation? {
+        observed(BehaviorObservationKind.BLOCK)
+        return delegate.observeBlockDetails(position)
+    }
+
+    override fun observePlantingSite(query: io.samcnpc.core.api.NpcPlantingSiteQuery): io.samcnpc.core.api.NpcPlantingSiteObservation? {
+        observed(BehaviorObservationKind.BLOCK)
+        return delegate.observePlantingSite(query)
+    }
+
     override fun observeBlockContainer(position: NpcBlockPosition): NpcBlockContainerObservation? {
-        metrics.observed(BehaviorObservationKind.CONTAINER)
+        observed(BehaviorObservationKind.CONTAINER)
         return delegate.observeBlockContainer(position)
     }
 
     override fun observeStandingSpace(feet: NpcPosition): NpcStandingSpaceObservation? {
-        metrics.observed(BehaviorObservationKind.STANDING_SPACE)
+        observed(BehaviorObservationKind.STANDING_SPACE)
         return delegate.observeStandingSpace(feet)
     }
 
     override fun raycast(request: NpcRaycastRequest): NpcRaycastResult {
-        metrics.observed(BehaviorObservationKind.RAYCAST)
+        observed(BehaviorObservationKind.RAYCAST)
         return delegate.raycast(request)
     }
 }
@@ -110,6 +142,7 @@ internal class MeasuredWorldView(
 internal class MeasuredNpcFacade(
     private val delegate: NpcFacade,
     private val metrics: BehaviorWorkMetrics,
+    private val planning: ((Int, PlanningKind) -> Boolean)? = null,
 ) : NpcFacade by delegate {
     override fun snapshot(): NpcSnapshot {
         metrics.observed(BehaviorObservationKind.SNAPSHOT)
@@ -131,5 +164,5 @@ internal class MeasuredNpcFacade(
         return delegate.equipmentKnowledge()
     }
 
-    override fun worldView(): NpcWorldView = MeasuredWorldView(delegate.worldView(), metrics)
+    override fun worldView(): NpcWorldView = MeasuredWorldView(delegate.worldView(), metrics, planning)
 }

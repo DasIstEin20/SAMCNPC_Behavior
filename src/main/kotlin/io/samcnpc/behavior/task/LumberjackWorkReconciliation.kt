@@ -27,7 +27,15 @@ internal object LumberjackWorkReconciliation {
     fun resume(state: LumberjackTaskState, world: NpcWorldView): Result {
         val pending = state.pendingBreak
         if (pending != null && world.observeBlock(pending.position) == null) return Result.Unavailable("pending work block cannot be observed after resume")
+        // The at-most-eight current supports are immediate integrity checks, like the
+        // pending break. Do not postpone detecting a replaced footing behind historical scans.
+        for ((position, expected) in state.job.pillarSession?.placedBlockIds.orEmpty()) {
+            val actual = world.observeBlock(position) ?: return Result.Unavailable("recorded support cannot be observed after resume")
+            if (!actual.isAir && actual.blockId != expected) return Result.Mismatch("recorded support changed identity at $position; no replay authorized")
+        }
         val blocks = state.reconciliationBlocks ?: state.observedRemovedBlocks.toList().also { state.reconciliationBlocks = it }
+        val remaining = (blocks.size - state.reconciliationCursor).coerceAtLeast(0)
+        if (remaining > 0 && !io.samcnpc.behavior.runtime.BehaviorPlanning.admit(world, minOf(128, remaining), io.samcnpc.behavior.kernel.work.PlanningKind.RECONCILIATION)) return Result.Pending
         repeat(128) {
             if (state.reconciliationCursor >= blocks.size) {
                 state.reconcileWorld = false

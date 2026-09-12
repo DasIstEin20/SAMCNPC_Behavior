@@ -35,6 +35,9 @@ internal class WorkArea(val bounds: WorkBox, exclusions: List<WorkBox> = emptyLi
         return null
     }
     fun contains(position: NpcBlockPosition): Boolean = bounds.contains(position) && exclusions.none { it.contains(position) }
+    override fun equals(other: Any?): Boolean = other is WorkArea && bounds == other.bounds && exclusions == other.exclusions
+    override fun hashCode(): Int = 31 * bounds.hashCode() + exclusions.hashCode()
+    override fun toString(): String = "WorkArea(bounds=$bounds, exclusions=$exclusions)"
     val columns: Int get() = bounds.width * bounds.depth
     fun column(index: Int): NpcBlockPosition {
         require(index in 0 until columns)

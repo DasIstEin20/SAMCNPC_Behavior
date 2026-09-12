@@ -139,8 +139,11 @@ with a safe-idle diagnostic.
 
 ## Durable tasks
 
-Navigation, delivery, selected wood gathering and exact-target melee share persistent task IDs,
-finite budgets, pause/resume/cancel, diagnostics and bounded interruptions. For example:
+Navigation, delivery, wood gathering and replanting, mining, farming, food gathering, tree planting,
+container transport, defense, patrol and combat share persistent task IDs, finite budgets,
+pause/resume/cancel, resource accounting and bounded interruptions. Commands expose parameters
+for quantities, resources, work areas, recipients, supplies and supported tactics. Quantity,
+recipient and resource amendments can update supported running tasks after validation.
 
 ```text
 /samcnpc behavior task assign Sam navigate 10 64 10 6000
@@ -153,33 +156,31 @@ finite budgets, pause/resume/cancel, diagnostics and bounded interruptions. For 
 /samcnpc behavior task cancel Sam
 ```
 
-Coordinates are examples for a matching world: put the destination on valid ground and provide a
-real reachable chest, tools and resources. Delivery uses carried stock, preserves `keepAtLeast`
-(the last argument) and reports actual transferred items. It does not yet take cargo from another chest.
+Coordinates are examples: supply reachable ground, containers, tools and resources in your world.
+`deliver` moves carried stock and preserves its final `keepAtLeast` argument; the separate transport
+task takes cargo from a supplied container. Use command completion to inspect the available task
+branches and their arguments; the [command implementations](src/main/kotlin/io/samcnpc/behavior/command)
+contain their exact bounds.
 
-Wood task arguments are `npc minX minY minZ maxX maxY maxZ chestX chestY chestZ woodId quantity
-[durationTicks] [exclude minX minY minZ maxX maxY maxZ]`. Wood presets are `samcnpc:oak`,
-`samcnpc:birch`, `samcnpc:dark_oak` and `samcnpc:oak_and_birch`.
-Supported recognition includes bounded branching crowns and 2x2 dark-oak trunks. A delivered quota
-can finish after one column; it does not promise removal of the whole tree. Initial carried wood
-is protected, supports consume real materials, and the report distinguishes supplied, gathered,
-consumed, delivered and retained stock. Shared-container changes currently stop the durable task
-on a checkpoint mismatch; full shared logistics and replanting are still development work.
+Wood presets include `samcnpc:oak`, `samcnpc:birch`, `samcnpc:dark_oak` and `samcnpc:oak_and_birch`.
+Initial stock is protected, temporary supports consume actual materials, and reports distinguish
+supplied, gathered, consumed, delivered and retained items. A delivered quota can finish before the
+whole tree is removed. Shared work/container claims and passage yielding coordinate bounded work;
+replanting and supply choices are explicit policies. Mining reports include refusal reasons such
+as falling blocks, unbreakable blocks and missing tools. Farm pickup includes shallow irrigation water.
 
-An explicit attack uses `/samcnpc behavior task assign <npc> attack <targetUUID>
-[leash [durationTicks [allowPlayers]]]`. Defaults are a 24-block fixed leash, 600 ticks and no players.
-It never substitutes an unrelated target. Reaction defaults to passive; `task reaction <npc> passive`
-turns it off. Opt-in retaliation interrupts current work, consumes its original time budget and
-resumes only after observing current world state. A second hit does not keep resetting the attack.
+Defense can protect the summoner or another NPC; patrol and area combat use bounded areas and
+validated targets. Supported tactics include ranged equipment, shields and healing. Opt-in reactions
+interrupt work and resume only after observing the current world. No action creates free supplies.
 
-One NPC has one primary task and at most two bounded interruption frames. Cancel before replacing
-an unfinished task. Manual pause freezes the budget and releases controls; reload/restart does not
-grant a fresh allowance. Task save format 4 migrates earlier versions and preserves invalid/future
-records with a diagnostic. Stable public task assignment/control APIs are not yet exposed: current
-controls use commands, while add-ons can use Core's mechanical API and Behavior JSON validation.
+One NPC has one primary task and at most two interruption frames. Manual pause freezes the budget
+and releases controls; reload/restart does not grant a fresh allowance. Task save format 5 migrates
+earlier records and preserves rejected data with diagnostics. Persistent task storage is bounded
+to 4096 entries; full storage rejects a new entry explicitly.
 
-Area defense/attacks, autonomous ranged equipment selection, patrol, mining, farming, general
-transport and planting are not completed features of this snapshot.
+Stable public operation assignment/control APIs and the expanded operation JSON catalog remain
+pending. Current operation controls use commands. Existing behavior-pack JSON validation remains
+available. The optional LLM provider and crafting integration are deferred.
 
 ## Legacy lumberjack demo
 
@@ -258,7 +259,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. 82 dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. 165 dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -286,11 +287,18 @@ New executable actions belong in Kotlin's registered handlers, not in pack data.
 `runClientTaskSmoke` covers durable wood gathering, three world reopens and real oak/dark-oak delivery.
 `runClientTaskCombatSmoke` covers interruption during approach, mining, partial transfer and a scaffold
 jump, then actual combat and resumed delivery. `runClientFollowSmoke` and `runClientRetaliationSmoke`
-exercise the corresponding physical policies. Current unit coverage is 124 Behavior tests; required
+exercise the corresponding physical policies. Current unit coverage is 238 Behavior tests; required
 runtime assertions remain enabled. GUI variants `runClientConfigSmokeBare` and
 `runClientConfigSmokeDurable` use separate directories and verify the actual selected settings.
 
 ## Project status and license
+
+The verified September 12, 2026 sources passed 17 task checkpoints saved/loaded in separate
+JVMs, 18 lifecycle/protection/mining scenarios and 12 real-client cases. A 30-minute paced soak
+completed 534 tasks. This evidence covers those scenarios, not final project acceptance. The
+two-account authenticated skin test, public operation API/JSON finalization and release gate remain.
+The soak logged a default flat-world diagnostic and one surplus-seed collection timeout; required
+quotas and replanting still passed.
 
 Development version **0.1.0**. This repository publishes Behavior and pins its Core dependency;
 it does not include the optional LLM module. API compatibility and advanced gameplay cases remain

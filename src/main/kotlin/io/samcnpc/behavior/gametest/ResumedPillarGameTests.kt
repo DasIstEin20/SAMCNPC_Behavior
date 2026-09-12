@@ -3,6 +3,8 @@ package io.samcnpc.behavior.gametest
 import io.samcnpc.behavior.SamcnpcBehavior
 import io.samcnpc.behavior.lumberjack.LumberjackService
 import io.samcnpc.behavior.task.UnresolvedWorkStore
+import io.samcnpc.behavior.task.TaskService
+import io.samcnpc.behavior.task.NavigateTaskDefinition
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarKernel
 import io.samcnpc.behavior.kernel.elevation.TemporaryPillarSession
 import io.samcnpc.behavior.lumberjack.model.LumberjackDemoPhase
@@ -14,6 +16,7 @@ import net.minecraft.gametest.framework.GameTestHelper
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.resources.ResourceLocation
+import net.minecraft.util.RandomSource
 import net.minecraft.world.Container
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EquipmentSlot
@@ -56,7 +59,15 @@ object ResumedPillarGameTests {
     @GameTest(template = "lumberjackdemogametests.empty", timeoutTicks = 500, batch = "pillar_report_unavailable")
     fun unknownReportVersionStopsWorkAndPreservesTheActiveCleanupObligation(helper: GameTestHelper) = exercise(helper, false, serviceMode = "unavailable")
 
-    private fun exercise(helper: GameTestHelper, replace: Boolean, forgetIdentity: Boolean = false, serviceMode: String? = null) {
+    @JvmStatic
+    @GameTest(template = "lumberjackdemogametests.empty", timeoutTicks = 500, batch = "pillar_natural_grass_report")
+    fun naturallyGrassedDirtRetainsItsOriginalReceiptAndExplicitReportAfterReload(helper: GameTestHelper) =
+        exercise(helper, true, serviceMode = "cleanup", grass = true)
+
+    private fun exercise(helper: GameTestHelper, replace: Boolean, forgetIdentity: Boolean = false, serviceMode: String? = null, grass: Boolean = false) {
+        val material = if (grass) Items.DIRT else Items.OAK_LOG
+        val materialId = if (grass) "minecraft:dirt" else "minecraft:oak_log"
+        val replacement = if (grass) Blocks.GRASS_BLOCK else Blocks.DIRT
         for (x in 0..7) for (z in 0..7) helper.setBlock(BlockPos(x, 0, z), Blocks.STONE)
         helper.setBlock(BlockPos(3, 8, 3), Blocks.OAK_LOG)
         val chestPos = helper.absolutePos(BlockPos(2, 1, 2))
@@ -69,7 +80,7 @@ object ResumedPillarGameTests {
         val type = checkNotNull(ForgeRegistries.ENTITY_TYPES.getValue(ResourceLocation.fromNamespaceAndPath("samcnpc_core", "npc")))
         var body = checkNotNull(type.create(helper.level)) as LivingEntity
         body.moveTo(feet.x + 0.5, feet.y.toDouble(), feet.z + 0.5, 0.0F, 0.0F)
-        body.setItemSlot(EquipmentSlot.MAINHAND, ItemStack(Items.OAK_LOG, 3))
+        body.setItemSlot(EquipmentSlot.MAINHAND, ItemStack(material, 3))
         check(helper.level.addFreshEntity(body))
         var session: TemporaryPillarSession? = null
         var stage = 0
@@ -94,7 +105,7 @@ object ResumedPillarGameTests {
                 check(progress !is TemporaryPillarKernel.PillarProgress.Failed) { "fixture placement failed: $progress" }
                 if (current.placedPositions.size == 1 && npc.snapshot().onGround) {
                     support = current.placedPositions.single()
-                    check(npc.inventoryContents().sumOf { if (it.stack.itemId == "minecraft:oak_log") it.stack.count else 0 } == 2)
+                    check(npc.inventoryContents().sumOf { if (it.stack.itemId == materialId) it.stack.count else 0 } == 2)
                     TemporaryPillarKernel.beginCleanup(current)
                     if (forgetIdentity) current.placedBlockIds.clear()
                     npc.stopControl()
@@ -113,7 +124,18 @@ object ResumedPillarGameTests {
                         }
                         if (replace) {
                             val block = checkNotNull(support)
-                            helper.level.setBlockAndUpdate(BlockPos(block.x, block.y, block.z), Blocks.DIRT.defaultBlockState())
+                            val position = BlockPos(block.x, block.y, block.z)
+                            if (grass) {
+                                val source = position.offset(1, -1, 0)
+                                helper.level.setBlockAndUpdate(source, Blocks.GRASS_BLOCK.defaultBlockState())
+                                val random = RandomSource.create(0L)
+                                repeat(128) {
+                                    if (!helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) {
+                                        helper.level.getBlockState(source).randomTick(helper.level, source, random)
+                                    }
+                                }
+                                check(helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) { "actual vanilla grass spread did not transform the placed dirt" }
+                            } else helper.level.setBlockAndUpdate(position, replacement.defaultBlockState())
                         }
                         body = checkNotNull(type.create(helper.level)) as LivingEntity
                         body.load(savedBody)
@@ -154,12 +176,17 @@ object ResumedPillarGameTests {
                     check(LumberjackDemoStore.forServer(server).jobFor(body.uuid) == null)
                     val reports = UnresolvedWorkStore.forServer(server)
                     val recorded = reports.blocksFor(body.uuid).single()
-                    check(recorded.position == block && recorded.blockId == "minecraft:oak_log")
+                    check(recorded.position == block && recorded.blockId == materialId)
                     val reloaded = UnresolvedWorkStore.load(reports.save(CompoundTag()))
                     server.overworld().dataStorage.set(UnresolvedWorkStore.DATA_NAME, reloaded)
                     check(LumberjackService.status(server, body.uuid)?.contains("unresolvedSupports=1") == true)
+                    if (grass) {
+                        check(TaskService.assign(server, npc, NavigateTaskDefinition(npc.snapshot().dimensionId, npc.snapshot().position)).status == NpcActionStatus.SUCCEEDED)
+                        val status = TaskService.status(server, body.uuid).orEmpty()
+                        check(status.contains("unresolvedSupports=1") && status.contains("expected=minecraft:dirt") && status.contains("PILLAR_SUPPORT_CHANGED")) { "durable task status hid the original grassed-dirt obligation: $status" }
+                    }
                     check(npc.snapshot().blockBreak == null)
-                    check(helper.level.getBlockState(BlockPos(block.x, block.y, block.z)).`is`(if (replace) Blocks.DIRT else Blocks.OAK_LOG))
+                    check(helper.level.getBlockState(BlockPos(block.x, block.y, block.z)).`is`(if (replace) replacement else Blocks.OAK_LOG))
                     finished = true; body.discard(); helper.succeed()
                     return@onEachTick
                 }
@@ -167,12 +194,12 @@ object ResumedPillarGameTests {
                 if (replace || forgetIdentity) {
                     check(progress == TemporaryPillarKernel.PillarProgress.CleanupIncomplete) { "replaced support was adopted for mining: $progress" }
                     check(npc.snapshot().blockBreak == null) { "resumed cleanup started mining the replacement block" }
-                    check(helper.level.getBlockState(BlockPos(block.x, block.y, block.z)).`is`(if (replace) Blocks.DIRT else Blocks.OAK_LOG))
+                    check(helper.level.getBlockState(BlockPos(block.x, block.y, block.z)).`is`(if (replace) replacement else Blocks.OAK_LOG))
                     check(current.placedPositions == listOf(block)) { "unresolved receipt was discarded" }
                     finished = true; body.discard(); helper.succeed()
                 } else if (progress == TemporaryPillarKernel.PillarProgress.CleanupComplete) {
                     check(helper.level.getBlockState(BlockPos(block.x, block.y, block.z)).isAir)
-                    val carried = npc.inventoryContents().sumOf { if (it.stack.itemId == "minecraft:oak_log") it.stack.count else 0 }
+                    val carried = npc.inventoryContents().sumOf { if (it.stack.itemId == materialId) it.stack.count else 0 }
                     val dropped = npc.worldView().queryEntities(NpcEntityQuery(npc.snapshot().position, 4.0, 16, typeIds = setOf("minecraft:item")))
                         .sumOf { observation ->
                             val stack = observation.itemStack

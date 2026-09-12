@@ -22,6 +22,10 @@ object BehaviorCommands {
     @SubscribeEvent
     fun register(event: RegisterCommandsEvent) {
         val branch = Commands.literal("behavior")
+            .then(Commands.literal("planning_budget").requires { it.hasPermission(2) }.executes { context ->
+                context.source.sendSuccess({ Component.literal(io.samcnpc.behavior.runtime.BehaviorPlanning.statistics().toString()) }, false)
+                1
+            })
             .then(TaskCommands.branch())
             .then(Commands.literal("reload").requires { it.hasPermission(2) }.executes { context ->
                 val report = BehaviorRuntimeService.reload()

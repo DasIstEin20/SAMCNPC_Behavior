@@ -10,6 +10,10 @@ internal object ItemPickupApproach {
     data class Selection(val drop: NpcEntityObservation, val standing: NpcPosition?)
     private val OFFSETS = listOf(0 to 0, -1 to 0, 0 to -1, 0 to 1, 1 to 0)
 
+    fun admitSelection(origin: NpcPosition, world: NpcWorldView, drops: List<NpcEntityObservation>): Boolean =
+        drops.isEmpty() || drops.any { distanceSquared(origin, it.position) <= 4.0 } ||
+            io.samcnpc.behavior.runtime.BehaviorPlanning.admit(world, minOf(64, drops.size) * 20, io.samcnpc.behavior.kernel.work.PlanningKind.PICKUP)
+
     fun select(origin: NpcPosition, world: NpcWorldView, drops: List<NpcEntityObservation>): Selection? {
         val ordered = drops.sortedWith(compareBy<NpcEntityObservation> { distanceSquared(origin, it.position) }.thenBy { it.uuid.toString() })
         for (drop in ordered.take(64)) {
@@ -21,8 +25,12 @@ internal object ItemPickupApproach {
             val columnZ = floor(drop.position.z).toInt()
             var best: NpcPosition? = null
             var bestDistance = Double.POSITIVE_INFINITY
-            for ((x, z) in OFFSETS) for (y in -1..1) {
-                val feet = NpcPosition(columnX + x + 0.5, (columnY + y).toDouble(), columnZ + z + 0.5)
+            // A settled item supplies a candidate height for farmland, slabs and other
+            // partial surfaces. It is still accepted only after Core confirms actual foot
+            // contact and body clearance; an airborne item's height grants no support.
+            val heights = doubleArrayOf(columnY - 1.0, columnY.toDouble(), columnY + 1.0, drop.position.y)
+            for ((x, z) in OFFSETS) for (y in heights) {
+                val feet = NpcPosition(columnX + x + 0.5, y, columnZ + z + 0.5)
                 // Leave margin for the navigation endpoint rather than stopping just beyond
                 // Core's exact two-block pickup radius.
                 if (distanceSquared(feet, drop.position) > 1.25 * 1.25) continue

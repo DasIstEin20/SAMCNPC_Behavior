@@ -79,6 +79,11 @@ object LumberjackStumpGameTests {
             val snapshot = npc.snapshot()
             val job = LumberjackDemoStore.forServer(helper.level.server).jobFor(body.uuid)
             job?.pillarSession?.placedPositions?.let(supports::addAll)
+            if (job?.phase == LumberjackDemoPhase.COLLECT_TREE_DROPS && job.pickupTicks % 60 == 59) {
+                com.mojang.logging.LogUtils.getLogger().info("STUMP_COLLECTION height={} dirt={} elapsed={} position={} status={}",
+                    height, suppliedDirt, job.pickupTicks, snapshot.position,
+                    LumberjackService.status(helper.level.server, body.uuid))
+            }
             if (previousPhase == LumberjackDemoPhase.CLIMB_TRUNK && job?.phase == LumberjackDemoPhase.BREAK_LOG) {
                 check(snapshot.onGround && abs(snapshot.position.y - base.y - 1.0) <= 0.05 &&
                     abs(snapshot.position.x - base.x - 0.5) <= 0.75 && abs(snapshot.position.z - base.z - 0.5) <= 0.75) {
