@@ -1,6 +1,8 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.kernel.inventory.InventoryBaselineKernel
+import io.samcnpc.behavior.kernel.inventory.InventoryBaselineKernel.destinationFor
+import io.samcnpc.behavior.lumberjack.model.LumberjackDemoPhase
 import io.samcnpc.behavior.lumberjack.LumberjackCleanupReport
 import io.samcnpc.behavior.lumberjack.LumberjackService
 import io.samcnpc.behavior.lumberjack.model.LumberjackWorkSelection
@@ -66,7 +68,16 @@ internal object TaskLumberjack {
         job.workTaskId = record.id
         job.workSelection = LumberjackWorkSelection(definition.area, definition.wood)
         job.deferredWoodEnabled = true
-        val excess = InventoryBaselineKernel.excessStacks(npc, job.initialWoodCounts, definition.wood::matches).sumOf { it.count }
+        val excessStacks = InventoryBaselineKernel.excessStacks(npc, job.initialWoodCounts, definition.wood::matches)
+        val pendingDeposit = excessStacks.firstOrNull()
+        if (job.phase == LumberjackDemoPhase.DEPOSIT_WOOD && pendingDeposit != null && container.destinationFor(pendingDeposit.itemId) == null) {
+            // Capacity is a recoverable task wait. Keep the physical executor before its
+            // deposit step and let the shared original attempt/deadline budget bound retries.
+            npc.stopControl()
+            record.retry(TaskReason.STORAGE_FULL,"selected chest has no room for gathered ${pendingDeposit.itemId}; wood remains in NPC inventory")
+            return NpcActionResult.running(record.detail)
+        }
+        val excess = excessStacks.sumOf { it.count }
         // A requested2x2 replant also needs its other cut columns; the wood minimum alone
         // must not terminate harvesting after just the first stem of that layout.
         val replant=definition.replant

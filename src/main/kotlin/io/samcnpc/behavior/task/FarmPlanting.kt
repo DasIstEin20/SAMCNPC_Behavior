@@ -45,13 +45,21 @@ internal object FarmPlanting {
         val carried=npc.inventoryContents().firstOrNull { it.stack.itemId == d.work.crop.seedId && it.stack.count > 0 }
             ?: return TaskFarm.stop(record,e,npc,s,FarmProblem.MISSING_SEEDS,"seed stock is not in carried inventory")
         val soil=NpcBlockPosition(target.x,target.y-1,target.z)
+        if (!BehaviorPlanning.admit(world,3,PlanningKind.GENERAL)) return NpcActionResult.running("native planting-site check queued")
+        val site=world.observePlantingSite(NpcPlantingSiteQuery(carried.slot,target))
+        if (site != null && site.plantBlockId == d.work.crop.blockId && site.targetIsAir && !site.inFluid &&
+            !site.canSurvive && d.work.prepareSoil && site.soilBlockId in tillable) {
+            // The soil may be trampled after preparation. Reuse the same finite tilling
+            // obligation, including its per-cell attempt/material limits; harvest stays committed.
+            s.phase=FarmPhase.SOIL
+            TaskInventory.resetRoute(e,npc)
+            return NpcActionResult.running("planting soil changed; recheck authorized bounded preparation")
+        }
+        if (site == null || site.plantBlockId != d.work.crop.blockId || !site.targetIsAir || site.inFluid || !site.canSurvive) return TaskFarm.stop(record,e,npc,s,FarmProblem.INVALID_SOIL,"supplied crop cannot survive at the currently observed planting cell")
         val approach=WorkInteractionApproach.move(record,e,npc,world,d,soil)
         if (approach != null) return if (approach.status == NpcActionStatus.FAILED) TaskFarm.stop(record,e,npc,s,FarmProblem.UNREACHABLE,approach.detail) else approach
         val equip=npc.equipFromInventory(carried.slot,NpcEquipmentDestination.MAIN_HAND)
         if (equip.status != NpcActionStatus.SUCCEEDED) return TaskFarm.stop(record,e,npc,s,FarmProblem.MISSING_SEEDS,equip.detail)
-        if (!BehaviorPlanning.admit(world,3,PlanningKind.GENERAL)) return NpcActionResult.running("native planting-site check queued")
-        val site=world.observePlantingSite(NpcPlantingSiteQuery(npc.snapshot().selectedHotbarSlot,target))
-        if (site == null || site.plantBlockId != d.work.crop.blockId || !site.targetIsAir || site.inFluid || !site.canSurvive) return TaskFarm.stop(record,e,npc,s,FarmProblem.INVALID_SOIL,"supplied crop cannot survive at the currently observed planting cell")
         npc.stopControl()
         val result=npc.placeHeldBlock(NpcBlockPlacement(target),NpcHand.MAIN)
         val after=HarvestResources.inventoryCounts(npc)

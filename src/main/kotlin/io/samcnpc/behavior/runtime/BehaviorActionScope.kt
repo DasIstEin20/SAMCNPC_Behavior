@@ -7,7 +7,7 @@ import java.util.UUID
 
 /** One selected producer's transient generation; neither Core IDs nor controls are persisted. */
 internal class BehaviorActionScope {
-    internal enum class Mechanism { LOCOMOTION, BLOCK_BREAK, RANGED, ITEM_USE }
+    internal enum class Mechanism { LOCOMOTION, BLOCK_BREAK, RANGED, ITEM_USE, FISHING }
 
     internal class Execution(val intent: ActionIntent) {
         val generation: UUID = UUID.randomUUID()
@@ -65,6 +65,7 @@ internal class BehaviorActionScope {
                 Mechanism.LOCOMOTION -> if (snapshot.control?.actionId == actionId || snapshot.navigation?.actionId == actionId) npc.stopControl()
                 Mechanism.BLOCK_BREAK -> if (snapshot.blockBreak?.actionId == actionId) npc.abortBlockBreak()
                 Mechanism.RANGED -> if (snapshot.rangedAttack?.actionId == actionId) npc.cancelRangedAttack()
+                Mechanism.FISHING -> if (snapshot.fishing?.actionId == actionId) npc.cancelFishing()
                 Mechanism.ITEM_USE -> if (snapshot.itemUse?.actionId == actionId) npc.cancelItemUse()
             }
         }
@@ -97,6 +98,14 @@ internal class BehaviorActionScope {
         override fun startBlockBreak(position: NpcBlockPosition) = scope.invoke(execution, Mechanism.BLOCK_BREAK) { delegate.startBlockBreak(position) }
         override fun continueBlockBreak() = scope.invoke(execution, Mechanism.BLOCK_BREAK) { delegate.continueBlockBreak() }
         override fun startRangedAttack(entityUuid: UUID, hand: NpcHand) = scope.invoke(execution, Mechanism.RANGED) { delegate.startRangedAttack(entityUuid, hand) }
+        override fun castFishing(request: NpcFishingCast) = scope.invoke(execution, Mechanism.FISHING) { delegate.castFishing(request) }
+        override fun continueFishing(actionId: UUID) = scope.invoke(execution, Mechanism.FISHING) { delegate.continueFishing(actionId) }
+        override fun reelFishing(actionId: UUID): NpcFishingReelResult {
+            if (scope.executions[execution.intent] !== execution || execution.active[Mechanism.FISHING] != actionId) {
+                return NpcFishingReelResult(NpcActionResult.rejected("fishing execution was superseded", NpcActionCode.CANCELLED), false)
+            }
+            return delegate.reelFishing(actionId)
+        }
         override fun startItemUse(hand: NpcHand) = scope.invoke(execution, Mechanism.ITEM_USE) { delegate.startItemUse(hand) }
         override fun continueItemUse() = scope.invoke(execution, Mechanism.ITEM_USE) { delegate.continueItemUse() }
         override fun useItemInAir(hand: NpcHand) = scope.invoke(execution, Mechanism.ITEM_USE) { delegate.useItemInAir(hand) }

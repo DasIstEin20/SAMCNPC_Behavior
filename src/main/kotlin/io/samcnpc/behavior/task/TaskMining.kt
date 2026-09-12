@@ -66,7 +66,7 @@ internal object TaskMining {
                     if (action.status != NpcActionStatus.SUCCEEDED) return action
                 }
                 val complete=state.stop == null && state.goal(definition)
-                val detail="mining ${if (complete) "complete" else "partial"}: method=${definition.work.method}; removed=${state.removedResources(definition)}; delivered=${state.delivered(definition)}; stop=${state.stop ?: if (complete) "none" else "NO_RESOURCE"}; selectionProblems=${state.selection.problems}"
+                val detail="mining ${if (complete) "complete" else "partial"}: method=${definition.work.method}; removed=${state.removedResources(definition)}; delivered=${state.delivered(definition)}; stop=${state.stop ?: if (complete) "none" else "NO_RESOURCE"}; selectionProblems=${state.selection.problems}; context=${state.stopDetail}"
                 if (complete) record.completeActive(TaskReason.MINING_FINISHED,detail)
                 else record.finish(TaskStatus.FAILED,TaskReason.WORK_FAILED,detail)
                 return if (complete) NpcActionResult.succeeded(detail) else NpcActionResult.failed(detail)

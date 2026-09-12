@@ -16,6 +16,7 @@ class SamcnpcBehavior {
         MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.kernel.work.HarvestWorkClaims)
         MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.task.FoodAccounting)
         MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.task.FarmAccounting)
+        MinecraftForge.EVENT_BUS.register(io.samcnpc.behavior.task.InventoryPickupAccounting)
     }
 
     companion object {

@@ -75,7 +75,7 @@ internal class MeasuredWorldView(
     private val delegate: NpcWorldView,
     private val metrics: BehaviorWorkMetrics,
     private val planning: ((Int, PlanningKind) -> Boolean)? = null,
-) : NpcWorldView, PlanningWorldView {
+) : NpcWorldView by delegate, PlanningWorldView {
     override fun admitPlanning(units: Int, kind: PlanningKind): Boolean = planning?.invoke(units, kind) ?: true
     private fun observed(kind: BehaviorObservationKind) {
         metrics.observed(kind)
@@ -123,6 +123,11 @@ internal class MeasuredWorldView(
         return delegate.observePlantingSite(query)
     }
 
+    override fun observeContainer(endpoint: NpcContainerEndpoint): NpcContainerObservation? {
+        observed(BehaviorObservationKind.CONTAINER)
+        return delegate.observeContainer(endpoint)
+    }
+
     override fun observeBlockContainer(position: NpcBlockPosition): NpcBlockContainerObservation? {
         observed(BehaviorObservationKind.CONTAINER)
         return delegate.observeBlockContainer(position)
@@ -144,6 +149,11 @@ internal class MeasuredNpcFacade(
     private val metrics: BehaviorWorkMetrics,
     private val planning: ((Int, PlanningKind) -> Boolean)? = null,
 ) : NpcFacade by delegate {
+    override fun fishingState(): NpcFishingState? {
+        metrics.observed(BehaviorObservationKind.SNAPSHOT)
+        return delegate.fishingState()
+    }
+
     override fun snapshot(): NpcSnapshot {
         metrics.observed(BehaviorObservationKind.SNAPSHOT)
         return delegate.snapshot()

@@ -38,8 +38,7 @@ internal object TaskInventory {
         return NpcActionResult.running("$why; returning to captured work position")
     }
     internal fun resetRoute(execution: TaskExecution, npc: NpcFacade) {
-        npc.stopControl(); execution.navigationId = null; execution.completion = null; execution.approach = null
-        execution.bestDistanceSquared = Double.POSITIVE_INFINITY; execution.lastProgressTick = null; execution.lastRepathTick = null
+        TaskNavigator.stop(execution, npc)
     }
     internal fun mismatch(record: TaskRecord, detail: String): NpcActionResult {
         record.active.inventory?.resources?.uncertain = true

@@ -74,7 +74,7 @@ object InventoryWorkGameTests {
                 check(reports.size == 3 && reports.all { it.returned && it.reason == InventoryWorkReason.SATISFIED }) { reports.toString() }
                 check(reports[0].frameId == inventoryFrame && reports[0].revision == 1 && reports[0].unloaded == mapOf("minecraft:cobblestone" to 16))
                 check(reports[1].supplied == mapOf("minecraft:bread" to 8) && reports[1].revision == 2)
-                check(reports[2].picked == mapOf("minecraft:iron_ingot" to 4))
+                check(reports[2].picked == mapOf("minecraft:iron_ingot" to 4)) { "Actual pickup report: ${reports[2]}" }
                 check(reports[0].recipients == mapOf(block(helper,6,1,-2) to mapOf("minecraft:cobblestone" to 16)))
                 check(reports[1].sources == mapOf(block(helper,8,1,2) to mapOf("minecraft:bread" to 8)))
                 check(server.commands.performPrefixedCommand(actor.player.createCommandSourceStack(),"samcnpc behavior task inventory_history AmendProof 1") == 1)

@@ -72,7 +72,7 @@ internal object PassageYielding {
             return Result.Failed("yield phase deadline exhausted; original route and task retry budget retained")
         }
         if (state.standing == null) {
-            if (!BehaviorPlanning.admit(world, 48, PlanningKind.YIELDING)) return Result.Handling(
+            if (!BehaviorPlanning.admit(world, 160, PlanningKind.YIELDING)) return Result.Handling(
                 NpcActionResult.running("yield stance planning deferred; original approach deadline retained"))
             val rejected = state.rejected
             state.standing = chooseStanding(state.origin, checkNotNull(observedPeer).position, peer.destination, world, neighbors) {
@@ -117,11 +117,14 @@ internal object PassageYielding {
         val cells = linkedMapOf<Pair<Int, Int>, NpcPosition>()
         for (dx in -3..3) for (dz in -3..3) {
             if (dx * dx + dz * dz > 10) continue
-            val candidate = NpcPosition(floor(origin.x) + dx + 0.5, floor(origin.y), floor(origin.z) + dz + 0.5)
-            if (!allowed(candidate)) continue
-            if (neighbors.any { abs(it.position.y - candidate.y) < 2 && horizontalSquared(it.position, candidate) < 1.0 }) continue
-            val standing = world.observeStandingSpace(candidate) ?: continue
-            if (standing.clear && standing.supported && !standing.inFluid) cells[dx to dz] = candidate
+            // Farmland/slabs have a valid fractional foot height; flooring it invents a buried stance.
+            for (height in linkedSetOf(origin.y, floor(origin.y), kotlin.math.ceil(origin.y))) {
+                val candidate = NpcPosition(floor(origin.x) + dx + 0.5, height, floor(origin.z) + dz + 0.5)
+                if (!allowed(candidate)) continue
+                if (neighbors.any { abs(it.position.y - candidate.y) < 2 && horizontalSquared(it.position, candidate) < 1.0 }) continue
+                val standing = world.observeStandingSpace(candidate) ?: continue
+                if (standing.clear && standing.supported && !standing.inFluid) { cells[dx to dz] = candidate; break }
+            }
         }
         // A clear destination behind a wall is not a reachable side bay. Four-neighbor
         // connectivity also forbids diagonal corner cuts in this bounded local grid.

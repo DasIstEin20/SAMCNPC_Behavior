@@ -3,7 +3,6 @@ package io.samcnpc.behavior.registry
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import io.samcnpc.behavior.api.ValidationReport
 import io.samcnpc.behavior.model.BehaviorChannel
 import io.samcnpc.behavior.model.CompiledAction
@@ -22,17 +21,18 @@ class BehaviorPackCompiler(
     private val actions: Map<String, ActionDefinition>,
 ) {
     fun compile(source: String, json: String): CompileResult {
+        val label = diagnosticText(source, 256)
         val root = try {
-            JsonParser.parseString(json).takeIf { it.isJsonObject }?.asJsonObject
-                ?: return rejected(source, "root must be an object")
+            BoundedBehaviorJson.parse(json).takeIf { it.isJsonObject }?.asJsonObject
+                ?: return rejected(label, "root must be an object")
         } catch (error: com.google.gson.JsonParseException) {
-            return rejected(source, "malformed JSON: ${error.message}")
+            return rejected(label, "malformed JSON: ${error.message?.take(1024)}")
         }
         return try {
-            val pack = parsePack(source, root)
-            CompileResult(pack, ValidationReport(true, listOf("$source: accepted ${pack.id}")))
+            val pack = parsePack(label, root)
+            CompileResult(pack, ValidationReport(true, listOf("$label: accepted ${pack.id}")))
         } catch (error: PackValidationException) {
-            rejected(source, error.message ?: "validation failed")
+            rejected(label, error.message?.take(1024) ?: "validation failed")
         }
     }
 
@@ -115,7 +115,13 @@ class BehaviorPackCompiler(
     }
 
     private fun rejected(source: String, message: String): CompileResult =
-        CompileResult(null, ValidationReport(false, listOf("$source: $message")))
+        CompileResult(null, ValidationReport(false, listOf("$source: ${diagnosticText(message, 1024)}")))
+
+    private fun diagnosticText(value: String, maximum: Int): String {
+        val result = StringBuilder(maximum)
+        for (character in value.take(maximum)) result.append(if (character.isISOControl()) ' ' else character)
+        return result.toString()
+    }
 
     private fun JsonObject.onlyKeys(context: String, allowed: Set<String>) {
         entrySet().firstOrNull { it.key !in allowed }?.let { fail(context, "unknown property '${it.key}'") }
@@ -141,7 +147,7 @@ class BehaviorPackCompiler(
 
     private fun JsonObject.requireString(context: String, name: String, maximum: Int): String {
         val result = get(name)?.stringOrNull() ?: fail(context, "'$name' must be a string")
-        if (result.length > maximum) {
+        if (result.codePointCount(0, result.length) > maximum) {
             fail(context, "'$name' exceeds $maximum characters")
         }
         return result
@@ -156,10 +162,9 @@ class BehaviorPackCompiler(
     }
 
     private fun JsonObject.requireInt(context: String, name: String, minimum: Int, maximum: Int): Int {
-        val primitive = get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asJsonPrimitive
+        val value = get(name).exactLongOrNull()
             ?: fail(context, "'$name' must be an integer")
-        val value = primitive.asNumber.toDouble()
-        if (!value.isFinite() || value != value.toInt().toDouble() || value !in minimum.toDouble()..maximum.toDouble()) {
+        if (value !in minimum.toLong()..maximum.toLong()) {
             fail(context, "'$name' must be an integer in [$minimum, $maximum]")
         }
         return value.toInt()

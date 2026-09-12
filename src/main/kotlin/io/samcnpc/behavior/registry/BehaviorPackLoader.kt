@@ -4,10 +4,8 @@ import io.samcnpc.behavior.api.ValidationReport
 import io.samcnpc.behavior.model.CompiledPack
 import net.minecraftforge.fml.loading.FMLPaths
 import java.io.InputStream
-import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.stream.Collectors
 
 class BehaviorRegistrySnapshot(
     packs: Map<String, CompiledPack>,
@@ -43,29 +41,12 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             }
             candidates.add(source to body)
         }
-        val externalDirectory = externalDirectory()
         try {
-            Files.createDirectories(externalDirectory)
-            Files.list(externalDirectory).use { stream ->
-                val files = stream
-                    .filter { Files.isRegularFile(it) && it.fileName.toString().endsWith(".json", ignoreCase = true) }
-                    .sorted()
-                    .limit(MAX_EXTERNAL_PACKS.toLong() + 1)
-                    .collect(Collectors.toList())
-                if (files.size > MAX_EXTERNAL_PACKS) {
-                    return failed(messages + "external: more than $MAX_EXTERNAL_PACKS JSON files under $externalDirectory")
-                }
-                for (file in files) {
-                    val size = Files.size(file)
-                    if (size > MAX_FILE_BYTES) {
-                        return failed(messages + "${file.fileName}: exceeds $MAX_FILE_BYTES bytes")
-                    }
-                    candidates.add("external:${file.fileName}" to Files.readString(file, StandardCharsets.UTF_8))
-                }
-            }
+            candidates.addAll(BehaviorPackFiles.readExternal(FMLPaths.CONFIGDIR.get()))
         } catch (error: java.io.IOException) {
-            return failed(messages + "external directory $externalDirectory: ${error.message}")
+            return failed(messages + "external directory ${externalDirectory()}: ${error.message}")
         }
+
 
         val compiled = mutableListOf<CompiledPack>()
         for ((source, body) in candidates) {
@@ -88,7 +69,7 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
     private fun resourceText(path: String): String? {
         val classpathStream: InputStream? = javaClass.classLoader.getResourceAsStream(path)
         if (classpathStream != null) {
-            return classpathStream.use { String(it.readBytes(), StandardCharsets.UTF_8) }
+            return classpathStream.use(BoundedBehaviorJson::read)
         }
         // ForgeGradle's command-line userdev runs expose compiled classes but, without an IDE
         // plugin, do not put source resources on that class loader. The exact bundled resource is
@@ -97,15 +78,14 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
         if (!Files.isRegularFile(staged)) {
             return null
         }
-        return Files.readString(staged, StandardCharsets.UTF_8)
+        return Files.newInputStream(staged, java.nio.file.StandardOpenOption.READ, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+            .use(BoundedBehaviorJson::read)
     }
 
     private fun failed(messages: List<String>): BehaviorReloadResult =
         BehaviorReloadResult(false, ValidationReport(false, messages), BehaviorRegistrySnapshot.EMPTY)
 
     companion object {
-        private const val MAX_EXTERNAL_PACKS = 64
-        private const val MAX_FILE_BYTES = 128 * 1024L
         private val BUILTIN_RESOURCES = listOf(
             "data/samcnpc_behavior/behaviors/idle_look.json",
             "data/samcnpc_behavior/behaviors/follow_summoner.json",
@@ -118,6 +98,9 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             "data/samcnpc_behavior/behaviors/task_food.json",
             "data/samcnpc_behavior/behaviors/task_farming.json",
             "data/samcnpc_behavior/behaviors/task_planting.json",
+            "data/samcnpc_behavior/behaviors/task_machine.json",
+            "data/samcnpc_behavior/behaviors/task_fishing.json",
+            "data/samcnpc_behavior/behaviors/task_explorer.json",
             "data/samcnpc_behavior/behaviors/task_combat.json",
             "data/samcnpc_behavior/behaviors/task_inventory.json",
         )

@@ -87,7 +87,7 @@ class CombatTaskLifecycleTest {
             val store = TaskStore.load(root)
             val restored = assertNotNull(store.get(npc))
             assertEquals(TaskReactionPolicy(), restored.reaction.policy)
-            assertEquals(5, store.save(CompoundTag()).getInt("version"))
+            assertEquals(8, store.save(CompoundTag()).getInt("version"))
             val invalid = TaskCodec.write(TaskRecord.start(npc, attack(), emptyList()))
             val old = file(version, invalid)
             val rejected = TaskStore.load(old)

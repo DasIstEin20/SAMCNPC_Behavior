@@ -13,7 +13,7 @@ internal object TaskResumeObservation {
             val actual = HarvestResources.inventoryCounts(npc)
             if (resources.mustReconcileLoad && !resources.uncertain && actual == resources.retained()) check(resources.reconcileLoad(null, actual) == null)
         }
-        val mining = record.primary.mining?.resources?.physical ?: record.primary.food?.resources?.physical ?: record.primary.farming?.resources?.physical
+        val mining = record.primary.machine?.resources ?: record.primary.mining?.resources?.physical ?: record.primary.food?.resources?.physical ?: record.primary.farming?.resources?.physical
         if (mining != null && mining.mustReconcileLoad && !mining.uncertain) {
             val actual = HarvestResources.inventoryCounts(npc)
             if (actual == mining.retained()) check(mining.reconcileLoad(null, actual) == null)

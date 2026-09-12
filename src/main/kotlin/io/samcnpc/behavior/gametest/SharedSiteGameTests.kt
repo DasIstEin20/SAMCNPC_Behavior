@@ -101,23 +101,23 @@ object SharedSiteGameTests {
             scene.requireNoFailure(a,b)
             if(a.status.terminal && b.status.terminal) {
                 check(competed) { "farmers never competed for a pending crop" }
-                check(farmA.harvested.isNotEmpty() && farmB.harvested.isNotEmpty())
-                check(farmA.harvested.keys.intersect(farmB.harvested.keys).isEmpty() && farmA.harvested.keys+farmB.harvested.keys == cells)
-                check(farmA.replanted == farmA.harvested && farmB.replanted == farmB.harvested)
+                check(farmA.harvested.isNotEmpty() && farmB.harvested.isNotEmpty()) { "one farmer harvested nothing: A=${farmA.harvested} B=${farmB.harvested}" }
+                check(farmA.harvested.keys.intersect(farmB.harvested.keys).isEmpty() && farmA.harvested.keys+farmB.harvested.keys == cells) { "harvest cells differ: A=${farmA.harvested} B=${farmB.harvested} expected=$cells" }
+                check(farmA.replanted == farmA.harvested && farmB.replanted == farmB.harvested) { "replant differs: A=${farmA.replanted}/${farmA.harvested} B=${farmB.replanted}/${farmB.harvested}" }
                 check(farmA.planted.values.sum()+farmB.planted.values.sum() == 4)
                 // A field cycle delivers all actual yield; the requested quantity is a minimum.
-                check(scene.count(output,Items.WHEAT) == 4)
+                check(scene.count(output,Items.WHEAT) == 4) { "physical wheat delivery=${scene.count(output,Items.WHEAT)} expected=4" }
                 var supplied=0
                 for((npc,state) in listOf(first to farmA,second to farmB)) {
                     check(TaskDelivery.inventoryCount(npc,"minecraft:wheat") == 5)
                     check(TaskDelivery.inventoryCount(npc,"minecraft:wheat_seeds") >= 1)
                     val seed=checkNotNull(state.resources.physical.entries["minecraft:wheat_seeds"])
-                    check(seed.consumed == state.harvested.size && seed.supplied >= 2)
+                    check(seed.consumed == state.harvested.size && seed.supplied >= 2) { "seed accounting=$seed harvested=${state.harvested}" }
                     supplied+=seed.supplied
                     check(state.resources.physical.entries.values.all { it.valid() })
                 }
                 check(scene.count(source,Items.WHEAT_SEEDS) == 16-supplied && scene.count(source,Items.WHEAT_SEEDS) >= 2)
-                check(listOf(a,b).all { it.logistics.outcomes.isNotEmpty() && it.logistics.outcomes.all { row -> row.returned } })
+                check(listOf(a,b).all { it.logistics.outcomes.isNotEmpty() && it.logistics.outcomes.all { row -> row.returned } }) { "logistics outcomes: A=${a.logistics.outcomes} B=${b.logistics.outcomes}" }
                 for(x in 10..13) check(h.getBlockState(BlockPos(x,1,0)).`is`(Blocks.WHEAT))
                 check(h.getBlockState(BlockPos(17,1,0)).getValue(CropBlock.AGE) == 7)
                 scene.finish(first,a,second,b)

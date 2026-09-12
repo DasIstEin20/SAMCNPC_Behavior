@@ -2,6 +2,7 @@ package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.kernel.inventory.ItemPickupApproach
 import io.samcnpc.behavior.kernel.navigation.ContainerApproachKernel
+import io.samcnpc.behavior.kernel.navigation.WorkApproachVisibility
 import io.samcnpc.behavior.kernel.work.*
 import io.samcnpc.behavior.runtime.BehaviorPlanning
 import io.samcnpc.core.api.*
@@ -48,7 +49,7 @@ internal object MiningWorkMechanics {
                 if (!ContainerApproachKernel.admitSelection(world,2)) return NpcActionResult.running("mining stance search queued")
                 e.approach=ContainerApproachKernel.select(world,target.position,snapshot.position,offset=2,allowed={ cell ->
                     val feet=NpcPosition(cell.x+0.5,cell.y.toDouble(),cell.z+0.5)
-                    cell !in e.rejectedWorkStances && standingFor(feet,NpcPosition(feet.x,feet.y+snapshot.eyePosition.y-snapshot.position.y,feet.z),target.position,world,d,arrivalMargin=0.3)
+                    cell !in e.rejectedWorkStances && standingFor(feet,NpcPosition(feet.x,feet.y+snapshot.eyePosition.y-snapshot.position.y,feet.z),target.position,world,d,arrivalMargin=0.3,stagingOrigin=snapshot.position)
                 }) ?: return TaskMining.stop(s,e,npc,MiningProblem.UNREACHABLE,"no visible supported candidate from ${snapshot.position}")
             }
             val approach=checkNotNull(e.approach)
@@ -65,13 +66,14 @@ internal object MiningWorkMechanics {
         if (action.status == NpcActionStatus.ACCEPTED && action.actionId != null) { e.blockActionId=action.actionId; e.blockToolId=npc.snapshot().blockBreak?.toolItemId; return action }
         return ended(record,e,npc,world,d,s,action)
     }
-    private fun standingFor(feet: NpcPosition,eye: NpcPosition,target: NpcBlockPosition,world: NpcWorldView,d: MiningTaskDefinition,arrivalMargin: Double = 0.0): Boolean {
+    private fun standingFor(feet: NpcPosition,eye: NpcPosition,target: NpcBlockPosition,world: NpcWorldView,d: MiningTaskDefinition,arrivalMargin: Double = 0.0, stagingOrigin: NpcPosition? = null): Boolean {
         if (!d.contains(feet)) return false
         // Preserve every supporting block touched by the NPC's player-width feet.
         if (underminesFeet(feet,target,arrivalMargin)) return false
         val center=TransportTaskDefinition.center(target)
         if (TaskNavigator.distanceSquared(eye,center) > 4.0*4.0) return false
-        return world.visibleBlockFrom(feet,target) == true
+        return if (stagingOrigin == null) world.visibleBlockFrom(feet,target) == true
+            else WorkApproachVisibility.allowsCandidate(world,stagingOrigin,feet,target)
     }
     private fun underminesFeet(feet: NpcPosition,target: NpcBlockPosition,margin: Double = 0.0): Boolean =
         target.y == floor(feet.y-0.01).toInt() && target.x in floor(feet.x-0.3-margin).toInt()..floor(feet.x+0.3+margin).toInt() &&
@@ -93,6 +95,7 @@ internal object MiningWorkMechanics {
             return finishCollection(record,e,npc,s,"bounded collection window ended")
         }
         if (!BehaviorPlanning.admit(world,641,PlanningKind.PICKUP)) return NpcActionResult.running("mining drop search queued")
+        val waitBefore = s.collectionTicks
         s.collectionTicks--
         val allowed=HarvestWorkClaims.kernel.collectionFilter(npc.npcUuid,record.id,d.dimensionId,snapshot.gameTime)
         val drops=world.queryEntities(NpcEntityQuery(TransportTaskDefinition.center(target.position),4.0,32,typeIds=setOf("minecraft:item"))).filter {
@@ -104,10 +107,11 @@ internal object MiningWorkMechanics {
         val standing=selection.standing
         if (standing != null) {
             if (!d.contains(standing)) return NpcActionResult.running("drop approach is outside the fixed travel boundary")
-            if (e.approach != standing) { TaskInventory.resetRoute(e,npc); e.approach=standing }
-            return TaskNavigator.move(record,e,npc,world,NavigateTaskDefinition(d.dimensionId,standing,budget=d.budget))
+            val step = TaskPickupNavigation.move(record,e,npc,world,d.dimensionId,standing,d.budget,waitBefore)
+            s.collectionTicks = step.collectionTicks
+            return step.action
         }
-        npc.stopControl()
+        TaskNavigator.stop(e,npc)
         val action=npc.pickupItem(selection.drop.uuid)
         TaskMining.observeInventory(record,npc)?.let { return TaskMining.mismatch(record,it) }
         return action

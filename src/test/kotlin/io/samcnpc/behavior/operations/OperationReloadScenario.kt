@@ -54,12 +54,27 @@ internal class OperationReloadScenario(server: MinecraftServer) {
                 oldAction = navigation.actionId
                 val before = TaskCodec.write(scene.record)
                 val ids = BehaviorRuntimeService.activePackIds()
-                Files.writeString(file, "{\"schemaVersion\":1,\"id\":")
-                val rejected = BehaviorRuntimeService.reload()
-                check(!rejected.accepted && rejected.messages.any { it.contains("o4_reload.json") })
-                check(BehaviorRuntimeService.activePackIds() == ids)
-                check(scene.npc.snapshot().navigation?.actionId == oldAction) { "Rejected candidate cancelled valid work" }
-                check(TaskCodec.write(scene.record) == before) { "Rejected candidate changed the task" }
+                val valid = document(-101)
+                val rejectedBodies = listOf(
+                    "partial" to "{\"schemaVersion\":1,\"id\":".toByteArray(),
+                    "duplicate member" to valid.replaceFirst("\"id\": \"$packId\"", "\"id\": \"samcnpc:discarded\", \"id\": \"$packId\"").toByteArray(),
+                    "fractional integer" to valid.replaceFirst("\"priority\": -101", "\"priority\": -101.0000000000000001").toByteArray(),
+                    "unknown condition" to valid.replace("samcnpc:has_summoner", "samcnpc:not_registered").toByteArray(),
+                    "unknown action" to valid.replace("samcnpc:look_at_summoner", "samcnpc:not_registered").toByteArray(),
+                    "schema version" to valid.replace("\"schemaVersion\": 1", "\"schemaVersion\": 2").toByteArray(),
+                    "channel mismatch" to valid.replace("\"look\"", "\"movement\"").toByteArray(),
+                    "duplicate pack" to valid.replace(packId, "samcnpc:idle_look").toByteArray(),
+                    "invalid UTF-8" to byteArrayOf(0xc3.toByte()),
+                    "oversized stream" to ByteArray(128 * 1024 + 1) { 32 },
+                )
+                for ((label, body) in rejectedBodies) {
+                    Files.write(file, body)
+                    val rejected = BehaviorRuntimeService.reload()
+                    check(!rejected.accepted && rejected.messages.any { it.contains("o4_reload.json") }) { "$label: ${rejected.messages}" }
+                    check(BehaviorRuntimeService.activePackIds() == ids) { "$label changed active packs" }
+                    check(scene.npc.snapshot().navigation?.actionId == oldAction) { "$label cancelled valid work" }
+                    check(TaskCodec.write(scene.record) == before) { "$label changed the task" }
+                }
                 Files.writeString(file, document(-101))
                 advance()
             }

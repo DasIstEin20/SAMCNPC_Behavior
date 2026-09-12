@@ -56,6 +56,7 @@ internal object FarmHarvest {
         val allowed=HarvestWorkClaims.kernel.collectionFilter(npc.npcUuid,record.id,d.dimensionId,snapshot.gameTime)
         val observations=world.queryEntities(NpcEntityQuery(TransportTaskDefinition.center(target),4.0,64,typeIds=setOf("minecraft:item")))
         val drops=observations.filter { it.alive && it.itemStack?.itemId in d.work.crop.collectedItems && FarmAccounting.allowsPickup(d,s,it.position) && allowed(it.position) }
+        val waitBefore = s.collectionTicks
         s.collectionTicks--
         if (s.collectionTicks == 0 && drops.isNotEmpty()) {
             com.mojang.logging.LogUtils.getLogger().warn("FARM_COLLECTION_TIMEOUT npc={} target={} position={} navigation={} drops={}",
@@ -69,16 +70,17 @@ internal object FarmHarvest {
         }
         val selected=ItemPickupApproach.select(snapshot.position,world,drops)
         if (selected == null) {
-            npc.stopControl()
+            TaskNavigator.stop(e,npc)
             return NpcActionResult.running("crop drops await supported pickup access within the original collection window")
         }
         val standing=selected.standing
         if (standing != null) {
             if (!d.contains(standing)) return TaskFarm.stop(record,e,npc,s,FarmProblem.UNREACHABLE,"crop pickup approach exceeds the travel boundary")
-            if (e.approach != standing) { TaskInventory.resetRoute(e,npc); e.approach=standing }
-            return TaskNavigator.move(record,e,npc,world,NavigateTaskDefinition(d.dimensionId,standing,budget=d.budget))
+            val step = TaskPickupNavigation.move(record,e,npc,world,d.dimensionId,standing,d.budget,waitBefore)
+            s.collectionTicks = step.collectionTicks
+            return step.action
         }
-        npc.stopControl()
+        TaskNavigator.stop(e,npc)
         val action=npc.pickupItem(selected.drop.uuid)
         FarmAccounting.observe(record,npc)?.let { return FarmAccounting.mismatch(record,it) }
         return action

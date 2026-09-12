@@ -5,6 +5,7 @@ import io.samcnpc.core.api.NpcActionStatus
 
 internal object OperationAmendments {
     fun apply(s: OperationScene, actor: OperationActor) {
+        if(s.kind in OperationCourierCases.kinds) { OperationCourierCases.incident(s,actor);return }
         val change=when(s.kind) {
             OperationKind.AMEND_QUANTITY -> TaskChange.Quantity(8,QuantityChangeMode.ADD)
             OperationKind.AMEND_RECIPIENT -> TaskChange.Redirect(s.choices(24,-3))

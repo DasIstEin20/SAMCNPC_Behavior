@@ -70,6 +70,9 @@ internal object TaskChanges {
         else -> throw IllegalArgumentException("operation does not have an item/defeat quota")
     }
     fun withBudget(d: TaskDefinition, budget: TaskBudget): TaskDefinition = when (d) {
+        is ExplorerTaskDefinition -> d.copy(budget=budget)
+        is FishingTaskDefinition -> d.copy(budget=budget)
+        is MachineTaskDefinition -> d.copy(budget=budget)
         is PlantingTaskDefinition -> d.copy(budget=budget)
         is FarmTaskDefinition -> d.copy(budget = budget)
         is FoodTaskDefinition -> d.copy(budget = budget)

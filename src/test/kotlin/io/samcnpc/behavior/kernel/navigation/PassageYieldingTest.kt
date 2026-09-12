@@ -53,6 +53,16 @@ class PassageYieldingTest {
         val selected = assertNotNull(PassageYielding.chooseStanding(left, right, NpcPosition(-10.0,64.0,0.5), world, emptyList()) { true })
         assertTrue(selected.z > 1.5, "unreachable negative-z floor selected: $selected")
     }
+    @Test fun supportedFractionalSoilIsNotReplacedByAnIntegerFootHeight() {
+        val floor = 63.9375
+        val world = object : NpcWorldView by CombatPolicyWorld() {
+            override fun observeStandingSpace(feet: NpcPosition) = NpcStandingSpaceObservation(feet,
+                clear = feet.y == floor, supported = feet.y == floor, inFluid = false)
+        }
+        val selected = assertNotNull(PassageYielding.chooseStanding(left.copy(y=floor), right.copy(y=floor),
+            NpcPosition(-10.0,floor,0.5), world, emptyList()) { it.z <= 2.5 })
+        assertEquals(floor, selected.y)
+    }
     @Test fun realArrivalOpensOnePassingWindowButCannotRenewItsDeadline() {
         val blocked = YieldWindow(100)
         assertEquals(160, blocked.deadline)

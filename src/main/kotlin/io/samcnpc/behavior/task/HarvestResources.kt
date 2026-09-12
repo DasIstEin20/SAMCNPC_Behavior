@@ -74,6 +74,21 @@ internal class HarvestResources(initial: Map<String, Int>) {
         }
     }
 
+    /** The primitive's actual receipt is authoritative even when a machine processes during insertion. */
+    fun observeTransfer(after: Map<String, Int>, itemId: String, moved: Int, inserting: Boolean): String? {
+        val expected = if (inserting) -moved else moved
+        if (uncertain || moved !in 1..64 || (after[itemId] ?: 0) - (retained()[itemId] ?: 0) != expected) {
+            uncertain = true
+            return "actual transfer does not match the NPC resource delta"
+        }
+        return update(after) { id, counter ->
+            val delta = (after[id] ?: 0) - counter.retained
+            if (id == itemId) {
+                if (inserting) counter.delivered += moved else counter.supplied += moved
+            } else if (delta > 0) counter.gathered += delta else counter.lost -= delta
+        }
+    }
+
     private fun update(current: Map<String, Int>, classify: (String, HarvestResource) -> Unit): String? {
         if (current == retained()) return null
         if (!validCounts(current) || (amounts.keys + current.keys).size > MAX_KINDS) {

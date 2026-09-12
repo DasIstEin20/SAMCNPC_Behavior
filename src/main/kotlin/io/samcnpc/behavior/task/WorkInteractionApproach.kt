@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.kernel.navigation.ContainerApproachKernel
+import io.samcnpc.behavior.kernel.navigation.WorkApproachVisibility
 import io.samcnpc.core.api.*
 
 /** Supported movement toward a supplied cell, followed by fresh visibility inside real use reach. */
@@ -15,10 +16,9 @@ internal object WorkInteractionApproach {
         if (e.approach == null) {
             if (e.rejectedWorkStances.size >= 16) return NpcActionResult.failed("sixteen supported work approaches lacked interaction visibility")
             if (!ContainerApproachKernel.admitSelection(world,2)) return NpcActionResult.running("work interaction approach queued")
-            val distant=TaskNavigator.distanceSquared(snapshot.position,center) > 8.0*8.0
             e.approach=ContainerApproachKernel.select(world,target,snapshot.position,offset=2,allowed={ cell ->
                 val feet=NpcPosition(cell.x+0.5,cell.y.toDouble(),cell.z+0.5)
-                d.contains(feet) && cell !in e.rejectedWorkStances && (distant || world.visibleBlockFrom(feet,target) == true)
+                d.contains(feet) && cell !in e.rejectedWorkStances && WorkApproachVisibility.allowsCandidate(world,snapshot.position,feet,target)
             }) ?: return NpcActionResult.failed("supplied work cell has no supported visible approach")
         }
         val feet=checkNotNull(e.approach)

@@ -14,7 +14,7 @@ internal enum class TaskReason {
     DELIVERED, MISSING_RESOURCE, STORAGE_FULL, WORK_FAILED, SOURCE_EMPTY, SOURCE_UNAVAILABLE, INVENTORY_FULL,
     TARGET_DEFEATED, TARGET_ENDED, TARGET_UNAVAILABLE, LEASH_REACHED, PERMISSION_CHANGED,
     COMBAT_TIME_LIMIT, COMBAT_NO_PROGRESS, RECOVERY_EXHAUSTED,
-    DEFENSE_FINISHED, AREA_CLEARED, PATROL_FINISHED, SUBJECT_UNAVAILABLE, INVENTORY_FINISHED, INVENTORY_INCOMPLETE, MINING_FINISHED, FOOD_FINISHED, FARM_FINISHED, PLANTING_FINISHED,
+    DEFENSE_FINISHED, AREA_CLEARED, PATROL_FINISHED, SUBJECT_UNAVAILABLE, INVENTORY_FINISHED, INVENTORY_INCOMPLETE, MINING_FINISHED, FOOD_FINISHED, FARM_FINISHED, PLANTING_FINISHED, MACHINE_FINISHED, FISHING_FINISHED, EXPLORATION_FINISHED,
 }
 
 /** A suspended intent, not a serialized execution stack. All fields are bounded and world-free. */
@@ -34,6 +34,9 @@ internal class TaskFrame(
     var food: FoodTaskState? = null,
     var farming: FarmTaskState? = null,
     var planting: PlantingTaskState? = null,
+    var machine: MachineTaskState? = null,
+    var fishing: FishingTaskState? = null,
+    var explorer: ExplorerTaskState? = null,
 ) {
     val status: TaskStatus get() = if (waitTicks > 0) TaskStatus.WAITING else TaskStatus.RUNNING
 }
@@ -147,6 +150,17 @@ internal class TaskRecord(
         logistics.cooldownRemaining = (logistics.cooldownRemaining - ticks).coerceAtLeast(0)
         for (frame in frames) {
             frame.remainingTicks = (frame.remainingTicks - ticks).coerceAtLeast(0)
+            frame.fishing?.let { state ->
+                if (frame.id == active.id && status == TaskStatus.RUNNING && state.phase == FishingPhase.COLLECT) {
+                    state.collectTicks = (state.collectTicks + ticks).coerceAtMost((frame.definition as FishingTaskDefinition).pickupWaitTicks)
+                }
+            }
+            frame.machine?.let { state ->
+                if (frame.id == active.id && status == TaskStatus.RUNNING && state.phase == MachinePhase.WORK) {
+                    state.pollRemaining = (state.pollRemaining-ticks).coerceAtLeast(0)
+                    state.idleTicks = (state.idleTicks+ticks).coerceAtMost(frame.definition.budget.ticks)
+                }
+            }
             frame.farming?.let { state ->
                 if (state.phase == FarmPhase.WAIT_GROWTH) {
                     state.growthRemaining=(state.growthRemaining-ticks).coerceAtLeast(0)

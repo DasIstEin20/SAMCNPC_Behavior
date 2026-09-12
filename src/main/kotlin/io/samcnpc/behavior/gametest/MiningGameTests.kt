@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity
 import net.minecraftforge.gametest.*
 import java.util.UUID
 
-@GameTestHolder(SamcnpcBehavior.MOD_ID)
+@GameTestHolder("samcnpc_mining_zoo")
 @PrefixGameTestTemplate(false)
 object MiningGameTests {
     @JvmStatic @GameTest(template="lumberjackdemogametests.empty",timeoutTicks=1500,batch="mining_exposed")
@@ -126,7 +126,7 @@ object MiningGameTests {
         val nextOutput=helper.level.getBlockEntity(helper.absolutePos(BlockPos(0,1,-3))) as ChestBlockEntity
         for (x in 4..5) helper.setBlock(BlockPos(x,1,0),Blocks.IRON_ORE)
         for (x in 8..9) helper.setBlock(BlockPos(x,1,0),Blocks.GOLD_ORE)
-        var increased=false; var changed=false; var original: UUID?=null
+        var increased=false; var changed=false; var original: UUID?=null; var reportedFailures=0
         fun coordinates(p: NpcBlockPosition)="${p.x} ${p.y} ${p.z}"
         arena.onReady { npc ->
             arena.give(npc,ItemStack(Items.IRON_PICKAXE)); arena.give(npc,ItemStack(Items.RAW_IRON,5))
@@ -143,6 +143,11 @@ object MiningGameTests {
         }
         arena.observe { npc,record ->
             val state=checkNotNull(record.primary.mining)
+            if (record.totalFailures != reportedFailures) {
+                reportedFailures=record.totalFailures
+                com.mojang.logging.LogUtils.getLogger().warn("MINING_AMENDMENT_RETRY report={} phase={} target={} observed={} navigation={}",
+                    record.report(),state.phase,state.target,npc.snapshot().position,npc.snapshot().navigation)
+            }
             if (!increased && state.phase == MiningPhase.COLLECT && state.selection.removed.size == 1) {
                 check(TaskAmendments.automatic(server,npc,actor.player,TaskChange.Quantity(2,QuantityChangeMode.TOTAL)).status == NpcActionStatus.SUCCEEDED)
                 check(record.amendments.pending != null && record.amendments.revision == 0) { "quantity amendment bypassed physical boundary" }
@@ -163,7 +168,7 @@ object MiningGameTests {
                 check(report == TaskObjectiveCodec.read(TaskObjectiveCodec.write(report)))
                 check(count(output,Items.RAW_IRON) == 2 && count(nextOutput,Items.RAW_GOLD) == 2 && TaskDelivery.inventoryCount(npc,"minecraft:raw_iron") == 5)
                 check(checkNotNull(record.primary.mining).resources.delivered("minecraft:raw_iron") == 0)
-                check(record.primary.remainingTicks < 2200 && record.totalFailures == 0)
+                check(record.primary.remainingTicks < 2200 && record.totalFailures == 0) { "Unexpected retry: ${record.report()}; total=${record.totalFailures}" }
                 actor.close(); arena.succeed(npc,record)
             }
         }

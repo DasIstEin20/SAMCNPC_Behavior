@@ -25,7 +25,7 @@ import java.util.UUID
 internal enum class OperationKind {
     NAVIGATE, DELIVERY, WOOD, ATTACK, DEFEND, AREA_ATTACK, PATROL, TRANSPORT,
     INVENTORY, MINING, FOOD, FARM, PLANTING, WOOD_REPLANT,
-    AMEND_QUANTITY, AMEND_RECIPIENT, AMEND_RESOURCE,
+    AMEND_QUANTITY, AMEND_RECIPIENT, AMEND_RESOURCE, COURIER_REDIRECT, COURIER_REOPEN, MACHINE, FISHING_WAIT, FISHING_COLLECT, EXPLORER_LEG, EXPLORER_RETURN,
 }
 
 /** Ordinary server fixture: no GameTest clock, entity restoration or fabricated action results. */
@@ -93,7 +93,7 @@ internal class OperationScene(val level: ServerLevel, val kind: OperationKind, v
     }
     fun requireReleased() {
         val state=npc.snapshot()
-        check(state.navigation == null && state.control == null && state.blockBreak == null && state.itemUse == null && state.rangedAttack == null) { "$kind retained Core control" }
+        check(state.navigation == null && state.control == null && state.blockBreak == null && state.itemUse == null && state.rangedAttack == null && state.fishing == null) { "$kind retained Core control" }
     }
     fun requireReturned(arrival: Double = 0.75) = check(TaskNavigator.distanceSquared(npc.snapshot().position,start) <= arrival*arrival) { "$kind did not physically return" }
     fun close() { body.discard(); enemyId?.let { level.getEntity(it)?.discard() } }
@@ -113,7 +113,8 @@ internal class OperationScene(val level: ServerLevel, val kind: OperationKind, v
     fun worldFacts(): CompoundTag {
         val tag=CompoundTag(); val blocks=ListTag(); val containers=ListTag()
         // The small arena is fixed in advance; comparisons never repair the actual world.
-        for(x in -2..30) for(z in -7..10) for(y in 0..9) {
+        val minimumY=if (kind in OperationFishingCase.kinds) -2 else 0
+        for(x in -2..30) for(z in -7..10) for(y in minimumY..9) {
             val at=pos(x,y,z); val state=level.getBlockState(at)
             if(state.isAir) continue
             val row=CompoundTag(); row.putLong("pos",at.asLong()); row.put("state",NbtUtils.writeBlockState(state)); blocks.add(row)

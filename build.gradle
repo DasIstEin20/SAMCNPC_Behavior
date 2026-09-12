@@ -46,6 +46,11 @@ def forestSmokeWorld = "forest-repair-${System.currentTimeMillis()}"
 def operationsSmokeId = providers.gradleProperty('operationsSmokeId').orElse(rootProject.ext.fullVerificationId ?: 'manual').get()
 if (!(operationsSmokeId ==~ /[A-Za-z0-9_-]+/)) throw new GradleException('operationsSmokeId must contain only letters, digits, underscores or hyphens')
 
+def pickupRecoveryOnly = providers.gradleProperty('pickupRecoveryOnly').orElse('false').get().toBoolean()
+def machineCompatibility = providers.gradleProperty('machineCompatibility').orElse('false').get().toBoolean()
+def gameTestNamespace = providers.gradleProperty('gameTestNamespace').orElse(pickupRecoveryOnly ? 'samcnpc_pickup_zoo' : 'samcnpc_behavior,samcnpc_pickup_zoo,samcnpc_machine_zoo,samcnpc_fishing_zoo,samcnpc_explorer_zoo,samcnpc_mining_zoo').get()
+if (!gameTestNamespace.split(',').every { it in ['samcnpc_behavior', 'samcnpc_pickup_zoo', 'samcnpc_machine_zoo', 'samcnpc_fishing_zoo', 'samcnpc_explorer_zoo', 'samcnpc_mining_zoo'] }) throw new GradleException('Unknown GameTest namespace')
+
 minecraft {
     mappings channel: 'official', version: minecraft_version
     copyIdeResources = true
@@ -54,6 +59,7 @@ minecraft {
         configureEach {
             workingDirectory project.file('run')
             property 'forge.logging.console.level', 'info'
+            property 'samcnpc.machineFixture', machineCompatibility ? 'iron-furnaces-4.1.8' : 'vanilla-furnace'
             property 'forge.enabledGameTestNamespaces', 'samcnpc_behavior'
             mods {
                 // Behavior's dev runs must load Core through the same userdev remapping path as
@@ -167,6 +173,30 @@ minecraft {
                 samcnpc_behavior { source sourceSets.test }
             }
         }
+        serverExplorerLifecycleDrop {
+            taskName 'runExplorerLifecycleDrop'
+            parent runs.server
+            workingDirectory project.file("run-explorer-drop-${operationsSmokeId}")
+            property 'samcnpc.explorerLifecycle', 'DROP'
+            property 'samcnpc.deathPolicyFixture', 'DROP'
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
+        }
+        serverExplorerLifecycleKeep {
+            taskName 'runExplorerLifecycleKeep'
+            parent runs.server
+            workingDirectory project.file("run-explorer-keep-${operationsSmokeId}")
+            property 'samcnpc.explorerLifecycle', 'KEEP'
+            property 'samcnpc.deathPolicyFixture', 'KEEP'
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
+        }
         serverOperationsPerformance {
             taskName 'runOperationsPerformance'
             parent runs.server
@@ -175,6 +205,45 @@ minecraft {
             property 'samcnpc.behavior.profile', 'true'
             jvmArgs '-Xms2G', '-Xmx4G'
             mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        serverAcceptanceZoo {
+            taskName 'runAcceptanceZoo'
+            parent runs.server
+            workingDirectory project.file("run-acceptance-zoo-${operationsSmokeId}")
+            property 'samcnpc.acceptanceZoo', 'true'
+            property 'samcnpc.zooProfile', providers.gradleProperty('zooProfile').orElse('z1').get()
+            property 'samcnpc.zooSeed', providers.gradleProperty('zooSeed').orElse('20260912').get()
+            property 'samcnpc.zooSourceHash', providers.gradleProperty('zooSourceHash').orElse('not_supplied').get()
+            jvmArgs '-Xms1G', '-Xmx4G'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
+        serverZooHour {
+            taskName 'runZooHour'
+            parent runs.server
+            workingDirectory project.file("run-zoo-hour-${operationsSmokeId}")
+            property 'samcnpc.zooHour', 'FULL'
+            property 'samcnpc.zooSourceHash', providers.gradleProperty('zooSourceHash').orElse('not_supplied').get()
+            property 'samcnpc.behavior.profile', 'true'
+            property 'samcnpc.coreLifecycleProbe', 'true'
+            jvmArgs '-Xms2G', '-Xmx4G'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
+        }
+        serverZooHourProbe {
+            taskName 'runZooHourProbe'
+            parent runs.server
+            workingDirectory project.file("run-zoo-hour-probe-${operationsSmokeId}")
+            property 'samcnpc.zooHour', 'PROBE'
+            property 'samcnpc.zooSourceHash', providers.gradleProperty('zooSourceHash').orElse('not_supplied').get()
+            property 'samcnpc.behavior.profile', 'true'
+            property 'samcnpc.coreLifecycleProbe', 'true'
+            jvmArgs '-Xms2G', '-Xmx4G'
+            mods {
+                samcnpc_core { source project(':samcnpc-core').sourceSets.test }
+                samcnpc_behavior { source sourceSets.test }
+            }
         }
         serverOperationsSoak {
             taskName 'runOperationsSoak'
@@ -185,6 +254,8 @@ minecraft {
             mods { samcnpc_behavior { source sourceSets.test } }
         }
         gameTestServer {
+            property 'forge.enabledGameTestNamespaces', gameTestNamespace
+            mods { samcnpc_behavior { source sourceSets.test } }
             workingDirectory project.file('run-gametest')
             // Manual fixture geometry extends beyond the template's reset box. Never inherit
             // old containers/entities when the suite layout changes between invocations.
@@ -216,9 +287,28 @@ tasks.matching { it.name == 'runClientForestRepairSmoke' }.configureEach {
     }
 }
 
+// Optional development compatibility fixture; no production mod dependency or bundled JAR.
+if (machineCompatibility) {
+    repositories {
+        exclusiveContent {
+            forRepository { maven { name = 'ModrinthCompatibility'; url = 'https://api.modrinth.com/maven' } }
+            forRepositories(fg.repository)
+            filter { includeGroup 'maven.modrinth' }
+        }
+    }
+    // A dev fixture must not enter runtimeElements and then the dependent LLM userdev
+    // remapper as an already-mapped transitive dependency.
+    configurations {
+        machineCompatibilityRuntime { canBeConsumed = false; canBeResolved = false }
+        runtimeClasspath.extendsFrom machineCompatibilityRuntime
+        testRuntimeClasspath.extendsFrom machineCompatibilityRuntime
+    }
+    dependencies { machineCompatibilityRuntime fg.deobf('maven.modrinth:iron-furnaces:KHAcRQwi') }
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    implementation fg.deobf(project(':samcnpc-core'))
+    implementation project(':samcnpc-core')
     implementation "thedarkcolour:kotlinforforge:${kotlin_for_forge_version}"
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation "org.jetbrains.kotlin:kotlin-test:${kotlin_version}"
@@ -274,6 +364,14 @@ def prepareGameTestResources = tasks.register('prepareGameTestResources', Copy) 
 
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn prepareGameTestResources
+    doLast {
+        def focusedCount = ['samcnpc_pickup_zoo': 3, 'samcnpc_machine_zoo': 7, 'samcnpc_fishing_zoo': 10, 'samcnpc_explorer_zoo': 10, 'samcnpc_mining_zoo': 8][gameTestNamespace]
+        if (focusedCount == null) return
+        def log = new File(workingDir, 'logs/latest.log').text
+        if (!log.contains("All ${focusedCount} required tests passed") || log.readLines().any { it.contains('LogTestReporter') && it.contains(' failed!') }) {
+            throw new GradleException("All ${focusedCount} required ${gameTestNamespace} regressions must pass")
+        }
+    }
 }
 
 def prepareLumberjackSmokeResources = tasks.register('prepareLumberjackSmokeResources', Copy) {
@@ -399,6 +497,11 @@ tasks.matching { it.name == 'runClientTaskCombatSmoke' }.configureEach {
 
 // Ordinary dedicated runs retain Minecraft's actual pacing and save/load through separate JVMs.
 def operationRuns = [
+    runZooHour: [directory: "run-zoo-hour-${operationsSmokeId}", report: 'zoo-hour.txt', port: 25584],
+    runZooHourProbe: [directory: "run-zoo-hour-probe-${operationsSmokeId}", report: 'zoo-hour.txt', port: 25585],
+    runExplorerLifecycleDrop: [directory: "run-explorer-drop-${operationsSmokeId}", report: 'explorer-lifecycle.txt', port: 25582],
+    runExplorerLifecycleKeep: [directory: "run-explorer-keep-${operationsSmokeId}", report: 'explorer-lifecycle.txt', port: 25583],
+    runAcceptanceZoo: [directory: "run-acceptance-zoo-${operationsSmokeId}", report: 'acceptance-zoo.txt', port: 25581],
     runOperationsSmokeSave: [directory: "run-operations-${operationsSmokeId}", report: 'operations-save.txt', port: 25577],
     runOperationsSmokeLoad: [directory: "run-operations-${operationsSmokeId}", report: 'operations-load.txt', port: 25577],
     runOperationsLifecycle: [directory: "run-operations-lifecycle-${operationsSmokeId}", report: 'operations-lifecycle.txt', port: 25580],
@@ -426,6 +529,7 @@ server-port=${config.port}
 online-mode=true
 level-name=world
 level-type=minecraft:flat
+generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}
 level-seed=0
 generate-structures=false
 view-distance=4
@@ -447,6 +551,8 @@ tasks.matching { it.name == 'runOperationsSmokeLoad' }.configureEach {
 [
     runClientTaskSmoke: [directory: 'run-task-smoke', count: 4],
     runOperationsLifecycle: [directory: "run-operations-lifecycle-${operationsSmokeId}", count: 1],
+    runZooHour: [directory: "run-zoo-hour-${operationsSmokeId}", count: 1],
+    runZooHourProbe: [directory: "run-zoo-hour-probe-${operationsSmokeId}", count: 1],
 ].each { taskName, config ->
     tasks.matching { it.name == taskName }.configureEach {
         dependsOn ':samcnpc-core:testClasses'
@@ -458,6 +564,11 @@ tasks.matching { it.name == 'runOperationsSmokeLoad' }.configureEach {
             }
         }
     }
+}
+
+// Separate JVMs isolate each real Forge death-policy fixture.
+tasks.matching { it.name in ['runExplorerLifecycleDrop', 'runExplorerLifecycleKeep'] }.configureEach {
+    dependsOn ':samcnpc-core:testClasses'
 }
 
 tasks.register('verifyProductionKotlin') {

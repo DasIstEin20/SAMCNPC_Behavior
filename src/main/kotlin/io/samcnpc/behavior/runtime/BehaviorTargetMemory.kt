@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.runtime
 
 import com.google.gson.JsonObject
+import io.samcnpc.behavior.registry.exactLongOrNull
 import io.samcnpc.behavior.combat.CombatTargetSelector
 import io.samcnpc.behavior.model.ActionHandler
 import io.samcnpc.behavior.model.BehaviorChannel
@@ -83,7 +84,10 @@ object BehaviorTargetMemory {
         val leash = args.get("leash")
         if (leash != null && (!leash.isJsonPrimitive || !leash.asJsonPrimitive.isNumber || !leash.asDouble.isFinite() || leash.asDouble !in 1.0..32.0)) return "leash must be a finite number in [1, 32]"
         val ticks = args.get("durationTicks")
-        if (ticks != null && (!ticks.isJsonPrimitive || !ticks.asJsonPrimitive.isNumber || ticks.asDouble !in 20.0..2400.0 || ticks.asDouble != ticks.asInt.toDouble())) return "durationTicks must be an integer in [20, 2400]"
+        if (ticks != null) {
+            val exact = ticks.exactLongOrNull()
+            if (exact == null || exact !in 20L..2400L) return "durationTicks must be an integer in [20, 2400]"
+        }
         val players = args.get("allowPlayers")
         if (players != null && (!players.isJsonPrimitive || !players.asJsonPrimitive.isBoolean)) return "allowPlayers must be a boolean"
         return null

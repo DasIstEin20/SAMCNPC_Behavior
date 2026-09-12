@@ -8,16 +8,28 @@ internal object OperationCases {
     private val combat=setOf(OperationKind.ATTACK,OperationKind.DEFEND,OperationKind.AREA_ATTACK,OperationKind.PATROL)
     private val resources=setOf(OperationKind.MINING,OperationKind.AMEND_RESOURCE,OperationKind.FARM,OperationKind.PLANTING,OperationKind.WOOD,OperationKind.WOOD_REPLANT)
     fun prepare(s: OperationScene) = when(s.kind) {
+        OperationKind.MACHINE -> OperationMachineCase.prepare(s)
+        in OperationExplorerCase.kinds -> OperationExplorerCase.prepare(s)
+        in OperationFishingCase.kinds -> OperationFishingCase.prepare(s)
+        in OperationCourierCases.kinds -> OperationCourierCases.prepare(s)
         in combat -> OperationCombatCases.prepare(s)
         in resources -> OperationResourceCases.prepare(s)
         else -> OperationCargoCases.prepare(s)
     }
     fun checkpoint(s: OperationScene) = when(s.kind) {
+        OperationKind.MACHINE -> OperationMachineCase.checkpoint(s)
+        in OperationExplorerCase.kinds -> OperationExplorerCase.checkpoint(s)
+        in OperationFishingCase.kinds -> OperationFishingCase.checkpoint(s)
+        in OperationCourierCases.kinds -> OperationCourierCases.checkpoint(s)
         in combat -> OperationCombatCases.checkpoint(s)
         in resources -> OperationResourceCases.checkpoint(s)
         else -> OperationCargoCases.checkpoint(s)
     }
     fun verify(s: OperationScene) = when(s.kind) {
+        OperationKind.MACHINE -> OperationMachineCase.verify(s)
+        in OperationExplorerCase.kinds -> OperationExplorerCase.verify(s)
+        in OperationFishingCase.kinds -> OperationFishingCase.verify(s)
+        in OperationCourierCases.kinds -> OperationCourierCases.verify(s)
         in combat -> OperationCombatCases.verify(s)
         in resources -> OperationResourceCases.verify(s)
         else -> OperationCargoCases.verify(s)

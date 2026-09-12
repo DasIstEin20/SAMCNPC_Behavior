@@ -142,7 +142,7 @@ reguł danej postaci i ustawia diagnostykę bezpiecznego bezczynnego stanu.
 ## Trwałe zadania
 
 Nawigacja, dostawy, zbieranie drewna z ponownym sadzeniem, kopanie, rolnictwo, zdobywanie żywności,
-sadzenie drzew, transport między kontenerami, obrona, patrol i walka korzystają z trwałych ID zadań,
+sadzenie drzew, transport między kontenerami, praca maszyn, łowienie, eksploracja, obrona, patrol i walka korzystają z trwałych ID zadań,
 ograniczonych budżetów, pauzy/wznowienia/anulowania, rozliczania zasobów i ograniczonych przerwań.
 Komendy pozwalają określić ilości, zasoby, obszary pracy, odbiorców, zaopatrzenie oraz obsługiwane
 taktyki. Obsługiwane zmiany ilości, odbiorcy i zasobu przechodzą walidację także w trwającym zadaniu.
@@ -176,12 +176,31 @@ obszar i sprawdzane cele. Obsługiwane taktyki obejmują broń dystansową, tarc
 reakcje przerywają pracę i wznawiają ją po sprawdzeniu aktualnego świata. Akcje nie tworzą darmowych zasobów.
 
 NPC ma jedno główne zadanie i najwyżej dwie ramki przerwań. Ręczna pauza zatrzymuje budżet i zwalnia
-sterowanie; restart nie odnawia limitu. Format zapisu zadań 5 migruje starsze rekordy i zachowuje
+sterowanie; restart nie odnawia limitu. Format zapisu zadań 8 migruje starsze rekordy i zachowuje
 odrzucone dane z diagnostyką. Magazyn zadań ma limit 4096 wpisów; zapełnienie jawnie odrzuca nowy wpis.
 
 Stabilne publiczne API zlecania/kontroli operacji i rozszerzony katalog JSON pozostają do wykonania.
 Obecne operacje obsługuje się komendami; dotychczasowa walidacja JSON paczek zachowań jest dostępna.
 Opcjonalny dostawca LLM i integracja craftingu są odłożone.
+
+## Łowienie, eksploracja i praca maszyn
+
+Te operacje korzystają ze wspólnych budżetów, pauzy/wznowienia/anulowania, rozliczania
+zasobów i przerwania pracy walką:
+
+- [Łowienie](docs/FISHING.md): wskaż wodę, bezpieczne stanowisko, posiadaną wędkę i limit
+  połowów; NPC zarzuca, obserwuje spławik, zwija raz, zbiera rzeczywisty loot i wraca.
+- [Eksploracja](docs/EXPLORER.md): ograniczony obszar, fizyczne potwierdzenie odwiedzin
+  i powrót po waypointach; limity komórek, wysokości, chunków i czasu.
+- [Praca maszyn](docs/MACHINES.md): włóż dostarczone przedmioty do prawdziwego endpointu,
+  poczekaj na wynik i dostarcz go. Pełny output, brak postępu lub usunięcie maszyny mają
+  ograniczony wynik. Recepturę wykonuje maszyna, a nie ekwipunek NPC.
+- [Kopanie](docs/MINING.md) i [praca z ekwipunkiem](docs/INVENTORY_WORK.md) opisują limity,
+  chroniony zapas początkowy, rozliczanie zebranego łupu i powody zakończenia.
+
+Działa tu promień zbierania Core 2–8 bloków. Rezerwacje nadal chronią pracę innych NPC.
+Dojście do widocznego dropu zachowuje krótki czas na zebranie, podczas gdy oryginalny
+deadline nadal maleje. Celowe zatrzymanie drogi nie staje się spóźnionym błędem kolejnej drogi.
 
 ## Starsze demo drwala
 
@@ -260,7 +279,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. 165 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. 195 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -289,18 +308,21 @@ Nowe wykonywalne akcje należą do zarejestrowanych handlerów Kotlin, a nie dan
 `runClientTaskSmoke` sprawdza trwały zbiór drewna, trzy ponowne otwarcia świata i dostawy dębu/ciemnego dębu.
 `runClientTaskCombatSmoke` przerywa dojście, kopanie, częściowy transfer i skok na podporę, po czym
 sprawdza walkę oraz wznowioną dostawę. `runClientFollowSmoke` i `runClientRetaliationSmoke` sprawdzają
-odpowiednie fizyczne zachowania. Behavior ma obecnie 238 testów jednostkowych; asercje runtime pozostają
+odpowiednie fizyczne zachowania. Behavior ma obecnie 290 testów jednostkowych; asercje runtime pozostają
 włączone. Warianty GUI `runClientConfigSmokeBare` i `runClientConfigSmokeDurable` używają osobnych
 katalogów i sprawdzają rzeczywiście wybrane ustawienia.
 
 ## Stan projektu i licencja
 
-Zweryfikowany kod z 12 września 2026 przeszedł 17 punktów zapisu/wczytania w osobnych JVM,
-18 scenariuszy cyklu życia/ochrony/kopania oraz 12 przypadków w prawdziwym kliencie. Test ciągły
-trwał 30 minut i zakończył 534 zadania. Wyniki obejmują te scenariusze; nie oznaczają zakończenia
-całego projektu. Pozostaje test skórek na dwóch zalogowanych kontach oraz finalizacja publicznego
-API/JSON i wydania. Test ciągły odnotował diagnostykę domyślnego płaskiego świata i jeden timeout
-zbierania nadmiarowych nasion; wymagane dostawy i ponowne sadzenie zostały spełnione.
+Kampanie z 12–13 września przeszły 290 testów jednostkowych Behavior, 195 GameTestów
+Behavior i 132 Core, 24 żywe checkpointy zapisu/wczytania w osobnych JVM, 18 scenariuszy
+cyklu życia, 21 scenariuszy terenowych i 12 przypadków w prawdziwym kliencie.
+Pełna mieszana próba ukończyła 660 zadań ośmiu rodzin w 3641 sekundach aktywnej pracy;
+osobne pomiary nawigacji przeszły dla 1, 8, 32 i 64 NPC. Przeszły też uruchomienie
+trzech modów i kontrola dystrybucji. Poprawiony odczyt JSON odrzucił dziesięć błędnych
+reloadów bez przerwania aktywnej pracy. [Zakres dowodów](docs/VALIDATION.md)
+i [reguły wejścia JSON](docs/JSON_INPUT.md). Finalizacja publicznego API/katalogu
+oraz osobny test skórek na dwóch uwierzytelnionych kontach pozostają otwarte.
 
 Wersja rozwojowa **0.1.0**. Repozytorium publikuje Behavior i przypina jego zależność Core;
 nie zawiera opcjonalnego modułu LLM. Zgodność API i zaawansowane przypadki rozgrywki pozostają

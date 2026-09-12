@@ -14,6 +14,12 @@ internal object TaskService {
     const val DELIVERY_ACTION_ID = "samcnpc:run_delivery_task"
     const val LUMBERJACK_PACK_ID = "samcnpc:task_lumberjack"
     const val LUMBERJACK_ACTION_ID = "samcnpc:run_lumberjack_task"
+    const val EXPLORER_PACK_ID = "samcnpc:task_explorer"
+    const val EXPLORER_ACTION_ID = "samcnpc:run_explorer_task"
+    const val FISHING_PACK_ID = "samcnpc:task_fishing"
+    const val FISHING_ACTION_ID = "samcnpc:run_fishing_task"
+    const val MACHINE_PACK_ID = "samcnpc:task_machine"
+    const val MACHINE_ACTION_ID = "samcnpc:run_machine_task"
     const val PLANTING_PACK_ID = "samcnpc:task_planting"
     const val PLANTING_ACTION_ID = "samcnpc:run_planting_task"
     const val FARM_PACK_ID = "samcnpc:task_farming"
@@ -28,12 +34,15 @@ internal object TaskService {
     const val INVENTORY_ACTION_ID = "samcnpc:run_inventory_task"
     const val INVENTORY_BEGIN_ACTION_ID = "samcnpc:begin_task_inventory"
     const val REACTION_ACTION_ID = "samcnpc:begin_task_reaction"
-    fun isTaskAction(id: String): Boolean = id == PLANTING_ACTION_ID || id == FARM_ACTION_ID || id == FOOD_ACTION_ID || id == MINING_ACTION_ID || id == ACTION_ID || id == DELIVERY_ACTION_ID || id == LUMBERJACK_ACTION_ID || id == COMBAT_ACTION_ID || id == REACTION_ACTION_ID || id == INVENTORY_ACTION_ID || id == INVENTORY_BEGIN_ACTION_ID
+    fun isTaskAction(id: String): Boolean = id == EXPLORER_ACTION_ID || id == FISHING_ACTION_ID || id == MACHINE_ACTION_ID || id == PLANTING_ACTION_ID || id == FARM_ACTION_ID || id == FOOD_ACTION_ID || id == MINING_ACTION_ID || id == ACTION_ID || id == DELIVERY_ACTION_ID || id == LUMBERJACK_ACTION_ID || id == COMBAT_ACTION_ID || id == REACTION_ACTION_ID || id == INVENTORY_ACTION_ID || id == INVENTORY_BEGIN_ACTION_ID
     private fun packFor(definition: TaskDefinition): String = when (definition) {
         is AttackTaskDefinition, is CombatMissionDefinition -> COMBAT_PACK_ID
         is InventoryTaskDefinition -> INVENTORY_PACK_ID
         is NavigateTaskDefinition -> PACK_ID
         is DeliveryTaskDefinition, is TransportTaskDefinition -> DELIVERY_PACK_ID
+        is ExplorerTaskDefinition -> EXPLORER_PACK_ID
+        is FishingTaskDefinition -> FISHING_PACK_ID
+        is MachineTaskDefinition -> MACHINE_PACK_ID
         is PlantingTaskDefinition -> PLANTING_PACK_ID
         is FarmTaskDefinition -> FARM_PACK_ID
         is FoodTaskDefinition -> FOOD_PACK_ID
@@ -68,6 +77,8 @@ internal object TaskService {
         }
         if (definition is TransportTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the transport boundary")
         if (definition is InventoryTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the inventory travel boundary")
+        if (definition is FishingTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the fishing travel boundary")
+        if (definition is MachineTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the machine travel boundary")
         if (definition is PlantingTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the planting travel boundary")
         if (definition is FarmTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the farm travel boundary")
         if (definition is FoodTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the food travel boundary")
@@ -93,6 +104,9 @@ internal object TaskService {
         }
         val record = TaskRecord.start(npc.npcUuid, definition, BehaviorRuntimeService.assignedPacks(server, npc.npcUuid))
         record.primary.resources = resources
+        if (definition is ExplorerTaskDefinition) record.primary.explorer = TaskExplorer.capture(npc,definition) ?: return NpcActionResult.rejected("exploration requires a dry supported anchor at the NPC position")
+        if (definition is FishingTaskDefinition) record.primary.fishing = TaskFishing.capture(npc) ?: return NpcActionResult.rejected("fishing requires a carried vanilla rod and no existing cast")
+        if (definition is MachineTaskDefinition) record.primary.machine = TaskMachine.capture(npc,definition) ?: return NpcActionResult.rejected("machine requires observable bounded ports, carried feeds and a confirmed Core transfer state")
         if (definition is PlantingTaskDefinition) record.primary.planting = TaskPlanting.capture(npc) ?: return NpcActionResult.rejected("planting requires a bounded inventory checkpoint")
         if (definition is FarmTaskDefinition) record.primary.farming = TaskFarm.capture(npc,definition) ?: return NpcActionResult.rejected("farm requires a bounded inventory checkpoint")
         if (definition is FoodTaskDefinition) record.primary.food = TaskFood.capture(npc,definition) ?: return NpcActionResult.rejected("food requires a bounded inventory checkpoint")
@@ -174,6 +188,9 @@ internal object TaskService {
             is DeliveryTaskDefinition -> definition.destination.toString()
             is TransportTaskDefinition -> "source=${record.primary.transport?.selected}; stage=${record.primary.transport?.phase}; lastProblem=${record.primary.transport?.lastProblem}"
             is LumberjackTaskDefinition -> definition.destination.toString()
+            is ExplorerTaskDefinition -> "anchor=${definition.anchor}; phase=${record.primary.explorer?.phase}; visited=${record.primary.explorer?.nodes?.size}/${definition.maxCells}; cursor=${record.primary.explorer?.cursor}; rejected=${record.primary.explorer?.rejectedLegs}; stop=${record.primary.explorer?.stop}; chunkFootprint=${definition.chunkFootprint()}/${definition.chunkBudget}"
+            is FishingTaskDefinition -> "water=${definition.water}; standing=${definition.standing}; phase=${record.primary.fishing?.phase}; catches=${record.primary.fishing?.caught}/${definition.catches}; casts=${record.primary.fishing?.casts}"
+            is MachineTaskDefinition -> "machine=${definition.output.endpoint}; phase=${record.primary.machine?.phase}; supplied=${record.primary.machine?.supplied?.toList()}; collected=${record.primary.machine?.collected}/${definition.output.quantity}; idleTicks=${record.primary.machine?.idleTicks}"
             is PlantingTaskDefinition -> "species=${definition.work.species}; mode=${definition.work.mode}; phase=${record.primary.planting?.phase}; saplings=${record.primary.planting?.planted()}; layouts=${record.primary.planting?.completed(definition)}; stop=${record.primary.planting?.stop}"
             is FarmTaskDefinition -> "crop=${definition.work.crop}; mode=${definition.work.mode}; phase=${record.primary.farming?.phase}; harvested=${record.primary.farming?.totalHarvests()}; delivered=${record.primary.farming?.delivered(definition)}; stop=${record.primary.farming?.stop}"
             is FoodTaskDefinition -> "mode=${FoodStatus.mode(definition.work)}; phase=${record.primary.food?.phase}; delivered=${record.primary.food?.delivered(definition)}; retainedFood=${record.primary.food?.retainedFood()}; stop=${record.primary.food?.stop}"
@@ -195,13 +212,18 @@ internal object TaskService {
     fun observeTick(server: MinecraftServer, snapshot: NpcSnapshot, npc: NpcFacade? = null, world: NpcWorldView? = null) {
         val store = TaskStore.forServer(server)
         val record = store.get(snapshot.npcUuid) ?: return
-        if (record.status.terminal) return
+        if (record.status.terminal) {
+            // Older saves may retain a dead task's temporary pack. Reconcile only that
+            // exact assignment; player changes and the terminal report remain authoritative.
+            restorePreviousPacks(server,record)
+            return
+        }
         if (npc != null && world != null) TaskAmendments.observe(server, record, npc, world)
         TaskCombatReactions.observe(record, snapshot, world)
         val previousFrame = record.active.id
         if (world != null) FoodHunting.observe(record,world)
         if (npc != null) {
-            val resourceProblem = PlantingAccounting.observe(record, npc) ?: FarmAccounting.observe(record, npc) ?: FoodAccounting.observe(record, npc) ?: TaskMining.observeInventory(record, npc) ?: TaskLumberjack.observeInventory(record, npc) ?: TaskTransport.observeInventory(record, npc) ?: InventoryTaskCapture.observe(record, npc)
+            val resourceProblem = TaskFishing.observeInventory(record,npc) ?: TaskMachine.observeInventory(record,npc) ?: PlantingAccounting.observe(record, npc) ?: FarmAccounting.observe(record, npc) ?: FoodAccounting.observe(record, npc) ?: TaskMining.observeInventory(record, npc) ?: TaskLumberjack.observeInventory(record, npc) ?: TaskTransport.observeInventory(record, npc) ?: InventoryTaskCapture.observe(record, npc)
             if (resourceProblem != null) record.finish(TaskStatus.FAILED, TaskReason.STATE_MISMATCH, resourceProblem)
         }
         val existing = clocks[snapshot.npcUuid]
@@ -226,6 +248,9 @@ internal object TaskService {
             is InventoryTaskDefinition -> INVENTORY_ACTION_ID
             is NavigateTaskDefinition -> ACTION_ID
             is DeliveryTaskDefinition, is TransportTaskDefinition -> DELIVERY_ACTION_ID
+            is ExplorerTaskDefinition -> EXPLORER_ACTION_ID
+            is FishingTaskDefinition -> FISHING_ACTION_ID
+            is MachineTaskDefinition -> MACHINE_ACTION_ID
             is PlantingTaskDefinition -> PLANTING_ACTION_ID
             is FarmTaskDefinition -> FARM_ACTION_ID
             is FoodTaskDefinition -> FOOD_ACTION_ID
@@ -247,6 +272,9 @@ internal object TaskService {
             is NavigateTaskDefinition -> TaskNavigator.tick(record, execution, npc, world)
             is DeliveryTaskDefinition -> TaskDelivery.tick(record, execution, npc, world)
             is TransportTaskDefinition -> TaskTransport.tick(record, execution, npc, world)
+            is ExplorerTaskDefinition -> TaskExplorer.tick(record,execution,npc,world)
+            is FishingTaskDefinition -> TaskFishing.tick(record,execution,npc,world)
+            is MachineTaskDefinition -> TaskMachine.tick(record,execution,npc,world)
             is PlantingTaskDefinition -> TaskPlanting.tick(record, execution, npc, world)
             is FarmTaskDefinition -> TaskFarm.tick(record, execution, npc, world)
             is FoodTaskDefinition -> TaskFood.tick(record, execution, npc, world)
@@ -316,6 +344,8 @@ internal object TaskService {
         val store = TaskStore.forServer(server)
         val record = store.get(npcUuid) ?: return
         io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel.release(npcUuid)
+        record.primary.fishing?.resources?.mustReconcileLoad=true
+        record.primary.machine?.resources?.mustReconcileLoad=true
         record.primary.planting?.let { it.resources.mustReconcileLoad=true; it.reconcileWorld=true; it.reconcileCursor=0 }
         record.primary.farming?.let { it.resources.physical.mustReconcileLoad=true; it.reconcileWorld=true; it.reconcileCursor=0 }
         record.primary.food?.resources?.physical?.mustReconcileLoad = true
@@ -331,6 +361,7 @@ internal object TaskService {
             TaskLumberjack.preserve(server, record, null)
             store.changed()
         }
+        restorePreviousPacks(server,record)
     }
 
     fun clearTransient() { io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel.clear(); io.samcnpc.behavior.kernel.navigation.PassageYielding.clear(); TaskReactionReadiness.clear(); TaskLogistics.clear(); executions.clear(); clocks.clear(); io.samcnpc.behavior.kernel.inventory.ContainerStepReservations.clear(); io.samcnpc.behavior.runtime.BehaviorPlanning.clear() }
@@ -338,6 +369,10 @@ internal object TaskService {
     private fun finishControl(server: MinecraftServer, record: TaskRecord) {
         preserveWork(server, record)
         BehaviorRuntimeService.releaseTaskControl(server, record.npcUuid)
+        restorePreviousPacks(server,record)
+    }
+
+    private fun restorePreviousPacks(server: MinecraftServer, record: TaskRecord) {
         if (BehaviorRuntimeService.assignedPacks(server, record.npcUuid) == listOf(packFor(record.primary.definition))) {
             BehaviorRuntimeService.assignPacks(server, record.npcUuid, record.previousPacks)
         }

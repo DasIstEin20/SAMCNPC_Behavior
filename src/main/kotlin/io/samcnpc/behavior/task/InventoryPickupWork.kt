@@ -44,7 +44,8 @@ internal object InventoryPickupWork {
         val stack = beforeDrop?.itemStack
         val item = stack?.itemId
         if (beforeDrop?.alive != true || item == null || item !in work.itemIds || stack.count !in 1..remaining) return NpcActionResult.running("pickup candidate changed; no action submitted")
-        npc.stopControl()
+        TaskNavigator.stop(execution,npc)
+        val creditedBefore = state.picked[item] ?: 0
         val before = HarvestResources.inventoryCounts(npc)
         val result = npc.pickupItem(beforeDrop.uuid)
         state.steps++
@@ -58,7 +59,8 @@ internal object InventoryPickupWork {
         val problem = state.resources.observeLive(after) ?: PlantingAccounting.observe(record,npc) ?: FarmAccounting.observe(record, npc) ?: FoodAccounting.observe(record, npc) ?: TaskMining.observeInventory(record, npc) ?: TaskLumberjack.observeInventory(record, npc) ?: TaskTransport.observeInventory(record, npc)
         if (problem != null) return TaskInventory.mismatch(record, problem)
         if (moved > 0) {
-            state.picked[item] = (state.picked[item] ?: 0) + moved
+            if ((state.picked[item] ?: 0) - creditedBefore != moved)
+                return TaskInventory.mismatch(record, "physical pickup completion did not confirm the exact authorized credit")
             record.detail = "pickup confirmed $moved $item; deliberate=${state.picked.values.sum()}/${work.maxItems}"
             return result
         }

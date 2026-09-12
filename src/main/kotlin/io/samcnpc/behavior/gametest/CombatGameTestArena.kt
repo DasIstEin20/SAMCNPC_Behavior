@@ -43,10 +43,19 @@ internal class CombatGameTestArena(val helper: GameTestHelper, summoner: net.min
             if (done || !started && !body.onGround()) return@onEachTick
             val service = CoreNpcApi.service(server)
             val npc = checkNotNull(service.find(body.uuid)?.let(service::runtime))
-            if (!started) { started = true; checkNotNull(setup)(npc) }
-            if (!done && checkTick != null) {
-                val record = checkNotNull(TaskStore.forServer(server).get(body.uuid))
-                checkNotNull(checkTick)(npc, record)
+            try {
+                if (!started) { started = true; checkNotNull(setup)(npc) }
+                if (!done && checkTick != null) {
+                    val record = checkNotNull(TaskStore.forServer(server).get(body.uuid))
+                    checkNotNull(checkTick)(npc, record)
+                }
+            } catch (error: Exception) {
+                // GameTest's default reporter prints only the message, losing the failing invariant.
+                val logger = com.mojang.logging.LogUtils.getLogger()
+                logger.error("Physical task assertion failed at tick {} for NPC {}", helper.tick, body.uuid, error)
+                logger.error("Physical failure inventory={} drops={}", npc.inventoryContents().filter { !it.stack.isEmpty },
+                    helper.level.getEntitiesOfClass(ItemEntity::class.java, body.boundingBox.inflate(16.0)).map { "${it.item}@${it.position()}" })
+                throw error
             }
         }
     }

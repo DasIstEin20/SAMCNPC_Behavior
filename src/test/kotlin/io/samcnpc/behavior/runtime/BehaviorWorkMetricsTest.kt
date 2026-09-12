@@ -9,6 +9,19 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
 class BehaviorWorkMetricsTest {
+    @Test fun sidedMachineObservationsReachTheLiveProviderAndAreMeasuredWithoutCaching() {
+        val endpoint=NpcContainerEndpoint("minecraft:overworld",NpcBlockPosition(8,65,0),NpcBlockFace.UP)
+        var observation: NpcContainerObservation?=NpcContainerObservation(endpoint,"minecraft:furnace",NpcContainerAccessKind.FORGE_ITEM_HANDLER,0,emptyList())
+        val delegate=object : NpcWorldView by io.samcnpc.behavior.combat.CombatPolicyWorld() {
+            override fun observeContainer(actual: NpcContainerEndpoint): NpcContainerObservation? {
+                assertEquals(endpoint,actual);return observation
+            }
+        }
+        val metrics=BehaviorWorkMetrics();val world=MeasuredWorldView(delegate,metrics)
+        assertEquals(observation,world.observeContainer(endpoint));observation=null
+        assertNull(world.observeContainer(endpoint));assertEquals(2L,metrics.snapshot().observations[BehaviorObservationKind.CONTAINER])
+    }
+
     @Test
     fun disabledProfilingDoesNotReadAClockAndCountersRemainInspectable() {
         val metrics = BehaviorWorkMetrics(false) { error("disabled profiling read the clock") }

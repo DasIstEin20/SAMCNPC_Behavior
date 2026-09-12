@@ -1,0 +1,6 @@
+{
+  "block": "minecraft:furnace",
+  "mod": "minecraft",
+  "feeds": "up,0,minecraft:raw_iron,4;north,0,minecraft:coal,1",
+  "output": "down,0,minecraft:iron_ingot,4"
+}

@@ -41,7 +41,7 @@ internal object FoodGathering {
         }
         val approach = WorkInteractionApproach.move(record,e,npc,world,d,target)
         if (approach != null) return if (approach.status == NpcActionStatus.FAILED) TaskFood.stop(e,npc,s,FoodProblem.UNREACHABLE) else approach
-        npc.stopControl()
+        TaskNavigator.stop(e,npc)
         val action = npc.useInteractiveBlock(target)
         val after = world.observeBlockDetails(target)
         if (action.status != NpcActionStatus.SUCCEEDED || after?.blockId != before.blockId || after.environment?.growth?.age != 1) return TaskFood.stop(e,npc,s,FoodProblem.CHANGED)
@@ -84,9 +84,13 @@ internal object FoodGathering {
         if (standing != null) {
             if (!d.contains(standing)) return TaskFood.stop(e,npc,s,FoodProblem.UNREACHABLE)
             if (e.approach != standing) { TaskInventory.resetRoute(e,npc); e.approach=standing }
-            return TaskNavigator.move(record,e,npc,world,NavigateTaskDefinition(d.dimensionId,standing,budget=d.budget))
+            val movement = TaskNavigator.move(record,e,npc,world,NavigateTaskDefinition(d.dimensionId,standing,budget=d.budget))
+            // Transit/yield has its own finite navigation and task budgets. It must not spend
+            // the short wait for absent loot and abandon a known reachable drop mid-route.
+            if (settling && movement.status in setOf(NpcActionStatus.ACCEPTED,NpcActionStatus.RUNNING)) s.collectionTicks++
+            return movement
         }
-        npc.stopControl()
+        TaskNavigator.stop(e,npc)
         val current=world.observeEntity(selection.drop.uuid)
         if (current?.alive != true || current.itemKnowledge?.edible != true || current.itemStack?.itemId !in d.outputs.values || !d.inWork(current.position)) return NpcActionResult.running("food candidate changed; no pickup submitted")
         val action=npc.pickupItem(current.uuid)

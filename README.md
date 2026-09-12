@@ -140,7 +140,7 @@ with a safe-idle diagnostic.
 ## Durable tasks
 
 Navigation, delivery, wood gathering and replanting, mining, farming, food gathering, tree planting,
-container transport, defense, patrol and combat share persistent task IDs, finite budgets,
+container transport, machine processing, fishing, exploration, defense, patrol and combat share persistent task IDs, finite budgets,
 pause/resume/cancel, resource accounting and bounded interruptions. Commands expose parameters
 for quantities, resources, work areas, recipients, supplies and supported tactics. Quantity,
 recipient and resource amendments can update supported running tasks after validation.
@@ -174,13 +174,33 @@ validated targets. Supported tactics include ranged equipment, shields and heali
 interrupt work and resume only after observing the current world. No action creates free supplies.
 
 One NPC has one primary task and at most two interruption frames. Manual pause freezes the budget
-and releases controls; reload/restart does not grant a fresh allowance. Task save format 5 migrates
+and releases controls; reload/restart does not grant a fresh allowance. Task save format 8 migrates
 earlier records and preserves rejected data with diagnostics. Persistent task storage is bounded
 to 4096 entries; full storage rejects a new entry explicitly.
 
 Stable public operation assignment/control APIs and the expanded operation JSON catalog remain
 pending. Current operation controls use commands. Existing behavior-pack JSON validation remains
 available. The optional LLM provider and crafting integration are deferred.
+
+## Fishing, exploration and machine work
+
+These operations use the shared task budgets, pause/resume/cancel, resource accounting
+and combat interruptions:
+
+- [Fishing](docs/FISHING.md): supply water, a safe stance, a carried rod and a catch quota;
+  cast, observe the hook, reel once, collect actual drops and return.
+- [Exploration](docs/EXPLORER.md): walk a bounded frontier, record physical arrivals and
+  return along remembered waypoints; explicit cell, vertical, chunk and time limits.
+- [Machine work](docs/MACHINES.md): insert supplied items into a real endpoint, wait for
+  actual output and deliver it. Full output, stalled processing and a removed machine
+  produce bounded results. Recipes run in the machine, not inside NPC inventory.
+- [Mining](docs/MINING.md) and [inventory work](docs/INVENTORY_WORK.md) explain quotas,
+  protected stock, physical pickup accounting and failure outcomes.
+
+Core's configurable 2–8 block pickup radius also applies here. Shared reservations protect
+other workers. Travel toward observed drops preserves the short collection wait while the
+original deadline continues to decrease. An intentional stop cannot become a delayed
+failure of the next route.
 
 ## Legacy lumberjack demo
 
@@ -259,7 +279,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. 165 dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. 195 dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -287,18 +307,21 @@ New executable actions belong in Kotlin's registered handlers, not in pack data.
 `runClientTaskSmoke` covers durable wood gathering, three world reopens and real oak/dark-oak delivery.
 `runClientTaskCombatSmoke` covers interruption during approach, mining, partial transfer and a scaffold
 jump, then actual combat and resumed delivery. `runClientFollowSmoke` and `runClientRetaliationSmoke`
-exercise the corresponding physical policies. Current unit coverage is 238 Behavior tests; required
+exercise the corresponding physical policies. Current unit coverage is 290 Behavior tests; required
 runtime assertions remain enabled. GUI variants `runClientConfigSmokeBare` and
 `runClientConfigSmokeDurable` use separate directories and verify the actual selected settings.
 
 ## Project status and license
 
-The verified September 12, 2026 sources passed 17 task checkpoints saved/loaded in separate
-JVMs, 18 lifecycle/protection/mining scenarios and 12 real-client cases. A 30-minute paced soak
-completed 534 tasks. This evidence covers those scenarios, not final project acceptance. The
-two-account authenticated skin test, public operation API/JSON finalization and release gate remain.
-The soak logged a default flat-world diagnostic and one surplus-seed collection timeout; required
-quotas and replanting still passed.
+The September 12–13 campaigns passed 290 Behavior units, 195 Behavior and 132 Core
+GameTests, 24 live checkpoints saved/loaded in separate JVMs, 18 lifecycle scenarios,
+21 terrain cases and 12 real-client cases. A full mixed run completed 660 tasks across
+eight families in 3641 active seconds; separate navigation measurements passed at
+1, 8, 32 and 64 NPCs. Three-mod client/server and distribution checks also passed.
+The bounded JSON repair rejected ten invalid live reloads while preserving active work.
+See [validation scope](docs/VALIDATION.md) and [JSON input rules](docs/JSON_INPUT.md).
+Public operation API/catalog finalization and the separate two-authenticated-account
+skin proof remain open.
 
 Development version **0.1.0**. This repository publishes Behavior and pins its Core dependency;
 it does not include the optional LLM module. API compatibility and advanced gameplay cases remain

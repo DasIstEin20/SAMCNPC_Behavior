@@ -100,12 +100,18 @@ object FoodGameTests {
         val cow=arena.mob(EntityType.COW,5.0,0.0,4.0)
         val pig=arena.mob(EntityType.PIG,4.0,1.0)
         val outside=arena.mob(EntityType.COW,9.0,5.0)
+        val trace = java.util.ArrayDeque<String>()
         arena.onReady { npc ->
             arena.give(npc,ItemStack(Items.IRON_SWORD))
             val work=FoodWorkOrder.Hunt(area(helper),NpcEntityTypeFilter.of(setOf("minecraft:cow")),2)
             arena.assign(npc,definition(helper,npc,work,1,0).copy(outputs=WorkResourceIds(listOf("minecraft:beef"))))
         }
-        arena.observe { npc,record -> if (record.status.terminal) {
+        arena.observe { npc,record ->
+            if (trace.size == 160) trace.removeFirst()
+            val drops = helper.level.getEntitiesOfClass(ItemEntity::class.java, arena.body.boundingBox.inflate(12.0))
+            trace.addLast("tick=${helper.tick} phase=${record.primary.food?.phase} remaining=${record.primary.food?.collectionTicks} position=${npc.snapshot().position} nav=${npc.snapshot().navigation} food=${drops.map { "${it.item}@${it.position()}" }}")
+            if (record.status.terminal) {
+            if (record.status != TaskStatus.COMPLETED) com.mojang.logging.LogUtils.getLogger().error("HUNT_PICKUP_TRACE {}", trace.joinToString("\n"))
             val s=checkNotNull(record.primary.food)
             check(record.status == TaskStatus.COMPLETED) { status(helper,npc) }
             check(s.hunts == mapOf(cow.uuid to 1) && record.completedInterruptions == 1)

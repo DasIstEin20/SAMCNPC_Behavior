@@ -120,6 +120,29 @@ object BehaviorDefinitions {
                 ?: return@action NpcActionResult.rejected("behavior server is not ready")
             io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.FOOD_ACTION_ID)
         },
+        action(io.samcnpc.behavior.task.TaskService.EXPLORER_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.EXPLORER_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.FISHING_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION, BehaviorChannel.OFF_HAND, BehaviorChannel.COMBAT,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.FISHING_ACTION_ID)
+        },
+        action(io.samcnpc.behavior.task.TaskService.MACHINE_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.MACHINE_ACTION_ID)
+        },
         action(io.samcnpc.behavior.task.TaskService.PLANTING_ACTION_ID, setOf(
             BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
             BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
@@ -269,12 +292,7 @@ object BehaviorDefinitions {
         return value.takeIf { it.isFinite() }
     }
 
-    private fun JsonObject.long(name: String): Long? {
-        val primitive = get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asJsonPrimitive ?: return null
-        val number = primitive.asNumber
-        val long = number.toLong()
-        return long.takeIf { number.toDouble() == it.toDouble() }
-    }
+    private fun JsonObject.long(name: String): Long? = get(name).exactLongOrNull()
 
     private val COMPARATORS = setOf("gt", "gte", "lt", "lte", "eq")
 }

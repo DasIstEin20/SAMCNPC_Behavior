@@ -1,0 +1,8 @@
+{
+  "block": "ironfurnaces:iron_furnace",
+  "mod": "ironfurnaces",
+  "version": "4.1.8",
+  "configuration": "{Settings:[I;3,3,3,3,3,3],AutoIO:[I;0,0],Redstone:[I;0,0]}",
+  "feeds": "up,0,minecraft:raw_iron,4;north,1,minecraft:coal,1",
+  "output": "down,2,minecraft:iron_ingot,4"
+}

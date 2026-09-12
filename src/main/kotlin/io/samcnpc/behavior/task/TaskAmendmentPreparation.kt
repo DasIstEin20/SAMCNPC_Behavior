@@ -32,6 +32,9 @@ internal object TaskAmendmentPreparation {
     private fun policyOnly(change: TaskChange): Boolean = change is TaskChange.Tactics || change is TaskChange.ExtendTime || change is TaskChange.Reaction
     fun proposed(record: TaskRecord, request: TaskAmendmentRequest, snapshot: NpcSnapshot): TaskDefinition {
         val old = record.primary.definition
+        require(old !is ExplorerTaskDefinition || policyOnly(request.change)) { "exploration bounds and visited-cell contract are fixed; cancel and assign another expedition to replace them" }
+        require(old !is FishingTaskDefinition || policyOnly(request.change)) { "fishing pond/quota is fixed; cancel and assign another task to replace it" }
+        require(old !is MachineTaskDefinition || policyOnly(request.change)) { "machine feed contract is fixed; cancel and assign another contract before changing ports or quantities" }
         var proposed = TaskChanges.proposed(old, request.change)
         if (!policyOnly(request.change) && proposed is DeliveryTaskDefinition && proposed.version == 1) proposed = proposed.copy(version = 2, anchor = snapshot.position)
         if (!policyOnly(request.change) && proposed is LumberjackTaskDefinition && proposed.version == 1) proposed = proposed.copy(version = 2,
@@ -69,6 +72,16 @@ internal object TaskAmendmentPreparation {
         val snapshot = npc.snapshot()
         val proposed = proposed(record, request, snapshot)
         val candidate = TaskCodec.read(TaskCodec.write(record))
+        candidate.primary.fishing?.resources?.let { next ->
+            val prior=checkNotNull(record.primary.fishing).resources
+            next.observedLoadGeneration=prior.observedLoadGeneration;next.mustReconcileLoad=prior.mustReconcileLoad
+        }
+        candidate.primary.machine?.let { next ->
+            val prior=checkNotNull(record.primary.machine)
+            next.resources.observedLoadGeneration=prior.resources.observedLoadGeneration
+            next.resources.mustReconcileLoad=prior.resources.mustReconcileLoad
+            next.observedSlots=prior.observedSlots
+        }
         candidate.primary.planting?.let { next ->
             val old=checkNotNull(record.primary.planting)
             next.resources.observedLoadGeneration=old.resources.observedLoadGeneration; next.resources.mustReconcileLoad=old.resources.mustReconcileLoad
@@ -125,6 +138,9 @@ internal object TaskAmendmentPreparation {
             candidate.amendments.objectiveId = request.requestId
         }
         if (!policyOnly(request.change)) when (proposed) {
+            is ExplorerTaskDefinition -> throw IllegalArgumentException("exploration contract cannot be replaced during captured work")
+            is FishingTaskDefinition -> throw IllegalArgumentException("fishing pond/quota cannot be replaced during captured work")
+            is MachineTaskDefinition -> throw IllegalArgumentException("machine feed contract cannot be replaced during captured work")
             is PlantingTaskDefinition -> {
                 require(proposed.contains(snapshot.position)) { "NPC is outside proposed planting travel boundary" }
                 for(position in proposed.work.sources?.positions.orEmpty()) {

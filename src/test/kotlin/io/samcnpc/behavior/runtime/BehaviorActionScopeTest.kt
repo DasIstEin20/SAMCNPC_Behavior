@@ -83,6 +83,35 @@ class BehaviorActionScopeTest {
         assertEquals(listOf("released"), effects)
     }
 
+    @Test
+    fun losingFishingChannelsCancelsBeforeCombatAndOldProducerCannotReelTheNextCast() {
+        val scope=BehaviorActionScope();val npc=FishingBody()
+        val fishing=intent("fish",setOf(BehaviorChannel.MAIN_HAND,BehaviorChannel.COMBAT))
+        val combat=intent("fight",setOf(BehaviorChannel.MAIN_HAND,BehaviorChannel.COMBAT))
+        scope.prepare(listOf(fishing),npc)
+        val old=scope.facade(fishing,npc);val first=old.castFishing(NpcFishingCast(NpcBlockPosition(5,64,0)))
+        scope.prepare(listOf(combat),npc);npc.events.add("combat")
+        assertNull(npc.state);assertEquals(listOf("cast","cancel","combat"),npc.events)
+        scope.prepare(listOf(fishing),npc)
+        val next=scope.facade(fishing,npc).castFishing(NpcFishingCast(NpcBlockPosition(5,64,0)))
+        val nextId = assertNotNull(next.actionId)
+        assertNotEquals(first.actionId, nextId)
+        assertEquals(NpcActionCode.CANCELLED, old.reelFishing(nextId).action.code)
+        assertEquals(NpcActionCode.CANCELLED, old.continueFishing(nextId).code)
+        assertEquals(next.actionId,npc.state?.actionId);assertEquals(0,npc.reels)
+    }
+    private class FishingBody : TestNpcFacade() {
+        var state: NpcFishingState?=null;val events=mutableListOf<String>();var reels=0
+        override fun snapshot()=decisionContext().snapshot.copy(fishing=state)
+        override fun fishingState()=state
+        override fun castFishing(request: NpcFishingCast): NpcActionResult {
+            val id=UUID.randomUUID();state=NpcFishingState(id,UUID.randomUUID(),request.hand,NpcFishingPhase.WAITING,NpcPosition(5.0,64.0,0.0),0,40,true)
+            events.add("cast");return NpcActionResult.accepted("cast",id)
+        }
+        override fun cancelFishing(): NpcActionResult { state=null;events.add("cancel");return NpcActionResult.succeeded("cancelled") }
+        override fun reelFishing(actionId: UUID): NpcFishingReelResult { reels++;return NpcFishingReelResult(NpcActionResult.succeeded("reel",actionId),false) }
+    }
+
     private fun intent(id: String, channels: Set<BehaviorChannel>) = ActionIntent(
         "test:$id", 0, "act", 0, 0, CompiledAction("test:$id", { _, _, _ -> error("not invoked") }, channels),
     )
