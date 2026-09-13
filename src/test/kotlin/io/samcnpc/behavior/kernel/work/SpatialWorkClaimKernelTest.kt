@@ -76,4 +76,39 @@ class SpatialWorkClaimKernelTest {
         assertTrue(kernel.collectionFilter(first, first, "minecraft:overworld", 1)(neighbor))
     }
 
+    @Test fun acquiredSiteSurvivesBackoffWithoutGrantingAnUnboundedLease() {
+        val kernel = SpatialWorkClaimKernel(leaseTicks = 10)
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 0)
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 1)
+        assertTrue(kernel.retainForBackoff(first, first, 2, 20))
+        assertTrue(kernel.retainForBackoff(first, first, 10, 12))
+        assertIs<SpatialWorkClaimKernel.Result.Contested>(kernel.renewOrClaim(second, "minecraft:overworld", position, 31))
+        val drop = io.samcnpc.core.api.NpcPosition(10.5, 64.0, 10.5)
+        assertTrue(kernel.collectionFilter(first, first, "minecraft:overworld", 31)(drop))
+        assertFalse(kernel.incidentalCollectionFilter(second, second, "minecraft:overworld", drop, 8.0, 31)(drop))
+        assertIs<SpatialWorkClaimKernel.Result.Acquired>(kernel.renewOrClaim(second, "minecraft:overworld", position, 32))
+        assertFalse(kernel.retainForBackoff(first, first, 32, 20))
+    }
+
+    @Test fun backoffCannotAcquirePendingWorkOrReviveExpiredOrDifferentTaskClaims() {
+        val kernel = SpatialWorkClaimKernel(leaseTicks = 10)
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 0)
+        assertFalse(kernel.retainForBackoff(first, first, 0, 20))
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 1)
+        assertFalse(kernel.retainForBackoff(first, second, 2, 20))
+        assertFalse(kernel.retainForBackoff(first, first, 11, 200))
+        assertFailsWith<IllegalArgumentException> { kernel.retainForBackoff(first, first, 2, 201) }
+        assertFailsWith<IllegalArgumentException> { kernel.retainForBackoff(first, first, Long.MAX_VALUE, 20) }
+    }
+
+    @Test fun explicitReleaseCancelsEvenTheLongestBackoffImmediately() {
+        val kernel = SpatialWorkClaimKernel()
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 0)
+        kernel.renewOrClaim(first, "minecraft:overworld", position, 1)
+        assertTrue(kernel.retainForBackoff(first, first, 2, 200))
+        kernel.renewOrClaim(second, "minecraft:overworld", position, 2)
+        kernel.release(first)
+        assertIs<SpatialWorkClaimKernel.Result.Acquired>(kernel.renewOrClaim(second, "minecraft:overworld", position, 3))
+        assertFalse(kernel.retainForBackoff(first, first, 3, 199))
+    }
 }

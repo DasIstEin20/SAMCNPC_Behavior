@@ -8,22 +8,21 @@ Recorded campaigns below have distinct source scopes:
 
 | Check | Observed outcome |
 | --- | --- |
-| Clean build and source/dependency checks | J/N/Q/R3/S PASS |
-| JUnit | S: Core45, Behavior307, LLM shell3; no failed/skipped tests |
-| Forge GameTests | Core132/132 (J/O), Behavior197/197 (S) |
-| Distinct-JVM restart | R3:24 live checkpoints plus dead courier; exact resources/budgets and v9 control revisions |
-| Lifecycle | T:19 scenarios including actual author edit/reload; native stop/disposal, old action handles rejected |
-| Terrain Zoo | J: 21 cases, seed 20260912 |
-| Real client | S:12 physical cases, nine public control/amendment probes; Core config save/lock/two-world/reload separately exercised |
-| Three mod loading | S:client title screen and dedicated server; public catalog/schema available, provider disabled |
-| Mixed full hour | K: 3641.1123 active seconds, 72828 active ticks, 110 rounds, 660 exact tasks, eight families, native stop |
-| Hour retention and performance | Zero retired live runtimes/planning waiters; p95 0.9426 ms, p99 1.3449 ms; all predefined limits passed |
-| Navigation performance | L: eight original 1/8/32/64-NPC idle/active windows passed all predefined limits and physical arrivals |
-| Bounded input/reload | N: nine new unit groups and ten rejected disk candidates; active task/action unchanged on rejection |
-| Windows file boundaries | N: ordinary read, exclusive-lock rejection/recovery, two real directory junction rejections; original file unchanged |
-| Distribution | Three named Java 17 canonical JARs; `src/test` drivers excluded. Main-source GameTests remain bundled. |
-| Standalone Core | Clean build, 45 units, 132 native cases passed; local source commit `7e2bcb9` |
-| Standalone Behavior | U2:clean build,307units,197native and19lifecycle passed against Core7e2bcb9;201 compiled test classes excluded |
+| Final canonical campaign | Z8 clean build, source/dependency and distribution guards PASS |
+| Units | Core 45, Behavior 328, LLM shell 6; no failures, errors or skipped tests |
+| Native mechanics | Behavior 207/207 in Z8; Core 134/134 in Z7 and standalone AA |
+| Distinct-JVM restart | 24 checkpoints; fifteen public assignment families, exact inventory/world/task state and rejected assignment replay |
+| Lifecycle | 19 scenarios, native stop/disposal and actual author edit/reload |
+| Actual client | 12 cases: nine public work assignments/controls/corrections and three public tactics changes with real bow/potion/shield effects |
+| Three-mod loading | Actual client title screen and dedicated server; optional provider disabled |
+| Standalone Core AA | Clean build, 45 units, 134 native tests; commit `74d2ba9` |
+| Standalone Behavior AB | Clean build, 328 units, 207 native tests and 19 lifecycle scenarios against Core `74d2ba9` |
+| Distribution | Three Java 17 canonical mod JARs; compiled test drivers excluded; main-source GameTests bundled |
+| Earlier terrain J | 21 cases, seed 20260912 |
+| Earlier mixed hour K | 3641.1123 active seconds, 72828 ticks, 110 rounds, 660 tasks across eight families |
+| Earlier retention/performance K | No retired live runtimes/planning waiters; p95 0.9426 ms, p99 1.3449 ms |
+| Earlier navigation L | All 1/8/32/64-NPC idle/active windows and physical arrivals passed |
+| Input/schema N/S | Rejected live invalid candidates, Windows lock/junction boundaries, independent checks of 54 raw documents and 16 builtins |
 
 The full hour uses six concurrent roles rotating across eight finite families. Setup,
 cleanup, pauses, idle gaps and long clock gaps do not count toward its active duration.
@@ -44,7 +43,7 @@ The old input gateway reproduced duplicate/lenient JSON acceptance, fractional-i
 rounding and incorrect supplementary-Unicode length handling before the N repair.
 
 Skin verification with two authenticated accounts remains a separate presentation gate.
-Typed assignment/full operation parameter catalog and final release acceptance remain open.
+Complete operation parameter discovery and final release acceptance remain open.
 This is a development snapshot with the recorded scope above.
 
 Q/R3/S add public metadata and supervision after the original hour:
@@ -62,7 +61,18 @@ and19 lifecycle cases passed; the documented follow example was edited8->2 and t
 same NPC physically approached from7.9728 to1.9291blocks after reload, holding20ticks
 before the edit. The source snapshot is544bc3f750faadb468f0192ea338e049b73da28b91cec82bef9d68d41b8db9b7.
 
-The initial standalone U run exposed a test-only relative path assumption in the schema/
-author check. Resolving its path absolutely fixed it without removing assertions. The
-canonical three schema tests and full standalone U2 then passed. The packaged Behavior
-JAR SHA-256 is8bc2058d68fafae6d2c081e2caa6af0d3439d1999930adfa422aba01c6acf5f5.
+Z/Z4/Z5 exposed an occupied starting-cell regression in shared mining: native node 0
+kept aiming into a stationary neighbor even on a requested side route. Z6 reproduced
+the fixed collision geometry. The Core correction advanced only a redundant current-cell
+node with a clear flat segment; Z7 passed both new Core routes and all nine shared-miner
+cases. Z8 then passed the complete grouped suite, and both standalone builds passed.
+No test assertions, task limits, collision rules or resource accounting were removed.
+
+Public objective replacement, queued corrections during inventory work, protection/area
+reactions and all three client tactics changes retain exact physical outcome checks.
+The complete public operation parameter catalog is still pending; these types do not
+constitute an LLM provider or an operation JSON parser.
+
+Final canonical source: `60138f836fb336c16b1633db8a288c75ff219464acc51e705c8ebb6a83b56bf1`.
+Standalone Core JAR SHA-256: `53b4e18152e7741631d95f600a372d4b3aa0ff7806ac274e66bdc0a08eb001e9`.
+Standalone Behavior JAR SHA-256: `20e717e794a456f7d6ee9fe1e890124ea16204b14a9b09bd257d1be5889b1720`.

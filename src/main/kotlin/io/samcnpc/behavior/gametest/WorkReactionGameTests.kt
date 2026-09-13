@@ -1,7 +1,7 @@
 package io.samcnpc.behavior.gametest
 
 import io.samcnpc.behavior.SamcnpcBehavior
-import io.samcnpc.behavior.combat.CombatTactics
+import io.samcnpc.behavior.api.*
 import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.behavior.task.*
 import io.samcnpc.core.api.*
@@ -30,7 +30,8 @@ object WorkReactionGameTests {
 
     private fun work(helper: GameTestHelper, area: Boolean) {
         val server = helper.level.server
-        val arena = CombatGameTestArena(helper)
+        val actor = GameTestActor(helper.level, "ReactionAPI")
+        val arena = CombatGameTestArena(helper, actor.player)
         arena.body.setItemSlot(EquipmentSlot.MAINHAND, ItemStack(Items.IRON_SWORD))
         val subject = arena.mob(EntityType.SHEEP, 3.0, 4.0)
         val attacker = arena.mob(EntityType.COW, 6.0, 3.0)
@@ -49,11 +50,14 @@ object WorkReactionGameTests {
             val snapshot = npc.snapshot()
             check(record.id == task && record.primary.id == primary) { "reaction replaced the original work identity" }
             if (!configured && TaskNavigator.distanceSquared(snapshot.position, arena.start) >= 1.0) {
-                val policy = TaskReactionPolicy(if (area) TaskReactionMode.AREA else TaskReactionMode.PROTECT_UNIT,
-                    tactics = CombatTactics(equipArmor = false, useShield = false, heal = false), anchor = arena.start,
+                val policy = OperationReactionPolicy(if (area) OperationReactionMode.AREA else OperationReactionMode.PROTECT_UNIT,
+                    tactics = OperationCombatTactics(equipArmor = false, useShield = false, heal = false), anchor = arena.start,
                     subjectUuid = if (area) null else subject.uuid,
                     filter = if (area) NpcEntityTypeFilter.of(setOf("minecraft:cow")) else NpcEntityTypeFilter.ANY)
-                check(TaskCombatReactions.configure(server, npc.npcUuid, policy).status == NpcActionStatus.SUCCEEDED)
+                val reply = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, OperationAmendmentRequest(
+                    record.id, UUID.randomUUID(), record.amendments.revision, snapshot.gameTime, snapshot.gameTime + 1200, OperationChange.Reaction(policy)))
+                check(reply.result.status == NpcActionStatus.SUCCEEDED && reply.amendment?.outcome == OperationAmendmentOutcome.APPLIED) { reply.result.detail }
+                check(record.amendments.revision == 1)
                 if (!area) check(subject.hurt(subject.damageSources().mobAttack(attacker), 1.0F))
                 configured = true
             }
@@ -91,7 +95,7 @@ object WorkReactionGameTests {
                 val chest = helper.level.getBlockEntity(chestPos) as ChestBlockEntity
                 check((0 until chest.containerSize).sumOf { if (chest.getItem(it).`is`(Items.OAK_LOG)) chest.getItem(it).count else 0 } == 8)
                 check(record.primary.remainingTicks < pausedTicks && record.primary.remainingTicks > 0)
-                arena.succeed(npc, record)
+                actor.close(); arena.succeed(npc, record)
             }
         }
     }

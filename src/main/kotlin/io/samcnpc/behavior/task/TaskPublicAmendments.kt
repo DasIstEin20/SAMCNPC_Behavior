@@ -24,6 +24,13 @@ internal object TaskPublicAmendments {
         is OperationChange.Recipients -> TaskChange.Redirect(containers(input.containers))
         is OperationChange.Sources -> TaskChange.Sources(input.containers?.let(::containers))
         is OperationChange.ExtendTime -> TaskChange.ExtendTime(input.ticks)
+        is OperationChange.Replace -> TaskChange.Replace(TaskPublicOrders.definition(input.order), when (input.objective) {
+            OperationObjectiveMode.PRESERVE -> ObjectiveChangeMode.PRESERVE
+            OperationObjectiveMode.NEW_OBJECTIVE -> ObjectiveChangeMode.NEW_OBJECTIVE
+        })
+        is OperationChange.Tactics -> TaskChange.Tactics(TaskPublicCombatOrders.tactics(input.tactics))
+        is OperationChange.Reaction -> TaskChange.Reaction(TaskPublicPolicies.reaction(input.policy))
+        is OperationChange.Logistics -> TaskChange.Logistics(TaskPublicPolicies.logistics(input.policy))
     }
 
     private fun containers(input: OperationContainers): ContainerChoices = ContainerChoices(input.positions, when (input.preference) {

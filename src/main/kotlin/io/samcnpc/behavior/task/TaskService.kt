@@ -311,13 +311,21 @@ internal object TaskService {
     }
 
     fun released(npcUuid: UUID) {
-        io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel.release(npcUuid)
+        val server = BehaviorRuntimeService.serverOrNull()
+        val record = server?.let { TaskStore.forServer(it).get(npcUuid) }
+        val clock = clocks[npcUuid]
+        val claims = io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel
+        // Backoff yields controls, not the already acquired site and its physical drops.
+        // Pause, interruption, cancellation and unload still release the reservation.
+        val retained = record != null && record.status == TaskStatus.WAITING &&
+            record.active.waitTicks > 0 && clock?.taskId == record.id &&
+            claims.retainForBackoff(npcUuid, record.id, clock.lastTick, record.active.waitTicks)
+        if (!retained) claims.release(npcUuid)
         io.samcnpc.behavior.kernel.navigation.PassageYielding.release(npcUuid)
         io.samcnpc.behavior.runtime.BehaviorPlanning.release(npcUuid)
         io.samcnpc.behavior.kernel.inventory.ContainerStepReservations.release(npcUuid)
         executions.remove(npcUuid)
-        val server = BehaviorRuntimeService.serverOrNull() ?: return
-        val state = TaskStore.forServer(server).get(npcUuid)?.primary?.lumberjack ?: return
+        val state = record?.primary?.lumberjack ?: return
         TaskLumberjack.suspend(state)
     }
 

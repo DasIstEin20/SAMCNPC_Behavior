@@ -2,8 +2,8 @@
 
 Component catalog and candidate validation passed P11 Q. Observation/control is
 verified in R3; typed amendments and generated schema in S. Validation covers native
-world effects and actual client use. Typed assignment/full operation catalog remains
-pending; these Kotlin APIs do not define or start a remote HTTP provider.
+world effects and actual client use. All sixteen typed assignment families passed grouped campaigns W/X/Y. The full operation catalog remains incomplete;
+these Kotlin APIs do not define or start a remote HTTP provider.
 
 ## Components and candidate packs
 
@@ -73,7 +73,8 @@ terminal cancellation still works without wraparound.
 
 These APIs expose no task executor, mutable NBT, Core action handles, command dispatcher,
 script target or direct world mutation. They do not start an LLM provider or network
-request. Assignment and the full operation parameter catalog remain pending P11 work.
+request. Assignment covers the sixteen families below; the full parameter catalog remains
+pending P11 work.
 Existing manual operation commands remain available.
 
 See [ADR 0076](adr/0076-immutable-component-catalog.md),
@@ -86,8 +87,8 @@ See [ADR 0076](adr/0076-immutable-component-catalog.md),
 OperationSupervisionApi.amend accepts an OperationAmendmentRequest with exact task ID,
 request UUID, expected definition revision and finite game-time interval. The actor
 comes from the trusted connected-player argument, never from the request payload.
-OperationChange currently exposes Quantity (TOTAL/ADD), Recipients, Sources and
-ExtendTime. OperationContainers copies 1..8 distinct positions and declares ORDERED
+OperationChange exposes Quantity (TOTAL/ADD), Recipients, Sources, ExtendTime, Replace,
+Tactics, Reaction and Logistics. All eight variants passed grouped Z8 verification. OperationContainers copies 1..8 distinct positions and declares ORDERED
 or NEAREST selection. Unsupported operation/change combinations explicitly reject.
 
 This is the same amendment path as the existing operation commands: it can apply,
@@ -97,7 +98,8 @@ and actual revision/detail. A successful historical query means receipt retrieva
 not necessarily APPLIED. Exact replay returns the existing matching receipt; the same
 request UUID with a changed payload or actor cannot claim the older request's success.
 Quantity correction retains completed physical work; time extension is applied once.
-Replacement, tactics, reaction and logistics variants are not yet public.
+Replacement, tactics, reaction and logistics retain their existing operation-specific
+restrictions; see the policy amendment contract below.
 
 ## Schema for author tools
 
@@ -111,3 +113,103 @@ The checked-in contracts/behavior-pack-registered.schema.json is the exported ar
 See BEHAVIOR_AUTHORING.md for runnable documents and expected rejection diagnostics.
 Campaign S compared 54 identical raw documents and all 16 builtins with an independent
 schema validator; acceptance by schema alone never activates a pack.
+
+## Typed operation assignment
+
+`OperationSupervisionApi.validateOrder(order)` is pure and runs the existing definition
+validator. `assign(server, actor, npcUuid, request)` uses the same authorization and
+server-thread boundary as observation/control, then the existing task assignment path.
+No caller can replace an active or paused task implicitly: cancel it first, reobserve,
+and decide whether to assign a replacement.
+
+| Public order | Definition | Supplied intent |
+| --- | --- | --- |
+| `Navigate` | `samcnpc:navigate` v1 | Destination, speed, arrival distance, budget |
+| `Deliver` | `samcnpc:deliver` v2 | Carried item, quantity, chest, anchor, retained inventory, budget |
+| `Transport` | `samcnpc:transport` v1 | Source/destination choices, item, quantity, reserves, travel bounds, return, budget |
+| `Machine` | `samcnpc:machine` v1 | One to four sided input ports, output port, quantities, polling, timeout, travel/return, budget |
+| `Fish` | `samcnpc:fish` v1 | Water and stance, catches, collection wait, travel/return, budget |
+| `Explore` | `samcnpc:explore` v1 | Anchor, area, cell spacing/count, vertical/chunk limits, heading, budget |
+| `OperationCombatOrder.Attack` | `samcnpc:attack` v2 | Exact target, anchor/leash, player permission, hard weapon limits, tactics, budget |
+| `OperationCombatOrder.Defend` | `samcnpc:defend` v1 | Protected subject or bounded area/filter, duty duration, return, tactics, budget |
+| `OperationCombatOrder.AreaAttack` | `samcnpc:attack_area` v1 | Explicit filter, defeat quota, anchor/leash, return, tactics, budget |
+| `OperationCombatOrder.Patrol` | `samcnpc:patrol` v1 | Bounded route, rounds, dwell, reaction/subject/support/filter, return, tactics, budget |
+| `OperationInventoryOrder` | `samcnpc:inventory_work` v1 | Supply, unload or pickup; stock reserves, anchor, work/return time, step budget |
+| `OperationHarvestOrder.Mining` | `samcnpc:mine` v1 | Work box/exclusions, method/tunnel/access, resources/outputs, counting basis, quota, containers, return, budget |
+| `OperationHarvestOrder.Farm` | `samcnpc:farm` v1 | Crop, area, harvest/replant mode, cycles, seed sources/reserve, quota, recipients, return, budget |
+| `OperationHarvestOrder.Planting` | `samcnpc:plant_trees` v1 | Species, layout or explicit bases, area/exclusions, sources/reserves, quantity, return, budget |
+| `OperationHarvestOrder.Food` | `samcnpc:food` v1 | Drops, berries, stored food or explicit hunting; output filter, quota, sources/recipients, reserves, return, budget |
+| `OperationHarvestOrder.Lumberjack` | `samcnpc:lumberjack` v2 | Wood filter, quota, separate supplies/output, reserves, search bounds, optional bounded replant, return, budget |
+
+These types are immutable data. Container choices and machine feeds copy and bound their
+input lists. Validation preserves the existing operation-specific ranges and relationships;
+it does not promise that a machine exists, stock is available, or a route remains safe.
+`OperationType` exposes the stable operation ID and definition version for all sixteen types.
+The full machine-readable operation parameter catalog is still pending. Behavior component
+metadata and its registered JSON schema cover behavior-pack conditions/actions, not a
+JSON serializer for these operation orders.
+
+Observe before assigning. Use `observation.task?.taskId` as `expectedPriorTaskId` and the
+NPC's observed game tick to form `issuedTick`/`expiresTick` with a lifetime of 1..1200 ticks.
+A null prior ID is valid only when the NPC has no retained task record. Successful
+assignment retains a new task UUID. Replaying the original request therefore conflicts,
+even after completion or a server restart; it cannot silently start the work twice.
+
+A conflict includes a fresh authorized observation when available. It is not a historical
+success receipt. After a lost reply, inspect the task instead of changing the old request's
+prior ID and blindly retrying. Task time and retry budgets belong to the operation and
+are separate from the request's expiry window. This does not change TaskStore v9.
+
+See [ADR 0079](adr/0079-compare-and-set-public-operation-assignment.md). The separate LLM
+module may consume these public types later; no network client or provider is started here.
+
+## Policy amendment contract
+
+`Replace(order, PRESERVE)` retains the objective's accounting. Use `NEW_OBJECTIVE` when
+changing the resource or work method would invalidate that accounting. Completed work
+is retained in bounded objective history. A replacement must use the current task's
+operation kind, dimension and full original budget. It cannot reset attempts or extend
+time. Use `ExtendTime` for an explicit finite addition; cancel and assign a new task for
+a different operation kind. The history permits at most eight previous objectives.
+
+`Tactics` preserves task identity, remaining time and completed effects. Weapon allowance
+is a hard constraint; weapon preference does not override it. Shield, healing, equipment
+and retreat settings still require real inventory and supported Core actions.
+
+`Reaction` configures ordinary work interruptions: PASSIVE, RETALIATE, PROTECT_SUMMONER,
+PROTECT_UNIT or AREA. Subject protection requires an explicit subject and fixed anchor;
+AREA requires a fixed anchor and nonempty entity filter. Leash, interruption duration,
+cooldown and player permission remain explicit. Combat missions use their own policies.
+
+`Logistics` optionally supplies stock, unloads excess and collects allowed nearby items
+while preserving the primary goal. Enabled side work requires an anchor and finite
+travel/work/return/step bounds. Supply target and unload reserve must not create a loop.
+Disabled logistics has no subrequests and no anchor. Side work can finish before a queued
+primary-goal correction applies; PENDING is a receipt, not confirmation of completion.
+
+Fishing, machines and exploration permit only tactics, reaction and time amendments.
+Inventory work fixes its captured resource/route request. Combat missions permit tactics,
+time and, for area attack, the existing defeat quota. These restrictions are checked again
+against the live task. A structurally valid order may still be an invalid replacement.
+A maximum of 32 amendment receipts bounds each task; integrations must handle rejection.
+
+## Integration sequence
+
+1. Read the catalog/schema for behavior packs, or construct a known typed operation order.
+2. Validate the order without world access using `validateOrder`.
+3. On the server thread, resolve the current connected player and observe the NPC.
+4. Assign using the observed prior task ID and a finite game-time request interval.
+5. Supervise copied observations; submit a correction with the exact task/revision and a
+   new request UUID. Reuse that UUID only to recover the receipt of the exact same request.
+6. When a correction conflicts, inspect current state before deciding again. Do not silently
+   change revisions or request IDs and retry an obsolete decision.
+
+A future LM Studio/Ollama/OpenAI-compatible adapter belongs in the separate LLM module.
+It must convert output into these bounded values and schedule authorized work on the
+server thread. No provider, HTTP credentials, command execution or model call is added
+by this API. Offline delegation and supervision outside the current 256-block access
+boundary are not provided. Existing tasks continue according to their own task budgets.
+
+See [ADR 0081](adr/0081-public-combat-and-inventory-orders.md),
+[ADR 0082](adr/0082-public-harvest-order-boundary.md) and
+[ADR 0083](adr/0083-public-operation-policy-amendments.md).

@@ -30,8 +30,25 @@ object OperationSupervisionGameTests {
         arena.onReady { npc ->
             val empty = OperationSupervisionApi.observe(server, actor.player, npc.npcUuid)
             check(empty.result.status == NpcActionStatus.SUCCEEDED && checkNotNull(empty.observation).task == null)
-            arena.assign(npc, NavigateTaskDefinition(npc.snapshot().dimensionId,
-                NpcPosition(arena.start.x + 20, arena.start.y, arena.start.z), budget = TaskBudget(ticks = 700)))
+            val view = checkNotNull(empty.observation)
+            val order = OperationOrder.Navigate(view.dimensionId,
+                NpcPosition(arena.start.x + 20, arena.start.y, arena.start.z), budget = OperationBudget(ticks = 700))
+            val assign = OperationAssignmentRequest(null, view.observedTick, view.observedTick + 100, order)
+            check(OperationSupervisionApi.assign(server, stranger.player, npc.npcUuid, assign).result.code == NpcActionCode.PERMISSION_DENIED)
+            for (bad in listOf(assign.copy(expectedPriorTaskId = UUID.randomUUID()),
+                assign.copy(expiresTick = view.observedTick), assign.copy(order = order.copy(speed = 9.0F)),
+                assign.copy(order = order.copy(dimensionId = "minecraft:the_nether")))) {
+                check(OperationSupervisionApi.assign(server, actor.player, npc.npcUuid, bad).result.status == NpcActionStatus.REJECTED)
+                check(TaskStore.forServer(server).get(npc.npcUuid) == null)
+            }
+            val assigned = OperationSupervisionApi.assign(server, actor.player, npc.npcUuid, assign)
+            check(assigned.result.status == NpcActionStatus.SUCCEEDED)
+            val record = checkNotNull(TaskStore.forServer(server).get(npc.npcUuid))
+            val before = TaskCodec.write(record)
+            check(OperationSupervisionApi.assign(server, actor.player, npc.npcUuid, assign).result.code == NpcActionCode.CONFLICT)
+            check(OperationSupervisionApi.assign(server, actor.player, npc.npcUuid,
+                assign.copy(expectedPriorTaskId = record.id)).result.code == NpcActionCode.CONFLICT)
+            check(TaskCodec.write(record) == before)
         }
         arena.observe { npc, record ->
             if (stage == 0 && npc.snapshot().navigation != null &&
@@ -101,8 +118,11 @@ object OperationSupervisionGameTests {
                 check(OperationSupervisionApi.control(server, actor.player, npc.npcUuid, cancel).result.status == NpcActionStatus.SUCCEEDED)
                 check(record.status == TaskStatus.CANCELLED && record.primary.remainingTicks < budget)
                 check(npc.snapshot().navigation == null)
-                arena.assign(npc, NavigateTaskDefinition(npc.snapshot().dimensionId, arena.start))
+                val replacement = OperationAssignmentRequest(record.id, view.observedTick, view.observedTick + 100,
+                    OperationOrder.Navigate(view.dimensionId, arena.start))
+                check(OperationSupervisionApi.assign(server, actor.player, npc.npcUuid, replacement).result.status == NpcActionStatus.SUCCEEDED)
                 val next = checkNotNull(TaskStore.forServer(server).get(npc.npcUuid))
+                check(OperationSupervisionApi.assign(server, actor.player, npc.npcUuid, replacement).result.code == NpcActionCode.CONFLICT)
                 val before = TaskCodec.write(next)
                 check(next.id != record.id)
                 check(OperationSupervisionApi.control(server, actor.player, npc.npcUuid,

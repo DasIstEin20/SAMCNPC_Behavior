@@ -79,7 +79,11 @@ object OperationsRestartSmoke {
         checkNotNull(deadCourier).tickSave()
         if(!assigned) {
             if(!scenes.all { it.loaded && it.body.onGround() }) { check(ticks < 600) { "Checkpoint fixture bodies did not become live" }; return }
-            for(scene in scenes) OperationCases.prepare(scene)
+            for (scene in scenes) {
+                scene.assignmentActor = checkNotNull(actor).player
+                OperationCases.prepare(scene)
+                scene.assignmentActor = null
+            }
             assigned=true
         }
         for(scene in scenes) {
@@ -100,6 +104,15 @@ object OperationsRestartSmoke {
         }
         if(paused.size != scenes.size || !scenes.all { it.body.onGround() } || !checkNotNull(deadCourier).ready) return
         if(++quietTicks < 60) return
+        check(scenes.mapNotNull { it.initialPublicAssignment?.order?.type }.toSet() ==
+            setOf(io.samcnpc.behavior.api.OperationType.NAVIGATE, io.samcnpc.behavior.api.OperationType.TRANSPORT,
+                io.samcnpc.behavior.api.OperationType.MACHINE, io.samcnpc.behavior.api.OperationType.FISH,
+                io.samcnpc.behavior.api.OperationType.EXPLORE, io.samcnpc.behavior.api.OperationType.ATTACK,
+                io.samcnpc.behavior.api.OperationType.DEFEND, io.samcnpc.behavior.api.OperationType.ATTACK_AREA,
+                io.samcnpc.behavior.api.OperationType.PATROL, io.samcnpc.behavior.api.OperationType.INVENTORY,
+                io.samcnpc.behavior.api.OperationType.MINING, io.samcnpc.behavior.api.OperationType.FARM,
+                io.samcnpc.behavior.api.OperationType.PLANTING, io.samcnpc.behavior.api.OperationType.FOOD,
+                io.samcnpc.behavior.api.OperationType.LUMBERJACK))
         val root=CompoundTag(); val rows=ListTag()
         root.putLong("savePid",ProcessHandle.current().pid()); root.putUUID("actor",checkNotNull(actor).player.uuid)
         for(scene in scenes) {
@@ -115,7 +128,7 @@ object OperationsRestartSmoke {
         check(oldActions.isNotEmpty())
         NbtIo.writeCompressed(root,expectedFile)
         actor?.close(); actor=null
-        complete(server,"checkpoints=${scenes.size} all_paused=true control_revisions_persisted=true actual_world_saved=true old_actions=${oldActions.size}")
+        complete(server,"checkpoints=${scenes.size} all_paused=true public_assignment_families=15 control_revisions_persisted=true actual_world_saved=true old_actions=${oldActions.size}")
     }
     private fun loadTick(server: MinecraftServer) {
         if(!resumed) {
@@ -139,6 +152,7 @@ object OperationsRestartSmoke {
                 scene.requireReleased()
                 check(scene.npc.snapshot().recentCompletions.none { it.result.actionId in oldActions }) { "${scene.kind} restored a transient action receipt" }
                 OperationAmendments.replay(scene,checkNotNull(actor))
+                OperationPublicAssignmentProof.rejectReplay(scene, checkNotNull(actor).player)
                 val savedControlRevision = wanted.getLong("controlRevision")
                 check(savedControlRevision >= 1 && scene.record.controlRevision == savedControlRevision)
                 check(TaskService.resume(server,scene.npcId).status == NpcActionStatus.SUCCEEDED)
@@ -162,7 +176,7 @@ object OperationsRestartSmoke {
             if(++quietTicks < 40) return
             for(scene in scenes) OperationCases.verify(scene)
             checkNotNull(deadCourier).verifyLoaded(expected.getCompound("deadCourier"))
-            complete(server,"checkpoints=${scenes.size} exact_task_inventory_world=true receipts_replayed_without_effect=true all_completed=true stale_actions=0")
+            complete(server,"checkpoints=${scenes.size} exact_task_inventory_world=true receipts_replayed_without_effect=true public_assignment_replay_rejected=true all_completed=true stale_actions=0")
         }
     }
     private fun complete(server: MinecraftServer,detail: String) {

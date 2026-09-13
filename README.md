@@ -178,9 +178,9 @@ and releases controls; reload/restart does not grant a fresh allowance. Task sav
 earlier records and preserves rejected data with diagnostics. Persistent task storage is bounded
 to 4096 entries; full storage rejects a new entry explicitly.
 
-Stable public operation assignment/control APIs and the expanded operation JSON catalog remain
-pending. Current operation controls use commands. Existing behavior-pack JSON validation remains
-available. The optional LLM provider and crafting integration are deferred.
+Typed public assignment, observation, control and correction APIs share the command runtime.
+Complete operation parameter discovery and operation JSON remain pending. Behavior-pack JSON
+validation is available. The optional LLM provider and crafting integration are deferred.
 
 ## Fishing, exploration and machine work
 
@@ -279,7 +279,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. 197 dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. 207 dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -307,21 +307,23 @@ New executable actions belong in Kotlin's registered handlers, not in pack data.
 `runClientTaskSmoke` covers durable wood gathering, three world reopens and real oak/dark-oak delivery.
 `runClientTaskCombatSmoke` covers interruption during approach, mining, partial transfer and a scaffold
 jump, then actual combat and resumed delivery. `runClientFollowSmoke` and `runClientRetaliationSmoke`
-exercise the corresponding physical policies. Current unit coverage is 307 Behavior tests; required
+exercise the corresponding physical policies. Current unit coverage is 328 Behavior tests; required
 runtime assertions remain enabled. GUI variants `runClientConfigSmokeBare` and
 `runClientConfigSmokeDurable` use separate directories and verify the actual selected settings.
 
 ## Project status and license
 
-The September 12–13 campaigns passed 307 Behavior units, 197 Behavior and 132 Core
-GameTests, 24 live checkpoints saved/loaded in separate JVMs, 18 lifecycle scenarios,
-21 terrain cases and 12 real-client cases. A full mixed run completed 660 tasks across
-eight families in 3641 active seconds; separate navigation measurements passed at
-1, 8, 32 and 64 NPCs. Three-mod client/server and distribution checks also passed.
-The bounded JSON repair rejected ten invalid live reloads while preserving active work.
-See [validation scope](docs/VALIDATION.md) and [JSON input rules](docs/JSON_INPUT.md).
-Typed assignment/full operation parameter catalog and the separate two-authenticated-account
-skin proof remain open.
+The final grouped campaign passed 379 units across three modules, 207 Behavior native
+GameTests, 24 separate-JVM checkpoints, 19 lifecycle scenarios, 12 actual client cases
+and three-mod loading/distribution. Standalone Behavior passed 328 units, 207 native
+cases and 19 lifecycle scenarios against Core `74d2ba9`; standalone Core passed
+45 units and 134 native tests. This includes the occupied-start navigation regression.
+
+Earlier Zoo campaigns completed 660 tasks across eight families in 3641 active seconds,
+21 terrain cases and navigation measurements for 1, 8, 32 and 64 NPCs. Those results
+retain their earlier source scope. See [validation scope](docs/VALIDATION.md).
+Complete operation parameter discovery, the two-authenticated-account skin proof and
+final release acceptance remain open. Provider and crafting work are deferred.
 
 Development version **0.1.0**. This repository publishes Behavior and pins its Core dependency;
 it does not include the optional LLM module. API compatibility and advanced gameplay cases remain
@@ -331,11 +333,16 @@ development work. No external model can bypass pack validation or the Core actio
 
 ## Public supervision and pack authoring
 
-The public API now exposes 14 condition and 23 action descriptors, bounded candidate
-validation, generated editor schema, immutable task observations, pause/resume/cancel
-and typed quantity/destination/source/time corrections. Controls check current actor,
-range, task identity and revisions; replaying an amendment cannot repeat its effect.
-TaskStore v9 migrates older control revisions. Typed assignment and the complete
-operation parameter catalog remain pending; existing task commands are available.
+The API exposes 14 condition and 23 action descriptors, bounded candidate validation,
+a generated editor schema, immutable observations, pause/resume/cancel and sixteen
+typed operation orders. Eight correction variants cover quantity, recipients, sources,
+time, objective replacement, combat tactics, work reactions and inventory logistics.
+They reuse existing validators, permissions, task budgets and exact receipts.
+Assignment compares the observed prior task ID; replay cannot silently start another job.
+
+Acquired harvest reservations survive bounded navigation backoff. Explicit pause,
+cancel and unload still release them. Core also prevents an occupied initial path
+center from blocking a supplied clear side route. All physical regression assertions remain.
 See [operation API](docs/OPERATION_API.md), [author guide](docs/BEHAVIOR_AUTHORING.md)
-and [validation scope](docs/VALIDATION.md). No LLM provider is enabled by these APIs.
+and [validation scope](docs/VALIDATION.md). These APIs do not start an LLM provider;
+complete operation parameter discovery remains open.

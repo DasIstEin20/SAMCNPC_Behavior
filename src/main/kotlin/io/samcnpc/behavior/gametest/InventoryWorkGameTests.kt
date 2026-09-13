@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.gametest
 
 import io.samcnpc.behavior.SamcnpcBehavior
+import io.samcnpc.behavior.api.*
 import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.behavior.task.*
 import io.samcnpc.core.api.*
@@ -24,19 +25,22 @@ object InventoryWorkGameTests {
         val arena = CombatGameTestArena(helper, actor.player); val server = helper.level.server
         val source = chest(helper, 8, 2); source.setItem(0, ItemStack(Items.BREAD, 32))
         val output = chest(helper, 6, -2)
-        val supply = SupplyStock(listOf(StockNeed("minecraft:bread",2,8), StockNeed("minecraft:cobblestone",2,4)), choices(helper,8,2))
-        val unload = UnloadExcess(listOf(ItemReserve("minecraft:cobblestone",4)), choices(helper,6,-2))
+        val supply = OperationInventoryWork.Supply(listOf(OperationStockNeed("minecraft:bread",2,8), OperationStockNeed("minecraft:cobblestone",2,4)), OperationContainers(listOf(block(helper,8,1,2))))
+        val unload = OperationInventoryWork.Unload(listOf(OperationItemReserve("minecraft:cobblestone",4)), OperationContainers(listOf(block(helper,6,1,-2))))
         var taskId: UUID? = null; var frameId: UUID? = null; var inventoryFrame: UUID? = null
         var reloaded = false; var spawnedPickup = false; var oversized: ItemEntity? = null; var goalChange: TaskAmendmentRequest? = null
         arena.onReady { npc ->
             arena.give(npc, ItemStack(Items.IRON_AXE)); arena.give(npc, ItemStack(Items.COBBLESTONE,20))
             arena.assign(npc, NavigateTaskDefinition(npc.snapshot().dimensionId, offset(arena.start,24.0,0.0), budget = TaskBudget(3200)))
             val record = checkNotNull(TaskStore.forServer(server).get(npc.npcUuid)); taskId = record.id; frameId = record.primary.id
-            val policy = TaskLogisticsPolicy(arena.start, supply, unload, PickupNearby(listOf("minecraft:iron_ingot"),4.0,8),
+            val policy = OperationLogisticsPolicy(arena.start, supply, unload, OperationInventoryWork.Pickup(listOf("minecraft:iron_ingot"),4.0,8),
                 travelRadius = 32.0, workTicks = 800, durationTicks = 1400, cooldownTicks = 20)
-            val denied = TaskAmendments.automatic(server,npc,stranger.player,TaskChange.Logistics(policy))
+            val now = npc.snapshot().gameTime
+            val input = OperationAmendmentRequest(record.id, UUID.randomUUID(), 0, now, now + 1200, OperationChange.Logistics(policy))
+            val denied = OperationSupervisionApi.amend(server, stranger.player, npc.npcUuid, input).result
             check(denied.status != NpcActionStatus.SUCCEEDED && !record.logistics.policy.enabled)
-            check(TaskAmendments.automatic(server,npc,actor.player,TaskChange.Logistics(policy)).status == NpcActionStatus.SUCCEEDED)
+            val accepted = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, input.copy(requestId = UUID.randomUUID()))
+            check(accepted.result.status == NpcActionStatus.SUCCEEDED && accepted.amendment?.outcome == OperationAmendmentOutcome.APPLIED) { accepted.result.detail }
             check(record.amendments.revision == 1)
         }
         arena.observe { npc, record ->
@@ -47,7 +51,11 @@ object InventoryWorkGameTests {
                 val replacement = (record.primary.definition as NavigateTaskDefinition).copy(destination = offset(arena.start,26.0,0.0))
                 val now = npc.snapshot().gameTime
                 val request = TaskAmendmentRequest(record.id,UUID.randomUUID(),actor.player.uuid,record.amendments.revision,now,now+1200,TaskChange.Replace(replacement))
-                check(TaskAmendments.request(server,npc,actor.player,request).status == NpcActionStatus.SUCCEEDED)
+                val order = OperationOrder.Navigate(replacement.dimensionId, replacement.destination, replacement.speed,
+                    replacement.arrivalDistance, OperationBudget(replacement.budget.ticks, replacement.budget.attempts, replacement.budget.backoffTicks))
+                val reply = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, OperationAmendmentRequest(
+                    request.taskId, request.requestId, request.expectedRevision, request.issuedTick, request.expiresTick, OperationChange.Replace(order)))
+                check(reply.result.status == NpcActionStatus.SUCCEEDED && reply.amendment?.outcome == OperationAmendmentOutcome.PENDING) { reply.result.detail }
                 check(record.amendments.pending?.requestId == request.requestId && record.amendments.revision == 1)
                 goalChange = request
                 check(TaskService.pause(server,npc.npcUuid).status == NpcActionStatus.SUCCEEDED)

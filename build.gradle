@@ -48,8 +48,8 @@ if (!(operationsSmokeId ==~ /[A-Za-z0-9_-]+/)) throw new GradleException('operat
 
 def pickupRecoveryOnly = providers.gradleProperty('pickupRecoveryOnly').orElse('false').get().toBoolean()
 def machineCompatibility = providers.gradleProperty('machineCompatibility').orElse('false').get().toBoolean()
-def gameTestNamespace = providers.gradleProperty('gameTestNamespace').orElse(pickupRecoveryOnly ? 'samcnpc_pickup_zoo' : 'samcnpc_behavior,samcnpc_pickup_zoo,samcnpc_machine_zoo,samcnpc_fishing_zoo,samcnpc_explorer_zoo,samcnpc_mining_zoo').get()
-if (!gameTestNamespace.split(',').every { it in ['samcnpc_behavior', 'samcnpc_pickup_zoo', 'samcnpc_machine_zoo', 'samcnpc_fishing_zoo', 'samcnpc_explorer_zoo', 'samcnpc_mining_zoo'] }) throw new GradleException('Unknown GameTest namespace')
+def gameTestNamespace = providers.gradleProperty('gameTestNamespace').orElse(pickupRecoveryOnly ? 'samcnpc_pickup_zoo' : 'samcnpc_behavior,samcnpc_pickup_zoo,samcnpc_machine_zoo,samcnpc_fishing_zoo,samcnpc_explorer_zoo,samcnpc_mining_zoo,samcnpc_shared_site_zoo').get()
+if (!gameTestNamespace.split(',').every { it in ['samcnpc_behavior', 'samcnpc_pickup_zoo', 'samcnpc_machine_zoo', 'samcnpc_fishing_zoo', 'samcnpc_explorer_zoo', 'samcnpc_mining_zoo', 'samcnpc_shared_site_zoo'] }) throw new GradleException('Unknown GameTest namespace')
 
 minecraft {
     mappings channel: 'official', version: minecraft_version
@@ -255,6 +255,7 @@ minecraft {
         }
         gameTestServer {
             property 'forge.enabledGameTestNamespaces', gameTestNamespace
+            property 'samcnpc.sharedSiteTrace', providers.gradleProperty('sharedSiteTrace').orElse('false').get()
             mods { samcnpc_behavior { source sourceSets.test } }
             workingDirectory project.file('run-gametest')
             // Manual fixture geometry extends beyond the template's reset box. Never inherit
@@ -365,7 +366,7 @@ def prepareGameTestResources = tasks.register('prepareGameTestResources', Copy) 
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn prepareGameTestResources
     doLast {
-        def focusedCount = ['samcnpc_pickup_zoo': 3, 'samcnpc_machine_zoo': 7, 'samcnpc_fishing_zoo': 10, 'samcnpc_explorer_zoo': 10, 'samcnpc_mining_zoo': 8][gameTestNamespace]
+        def focusedCount = ['samcnpc_pickup_zoo': 3, 'samcnpc_machine_zoo': 7, 'samcnpc_fishing_zoo': 10, 'samcnpc_explorer_zoo': 10, 'samcnpc_mining_zoo': 8, 'samcnpc_shared_site_zoo': 9][gameTestNamespace]
         if (focusedCount == null) return
         def log = new File(workingDir, 'logs/latest.log').text
         if (!log.contains("All ${focusedCount} required tests passed") || log.readLines().any { it.contains('LogTestReporter') && it.contains(' failed!') }) {

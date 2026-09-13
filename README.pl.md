@@ -179,8 +179,9 @@ NPC ma jedno główne zadanie i najwyżej dwie ramki przerwań. Ręczna pauza za
 sterowanie; restart nie odnawia limitu. Format zapisu zadań 9 migruje starsze rekordy i zachowuje
 odrzucone dane z diagnostyką. Magazyn zadań ma limit 4096 wpisów; zapełnienie jawnie odrzuca nowy wpis.
 
-Stabilne publiczne API zlecania/kontroli operacji i rozszerzony katalog JSON pozostają do wykonania.
-Obecne operacje obsługuje się komendami; dotychczasowa walidacja JSON paczek zachowań jest dostępna.
+Publiczne typowane API zlecania, obserwacji, sterowania i korekt używa mechanizmu komend.
+Pełny katalog parametrów i format JSON operacji pozostają otwarte. Walidacja JSON paczek
+zachowań jest dostępna.
 Opcjonalny dostawca LLM i integracja craftingu są odłożone.
 
 ## Łowienie, eksploracja i praca maszyn
@@ -279,7 +280,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. 197 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. 207 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -308,21 +309,24 @@ Nowe wykonywalne akcje należą do zarejestrowanych handlerów Kotlin, a nie dan
 `runClientTaskSmoke` sprawdza trwały zbiór drewna, trzy ponowne otwarcia świata i dostawy dębu/ciemnego dębu.
 `runClientTaskCombatSmoke` przerywa dojście, kopanie, częściowy transfer i skok na podporę, po czym
 sprawdza walkę oraz wznowioną dostawę. `runClientFollowSmoke` i `runClientRetaliationSmoke` sprawdzają
-odpowiednie fizyczne zachowania. Behavior ma obecnie 307 testów jednostkowych; asercje runtime pozostają
+odpowiednie fizyczne zachowania. Behavior ma obecnie 328 testów jednostkowych; asercje runtime pozostają
 włączone. Warianty GUI `runClientConfigSmokeBare` i `runClientConfigSmokeDurable` używają osobnych
 katalogów i sprawdzają rzeczywiście wybrane ustawienia.
 
 ## Stan projektu i licencja
 
-Kampanie z 12–13 września przeszły 307 testów jednostkowych Behavior, 197 GameTestów
-Behavior i 132 Core, 24 żywe checkpointy zapisu/wczytania w osobnych JVM, 18 scenariuszy
-cyklu życia, 21 scenariuszy terenowych i 12 przypadków w prawdziwym kliencie.
-Pełna mieszana próba ukończyła 660 zadań ośmiu rodzin w 3641 sekundach aktywnej pracy;
-osobne pomiary nawigacji przeszły dla 1, 8, 32 i 64 NPC. Przeszły też uruchomienie
-trzech modów i kontrola dystrybucji. Poprawiony odczyt JSON odrzucił dziesięć błędnych
-reloadów bez przerwania aktywnej pracy. [Zakres dowodów](docs/VALIDATION.md)
-i [reguły wejścia JSON](docs/JSON_INPUT.md). Typowane zlecanie zadań i pełny katalog parametrów operacji
-oraz osobny test skórek na dwóch uwierzytelnionych kontach pozostają otwarte.
+Końcowa wspólna kampania przeszła 379 testów jednostkowych trzech modułów,
+207 GameTestów Behavior, 24 checkpointy zapisu/wczytania w osobnych JVM,
+19 scenariuszy cyklu życia, 12 przypadków w kliencie i uruchomienie trzech modów.
+Osobny build Behavior przeszedł 328 testów jednostkowych, 207 GameTestów i 19 prób
+cyklu życia z Core `74d2ba9`; osobny Core przeszedł 45 testów jednostkowych i 134 GameTesty.
+Obejmuje to regresję zablokowanego początku ścieżki.
+
+Wcześniejsza próba Zoo ukończyła 660 zadań ośmiu rodzin w 3641 sekundach aktywnej pracy.
+Przeszły też 21 scenariuszy terenowych i pomiary dla 1, 8, 32 i 64 NPC. Te wyniki
+zachowują wcześniejszy zakres źródeł. [Zakres testów](docs/VALIDATION.md).
+Pełny katalog parametrów, test skórek na dwóch uwierzytelnionych kontach oraz końcowa
+akceptacja wydania pozostają otwarte. Provider LLM i crafting są odłożone.
 
 Wersja rozwojowa **0.1.0**. Repozytorium publikuje Behavior i przypina jego zależność Core;
 nie zawiera opcjonalnego modułu LLM. Zgodność API i zaawansowane przypadki rozgrywki pozostają
@@ -332,11 +336,15 @@ przedmiotem prac. Żaden zewnętrzny model nie otrzymuje obejścia walidacji pac
 
 ## Publiczne API nadzoru i tworzenie paczek
 
-API udostępnia opis 14 warunków i 23 akcji, ograniczoną walidację paczki, generowany
-schemat edytora, niemutowalny stan zadania, pause/resume/cancel oraz typowane korekty
-ilości, celu, źródeł i czasu. Sprawdza aktualnego gracza, zasięg, ID zadania i rewizje;
-ponowienie tej samej korekty nie powtarza jej efektu. Zapis zadań v9 migruje starsze
-rewizje sterowania. Typowane zlecanie i pełny katalog parametrów operacji pozostają
-otwarte; dotychczasowe komendy zadań działają. [API operacji](docs/OPERATION_API.md),
-[instrukcja autora](docs/BEHAVIOR_AUTHORING.md), [zakres testów](docs/VALIDATION.md).
-Te API nie włączają providera LLM.
+API udostępnia opisy 14 warunków i 23 akcji, walidację paczki, generowany schemat,
+niemutowalne obserwacje, pauzę/wznowienie/anulowanie i szesnaście typowanych zleceń.
+Osiem korekt obejmuje ilość, odbiorców, źródła, czas, zastąpienie celu, taktykę,
+reakcje podczas pracy i logistykę ekwipunku. Korzystają z istniejącej walidacji,
+uprawnień, budżetów i dokładnych potwierdzeń. Stare zlecenie nie uruchomi drugiego zadania.
+
+Rezerwacja zbioru utrzymuje się przez ograniczone ponawianie nawigacji; jawna pauza,
+anulowanie i unload nadal ją zwalniają. Core pozwala też ominąć zajęty początek ścieżki
+po wolnym od bloków odcinku. Asercje fizycznych regresji pozostają włączone.
+[API operacji](docs/OPERATION_API.md), [instrukcja autora](docs/BEHAVIOR_AUTHORING.md)
+i [zakres testów](docs/VALIDATION.md). API nie włącza providera LLM;
+pełny katalog parametrów operacji pozostaje otwarty.

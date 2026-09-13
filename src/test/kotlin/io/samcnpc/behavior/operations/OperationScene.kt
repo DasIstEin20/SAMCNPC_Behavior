@@ -32,6 +32,8 @@ internal enum class OperationKind {
 internal class OperationScene(val level: ServerLevel, val kind: OperationKind, val origin: BlockPos, val npcId: UUID) {
     val server get() = level.server
     val start get() = point(0, 0)
+    var assignmentActor: net.minecraft.server.level.ServerPlayer? = null
+    var initialPublicAssignment: io.samcnpc.behavior.api.OperationAssignmentRequest? = null
     var enemyId: UUID? = null
     var checked = false
     val loaded get() = level.getEntity(npcId) is LivingEntity && CoreNpcApi.service(server).find(npcId) != null
@@ -72,6 +74,8 @@ internal class OperationScene(val level: ServerLevel, val kind: OperationKind, v
         check(npc.pickupItem(drop.uuid).status == NpcActionStatus.SUCCEEDED) { "$kind fixture stock insertion failed" }
     }
     fun assign(definition: TaskDefinition) {
+        val actor = assignmentActor
+        if (actor != null && OperationPublicAssignmentProof.assign(this, actor, definition)) return
         val result=TaskService.assign(server,npc,definition)
         check(result.status == NpcActionStatus.SUCCEEDED) { "$kind assignment: ${result.detail}" }
     }
@@ -100,6 +104,14 @@ internal class OperationScene(val level: ServerLevel, val kind: OperationKind, v
     fun metadata(): CompoundTag {
         val tag=CompoundTag()
         tag.putString("kind",kind.name); tag.putLong("origin",origin.asLong()); tag.putUUID("npc",npcId)
+        val request = initialPublicAssignment
+        if (request != null) {
+            val input = CompoundTag()
+            request.expectedPriorTaskId?.let { input.putUUID("prior", it) }
+            input.putLong("issued", request.issuedTick); input.putLong("expires", request.expiresTick)
+            input.put("order", TaskCodec.writeDefinition(TaskPublicOrders.definition(request.order)))
+            tag.put("publicAssignment", input)
+        }
         enemyId?.let { tag.putUUID("enemy",it) }
         return tag
     }
@@ -154,6 +166,13 @@ internal class OperationScene(val level: ServerLevel, val kind: OperationKind, v
         fun load(level: ServerLevel,tag: CompoundTag): OperationScene {
             val scene=OperationScene(level,OperationKind.valueOf(tag.getString("kind")),BlockPos.of(tag.getLong("origin")),tag.getUUID("npc"))
             if(tag.hasUUID("enemy")) scene.enemyId=tag.getUUID("enemy")
+            if (tag.contains("publicAssignment")) {
+                val input = tag.getCompound("publicAssignment")
+                val order = checkNotNull(OperationPublicAssignmentProof.order(TaskCodec.readDefinition(input.getCompound("order"))))
+                scene.initialPublicAssignment = io.samcnpc.behavior.api.OperationAssignmentRequest(
+                    if (input.hasUUID("prior")) input.getUUID("prior") else null,
+                    input.getLong("issued"), input.getLong("expires"), order)
+            }
             return scene
         }
     }

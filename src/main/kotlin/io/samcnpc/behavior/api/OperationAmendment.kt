@@ -20,6 +20,10 @@ sealed interface OperationChange {
     data class Recipients(val containers: OperationContainers) : OperationChange
     data class Sources(val containers: OperationContainers?) : OperationChange
     data class ExtendTime(val ticks: Int) : OperationChange
+    data class Replace(val order: OperationOrder, val objective: OperationObjectiveMode = OperationObjectiveMode.PRESERVE) : OperationChange
+    data class Tactics(val tactics: OperationCombatTactics) : OperationChange
+    data class Reaction(val policy: OperationReactionPolicy) : OperationChange
+    data class Logistics(val policy: OperationLogisticsPolicy) : OperationChange
 }
 
 data class OperationAmendmentRequest(

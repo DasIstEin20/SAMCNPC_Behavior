@@ -117,7 +117,7 @@ object OperationsClientSmoke {
                 val kind=kinds.getOrNull(index) ?: OperationKind.ATTACK
                 val next=OperationScene.create(server.overworld(),kind,origin)
                 scene=next; assigned=false; result=null; stageTicks=0; completeTicks=0; supervision=null
-                tactical=if(index >= kinds.size) OperationTacticalScene(next,TacticalProbe.entries[index-kinds.size]) else null
+                tactical=if(index >= kinds.size) OperationTacticalScene(next,TacticalProbe.entries[index-kinds.size],player) else null
                 player.setGameMode(GameType.SPECTATOR)
                 player.teleportTo(next.level,origin.x+10.5,origin.y+9.0,origin.z+16.5,0.0F,25.0F)
                 view=null
@@ -132,7 +132,11 @@ object OperationsClientSmoke {
                 else {
                     if(!assigned) {
                         if(!current.body.onGround()) return
-                        OperationCases.prepare(current); assigned=true
+                        current.assignmentActor = player
+                        OperationCases.prepare(current)
+                        current.assignmentActor = null
+                        if (current.kind == OperationKind.TRANSPORT) check(current.initialPublicAssignment != null)
+                        assigned=true
                     }
                     val probe=supervision ?: OperationSupervisionProbe(server,player,current.npcId).also { supervision=it }
                     if(!probe.tick()) return
@@ -141,7 +145,8 @@ object OperationsClientSmoke {
                     OperationResourceCases.advanceWorldInput(current)
                     if(record.status.terminal) {
                         OperationCases.verify(current)
-                        result="${current.kind} physical_effects=true public_controls=true public_amendments=true remaining=${record.primary.remainingTicks} task=${record.id}"
+                        OperationPublicAssignmentProof.rejectReplay(current, player)
+                        result="${current.kind} physical_effects=true public_controls=true public_amendments=true public_assignment="+(current.initialPublicAssignment != null)+" remaining=${record.primary.remainingTicks} task=${record.id}"
                     }
                 }
             }

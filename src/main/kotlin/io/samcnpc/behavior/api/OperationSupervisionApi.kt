@@ -1,13 +1,21 @@
 package io.samcnpc.behavior.api
 
+import io.samcnpc.behavior.task.TaskPublicOrders
+import io.samcnpc.core.api.NpcActionResult
 import io.samcnpc.behavior.task.TaskSupervision
 import io.samcnpc.behavior.task.TaskPublicAmendments
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import java.util.UUID
 
-/** Call on the authoritative server thread with the current connected player. */
+/** Server-bound calls require the authoritative thread and the current connected player. */
 object OperationSupervisionApi {
+    /** Pure validation of the typed definition; world/authority checks occur at assignment. */
+    fun validateOrder(order: OperationOrder): NpcActionResult = TaskPublicOrders.validate(order)
+
+    fun assign(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID, request: OperationAssignmentRequest): OperationReply =
+        TaskPublicOrders.assign(server, actor, npcUuid, request)
+
     fun observe(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID): OperationReply =
         TaskSupervision.observe(server, actor, npcUuid)
 

@@ -45,6 +45,17 @@ internal class SpatialWorkClaimKernel(
         return if (blocker == null) Result.Pending else Result.Contested(blocker.npc, blocker.key.anchor)
     }
 
+    /** Keep an acquired site through a finite retry; no new work or waiting request is admitted. */
+    fun retainForBackoff(npcUuid: UUID, taskId: UUID, now: Long, waitTicks: Int): Boolean {
+        require(waitTicks in 1..200 && now in 0..Long.MAX_VALUE - leaseTicks - waitTicks)
+        val claim = claims[npcUuid] ?: return false
+        if (claim.task != taskId || claim.expires <= now) return false
+        // now + remaining wait is the same deadline on repeated release notifications.
+        claim.expires = maxOf(claim.expires, now + waitTicks + leaseTicks)
+        if (requests[npcUuid]?.task == taskId) requests.remove(npcUuid)
+        return true
+    }
+
     fun release(npcUuid: UUID, taskId: UUID? = null) {
         if (taskId == null || claims[npcUuid]?.task == taskId) removeClaim(npcUuid)
         if (taskId == null || requests[npcUuid]?.task == taskId) requests.remove(npcUuid)

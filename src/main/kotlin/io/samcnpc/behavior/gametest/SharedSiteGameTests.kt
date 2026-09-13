@@ -24,12 +24,20 @@ object SharedSiteGameTests {
     @JvmStatic
     @GameTest(template="lumberjackdemogametests.empty",timeoutTicks=2600,batch="shared_iron_vein")
     fun twoMinersWorkTheSameVeinWithoutDuplicateRemovalOrInitialStockDelivery(h: GameTestHelper) {
+        sharedMiners(h)
+    }
+
+    internal fun sharedMiners(h: GameTestHelper, retryBackoffTicks: Int? = null, closeObstruction: Boolean = false) {
         val scene=SharedSiteArena(h)
         val output=scene.chest(0,7)
         val cells=(10..13).map { scene.block(it,1,0) }.toSet()
         for(x in 10..13) h.setBlock(BlockPos(x,1,0),Blocks.IRON_ORE)
         h.setBlock(BlockPos(16,1,0),Blocks.IRON_ORE)
         var competed=false
+        var retried = false
+        var lastTrace = ""
+        var obstructed = false; var releasedObstruction = false; var beforeGathered = 0
+        val trace = java.lang.Boolean.getBoolean("samcnpc.sharedSiteTrace")
         scene.onReady { first,second ->
             for(npc in listOf(first,second)) {
                 scene.give(npc,ItemStack(Items.IRON_PICKAXE))
@@ -38,16 +46,95 @@ object SharedSiteGameTests {
                 scene.assign(npc,MiningTaskDefinition(at.dimensionId,
                     MiningWorkOrder(WorkArea(WorkBox(scene.block(10,1,0),scene.block(13,1,0))),MiningMethod.EXPOSED,WorkResourceIds(listOf("minecraft:iron_ore"))),
                     WorkResourceIds(listOf("minecraft:raw_iron")),ContainerChoices(listOf(scene.block(0,1,7))),2,
-                    MiningCounting.DELIVERED_ITEMS,at.position,returnTo=at.position,budget=TaskBudget(2400)))
+                    MiningCounting.DELIVERED_ITEMS,at.position,returnTo=at.position,budget=TaskBudget(2400, backoffTicks = retryBackoffTicks ?: 20)))
             }
         }
         scene.observe { first,a,second ->
             val b=scene.record(second)
             val mineA=checkNotNull(a.primary.mining); val mineB=checkNotNull(b.primary.mining)
+            if (closeObstruction && !obstructed && mineB.phase == MiningPhase.COLLECT) {
+                val target = checkNotNull(mineB.target).position
+                val drops = h.level.getEntitiesOfClass(ItemEntity::class.java,
+                    net.minecraft.world.phys.AABB(target.x - 2.0, target.y - 1.0, target.z - 2.0, target.x + 3.0, target.y + 3.0, target.z + 3.0))
+                    .filter { it.item.item == Items.RAW_IRON }
+                if (drops.isNotEmpty()) {
+                    check(TaskService.pause(h.level.server, first.npcUuid).status == NpcActionStatus.SUCCEEDED)
+                    val blocked = checkNotNull(h.level.getEntity(second.npcUuid))
+                    val waiting = checkNotNull(h.level.getEntity(first.npcUuid))
+                    blocked.setPos(target.x - 1.85, target.y.toDouble(), target.z + 0.5)
+                    waiting.setPos(target.x - 1.24, target.y.toDouble(), target.z + 0.506)
+                    blocked.deltaMovement = net.minecraft.world.phys.Vec3.ZERO
+                    waiting.deltaMovement = net.minecraft.world.phys.Vec3.ZERO
+                    for (drop in drops) { drop.setPos(target.x + 0.875, target.y.toDouble(), target.z + 0.8995); drop.deltaMovement = net.minecraft.world.phys.Vec3.ZERO }
+                    beforeGathered = mineB.resources.physical.entries["minecraft:raw_iron"]?.gathered ?: 0
+                    obstructed = true
+                }
+            }
+            if (closeObstruction && obstructed && !releasedObstruction && (mineB.resources.physical.entries["minecraft:raw_iron"]?.gathered ?: 0) > beforeGathered) {
+                check(TaskService.resume(h.level.server, first.npcUuid).status == NpcActionStatus.SUCCEEDED)
+                releasedObstruction = true
+            }
+            if (trace) {
+                fun facts(npc: NpcFacade, record: TaskRecord): String {
+                    val state = checkNotNull(record.primary.mining)
+                    val mob = h.level.getEntity(npc.npcUuid) as net.minecraft.world.entity.Mob
+                    val path = mob.navigation.path
+                    val pathFact = if (path == null) "none" else path.nextNodeIndex.toString() + "/" + path.nodeCount +
+                        if (path.nextNodeIndex < path.nodeCount) "->" + path.getEntityPosAtNode(mob, path.nextNodeIndex) else "->done"
+                    val held = state.target?.position?.let { target ->
+                        io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel.collectionFilter(npc.npcUuid,
+                            record.id, npc.snapshot().dimensionId, npc.snapshot().gameTime)(TransportTaskDefinition.center(target))
+                    }
+                    return "npc=" + npc.npcUuid + " status=" + record.status + " phase=" + state.phase +
+                        " target=" + state.target?.position + " held=" + held + " removed=" + state.selection.removed.keys +
+                        " gathered=" + state.resources.physical.entries["minecraft:raw_iron"]?.gathered +
+                        " delivered=" + state.resources.delivered("minecraft:raw_iron") +
+                        " nav=" + npc.snapshot().navigation?.request?.position +
+                        " stall=" + (npc.snapshot().navigation?.stalledTicks?.div(20)) + " path=" + pathFact +
+                        " wanted=" + listOf(mob.moveControl.wantedX, mob.moveControl.wantedY, mob.moveControl.wantedZ) +
+                        " speed=" + mob.speed + " yaw=" + mob.yRot
+                }
+                val drops = h.level.getEntitiesOfClass(ItemEntity::class.java,
+                    net.minecraft.world.phys.AABB(h.absolutePos(BlockPos(7, 0, -5)), h.absolutePos(BlockPos(19, 8, 5))))
+                    .filter { it.item.item == Items.RAW_IRON }
+                val key = facts(first, a) + " | " + facts(second, b) + " | " + drops.map {
+                    it.uuid.toString() + ":" + it.item.count + "@" + it.position().toString()
+                }
+                if (key != lastTrace) {
+                    lastTrace = key
+                    com.mojang.logging.LogUtils.getLogger().info("SHARED_MINING_TRACE tick={} facts={} positions={} drops={}",
+                        h.tick, key, listOf(first.snapshot().position, second.snapshot().position),
+                        drops.map { it.uuid.toString() + ":" + it.item.count + "@" + it.position() })
+                }
+            }
             if(mineA.target != null && mineA.target?.position == mineB.target?.position) competed=true
+            if (!retried && retryBackoffTicks != null && mineA.selection.removed.isNotEmpty() && mineB.selection.removed.isNotEmpty()) {
+                val pair = listOf(first to a, second to b).firstOrNull { (_, record) ->
+                    record.primary.mining?.phase == MiningPhase.COLLECT
+                }
+                if (pair != null) {
+                    val (npc, record) = pair
+                    val at = npc.snapshot()
+                    val target = checkNotNull(record.primary.mining?.target).position
+                    val claims = io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel
+                    val center = TransportTaskDefinition.center(target)
+                    check(claims.collectionFilter(npc.npcUuid, record.id, at.dimensionId, at.gameTime)(center))
+                    val remaining = record.active.remainingTicks
+                    record.retry(TaskReason.NO_PROGRESS, "fixture: route interrupted during collection")
+                    check(record.status == TaskStatus.WAITING && record.active.waitTicks == retryBackoffTicks)
+                    BehaviorRuntimeService.releaseTaskControl(h.level.server, npc.npcUuid)
+                    check(record.active.remainingTicks == remaining && record.totalFailures == 1)
+                    check(claims.collectionFilter(npc.npcUuid, record.id, at.dimensionId, at.gameTime)(center)) {
+                        "route backoff discarded the collector's already acquired work reservation"
+                    }
+                    retried = true
+                }
+            }
             scene.requireNoFailure(a,b)
             if(a.status.terminal && b.status.terminal) {
                 check(competed) { "miners never selected the same pending work cell" }
+                check(!closeObstruction || obstructed && releasedObstruction) { "close obstruction was not physically recovered" }
+                check(retryBackoffTicks == null || retried) { "collection retry was not exercised" }
                 val removedA=mineA.selection.removed.keys; val removedB=mineB.selection.removed.keys
                 check(removedA.size == 2 && removedB.size == 2 && removedA.intersect(removedB).isEmpty() && removedA+removedB == cells)
                 check(scene.count(output,Items.RAW_IRON) == 4)

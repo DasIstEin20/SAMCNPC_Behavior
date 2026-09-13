@@ -63,8 +63,15 @@ object TaskAmendmentGameTests {
             if (amended && !switched && ledger.delivered == 24) {
                 check(count(first, Items.OAK_LOG) == 64 && count(second, Items.OAK_LOG) == 20 && count(source, Items.OAK_LOG) == 40)
                 val definition = record.primary.definition as TransportTaskDefinition
-                val result = TaskAmendments.automatic(server, npc, actor.player, TaskChange.Replace(definition.copy(itemId = "minecraft:birch_log", quantity = 10, keepAtLeast = 3), ObjectiveChangeMode.NEW_OBJECTIVE))
-                check(result.status == NpcActionStatus.SUCCEEDED) { result.detail }
+                val order = OperationOrder.Transport(definition.dimensionId,
+                    OperationContainers(definition.sources.positions), OperationContainers(definition.destinations.positions),
+                    "minecraft:birch_log", 10, definition.anchor, definition.travelRadius, 3, definition.sourceKeepAtLeast,
+                    definition.returnTo, OperationBudget(definition.budget.ticks, definition.budget.attempts, definition.budget.backoffTicks))
+                val now = npc.snapshot().gameTime
+                val reply = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid,
+                    OperationAmendmentRequest(record.id, UUID.randomUUID(), record.amendments.revision, now, now + 1200,
+                        OperationChange.Replace(order, OperationObjectiveMode.NEW_OBJECTIVE)))
+                check(reply.result.status == NpcActionStatus.SUCCEEDED && reply.amendment?.outcome == OperationAmendmentOutcome.APPLIED) { reply.result.detail }
                 val old = record.amendments.objectives.single()
                 check(old.confirmed == 24 && old.deliveries == mapOf(pos(first) to mapOf("minecraft:oak_log" to 4), pos(second) to mapOf("minecraft:oak_log" to 20)))
                 check(record.primary.transport?.ledger?.delivered == 0 && record.primary.transport?.ledger?.initial == 3)
