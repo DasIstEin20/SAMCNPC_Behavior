@@ -130,14 +130,14 @@ internal object TaskService {
     }
 
     fun pause(server: MinecraftServer, npcUuid: UUID): NpcActionResult = control(server, npcUuid) { record ->
-        if (!record.pause()) return@control NpcActionResult.rejected("task is not running or waiting", NpcActionCode.NOT_READY)
+        if (!record.pause()) return@control NpcActionResult.rejected("task is not running/waiting or its control revision is exhausted", NpcActionCode.NOT_READY)
         BehaviorRuntimeService.releaseTaskControl(server, npcUuid)
         NpcActionResult.succeeded(record.detail)
     }
 
     fun resume(server: MinecraftServer, npcUuid: UUID): NpcActionResult = control(server, npcUuid) { record ->
         if (packFor(record.primary.definition) !in BehaviorRuntimeService.assignedPacks(server, npcUuid)) return@control NpcActionResult.rejected("task pack is no longer assigned", NpcActionCode.NOT_READY)
-        if (!record.resume()) return@control NpcActionResult.rejected("task is not paused", NpcActionCode.NOT_READY)
+        if (!record.resume()) return@control NpcActionResult.rejected("task is not paused or its control revision is exhausted", NpcActionCode.NOT_READY)
         val service = CoreNpcApi.service(server)
         service.find(npcUuid)?.let(service::runtime)?.let { TaskResumeObservation.prime(record, it) }
         executions.remove(npcUuid)

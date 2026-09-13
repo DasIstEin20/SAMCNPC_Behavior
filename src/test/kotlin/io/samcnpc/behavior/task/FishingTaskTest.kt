@@ -68,7 +68,7 @@ class FishingTaskTest {
     }
     @Test fun previousAndFutureStoreVersionsCannotInterpretNewFishingRecords() {
         val r=record()
-        for (version in listOf(6,9)) {
+        for (version in listOf(6,10)) {
             val file=CompoundTag();file.putInt("version",version);file.put("tasks",ListTag().apply { add(TaskCodec.write(r)) })
             val store=TaskStore.load(file);assertNull(store.get(r.npcUuid));assertNotNull(store.problemFor(r.npcUuid));assertEquals(file,store.save(CompoundTag()))
         }

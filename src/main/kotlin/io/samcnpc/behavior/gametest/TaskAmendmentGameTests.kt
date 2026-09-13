@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.gametest
 
 import io.samcnpc.behavior.SamcnpcBehavior
+import io.samcnpc.behavior.api.*
 import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.behavior.task.*
 import io.samcnpc.core.api.*
@@ -42,19 +43,19 @@ object TaskAmendmentGameTests {
                 firstRemaining = record.primary.remainingTicks
                 val now = npc.snapshot().gameTime
                 val add = TaskAmendmentRequest(record.id, UUID.randomUUID(), actor.player.uuid, 0, now, now + 1200, TaskChange.Quantity(8, QuantityChangeMode.ADD))
-                check(TaskAmendments.request(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
+                check(publicRequest(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
                 val after = TaskCodec.write(record)
-                check(TaskAmendments.request(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
+                check(publicRequest(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
                 check(TaskCodec.write(record) == after) { "duplicate addition repeated an effect" }
-                check(TaskAmendments.request(server, npc, actor.player, add.copy(requestId = UUID.randomUUID())).code == NpcActionCode.CONFLICT)
-                check(TaskAmendments.request(server, npc, stranger.player, add.copy(requestId = UUID.randomUUID(), actorUuid = stranger.player.uuid, expectedRevision = 1)).code == NpcActionCode.PERMISSION_DENIED)
+                check(publicRequest(server, npc, actor.player, add.copy(requestId = UUID.randomUUID())).code == NpcActionCode.CONFLICT)
+                check(publicRequest(server, npc, stranger.player, add.copy(requestId = UUID.randomUUID(), actorUuid = stranger.player.uuid, expectedRevision = 1)).code == NpcActionCode.PERMISSION_DENIED)
                 check(TaskCodec.write(record) == after) { "stale/unauthorized request mutated task" }
                 val redirect = add.copy(requestId = UUID.randomUUID(), expectedRevision = 1, change = TaskChange.Redirect(ContainerChoices(listOf(pos(second)))))
-                check(TaskAmendments.request(server, npc, actor.player, redirect).status == NpcActionStatus.SUCCEEDED)
+                check(publicRequest(server, npc, actor.player, redirect).status == NpcActionStatus.SUCCEEDED)
                 reload(server)
                 val loaded = checkNotNull(TaskStore.forServer(server).get(npc.npcUuid))
                 check(loaded.id == taskId && loaded.primary.id == frameId && loaded.primary.remainingTicks == firstRemaining)
-                check(TaskAmendments.request(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
+                check(publicRequest(server, npc, actor.player, add).status == NpcActionStatus.SUCCEEDED)
                 check(loaded.amendments.revision == 2 && (loaded.primary.definition as TransportTaskDefinition).quantity == 24)
                 check(TaskService.resume(server, npc.npcUuid).status == NpcActionStatus.SUCCEEDED)
                 amended = true
@@ -95,13 +96,30 @@ object TaskAmendmentGameTests {
             WorkArea(WorkBox(absolute(helper, 7, 1, -2), absolute(helper, 11, 12, 2))), wood, pos(first), 9,
             budget = TaskBudget(ticks = 2700), version = 2, supplySources = ContainerChoices(listOf(pos(supplies))))) }
         var queued = false; var applied = false; var request: TaskAmendmentRequest? = null; var budgetAtRequest = 0
+        var expiring: TaskAmendmentRequest? = null
+        var expiryVerified = false
         arena.observe { npc, record ->
             val state = checkNotNull(record.primary.lumberjack)
-            if (!queued && state.job.pillarSession?.placedPositions?.isNotEmpty() == true) {
+            if (expiring == null && state.job.pillarSession?.placedPositions?.isNotEmpty() == true) {
+                val now = npc.snapshot().gameTime
+                val short = TaskAmendmentRequest(record.id, UUID.randomUUID(), actor.player.uuid, 0, now, now + 1,
+                    TaskChange.Redirect(ContainerChoices(listOf(pos(second)))))
+                val reply = publicReply(server, npc, actor.player, short)
+                check(reply.result.status == NpcActionStatus.SUCCEEDED && reply.amendment?.outcome == OperationAmendmentOutcome.PENDING)
+                expiring = short
+            }
+            val expiredRequest = expiring
+            if (!expiryVerified && expiredRequest != null && record.amendments.pending == null) {
+                val replay = publicReply(server, npc, actor.player, expiredRequest)
+                check(replay.result.status == NpcActionStatus.SUCCEEDED && replay.amendment?.outcome == OperationAmendmentOutcome.EXPIRED)
+                check(record.amendments.revision == 0 && (record.primary.definition as LumberjackTaskDefinition).destination == pos(first))
+                expiryVerified = true
+            }
+            if (!queued && expiryVerified && state.job.pillarSession?.placedPositions?.isNotEmpty() == true) {
                 val now = npc.snapshot().gameTime
                 val change = TaskAmendmentRequest(record.id, UUID.randomUUID(), actor.player.uuid, 0, now, now + 1200, TaskChange.Redirect(ContainerChoices(listOf(pos(second)))))
                 request = change; budgetAtRequest = record.primary.remainingTicks
-                val result = TaskAmendments.request(server, npc, actor.player, change)
+                val result = publicRequest(server, npc, actor.player, change)
                 check(result.status == NpcActionStatus.SUCCEEDED && result.detail.startsWith("PENDING")) { result.detail }
                 check(record.amendments.revision == 0 && (record.primary.definition as LumberjackTaskDefinition).destination == pos(first))
                 com.mojang.logging.LogUtils.getLogger().info("WOOD_RELOAD_PROOF before live={} checkpoint={} loadGeneration={} loadInventory={}",
@@ -114,18 +132,18 @@ object TaskAmendmentGameTests {
                     npc.inventoryLoadSnapshot()?.generation, npc.inventoryLoadSnapshot()?.inventory?.filter { !it.isEmpty })
                 val loaded = checkNotNull(TaskStore.forServer(server).get(npc.npcUuid))
                 check(loaded.amendments.pending == change && loaded.primary.remainingTicks == budgetAtRequest && loaded.amendments.revision == 0)
-                check(TaskAmendments.request(server, npc, actor.player, change).detail.startsWith("PENDING"))
+                check(publicRequest(server, npc, actor.player, change).detail.startsWith("PENDING"))
                 check(TaskService.resume(server, npc.npcUuid).status == NpcActionStatus.SUCCEEDED)
                 queued = true
             }
             if (queued && record.amendments.revision == 1 && !applied) {
                 check(state.job.pillarSession?.placedPositions.orEmpty().isEmpty()) { "queued redirect applied before physical cleanup" }
                 check(record.primary.remainingTicks < budgetAtRequest && record.amendments.pending == null)
-                check(TaskAmendments.request(server, npc, actor.player, checkNotNull(request)).detail.startsWith("APPLIED"))
+                check(publicRequest(server, npc, actor.player, checkNotNull(request)).detail.startsWith("APPLIED"))
                 applied = true
             }
             if (record.status.terminal) {
-                check(record.status == TaskStatus.COMPLETED && queued && applied) { TaskService.status(server, npc.npcUuid).orEmpty() }
+                check(record.status == TaskStatus.COMPLETED && queued && applied && expiryVerified) { TaskService.status(server, npc.npcUuid).orEmpty() }
                 check(count(first, Items.OAK_LOG) == 0 && count(second, Items.OAK_LOG) == 9 && state.resources.delivered(wood) == 9)
                 check(state.deliveries[pos(second)]?.get("minecraft:oak_log") == 9)
                 check(state.job.pillarSession?.placedPositions.orEmpty().isEmpty())
@@ -133,6 +151,30 @@ object TaskAmendmentGameTests {
                 arena.succeed(npc, record); actor.close()
             }
         }
+    }
+    private fun publicRequest(server: net.minecraft.server.MinecraftServer, npc: NpcFacade,
+        actor: net.minecraft.server.level.ServerPlayer, request: TaskAmendmentRequest): NpcActionResult =
+        publicReply(server, npc, actor, request).result
+
+    private fun publicReply(server: net.minecraft.server.MinecraftServer, npc: NpcFacade,
+        actor: net.minecraft.server.level.ServerPlayer, request: TaskAmendmentRequest): OperationReply {
+        check(request.actorUuid == actor.uuid)
+        val change = when (val original = request.change) {
+            is TaskChange.Quantity -> OperationChange.Quantity(original.amount,
+                if (original.mode == QuantityChangeMode.ADD) OperationQuantityMode.ADD else OperationQuantityMode.TOTAL)
+            is TaskChange.Redirect -> OperationChange.Recipients(OperationContainers(original.recipients.positions,
+                if (original.recipients.preference == ContainerPreference.NEAREST) OperationContainerPreference.NEAREST else OperationContainerPreference.ORDERED))
+            else -> error("this physical fixture uses quantity and recipient amendments")
+        }
+        val reply = OperationSupervisionApi.amend(server, actor, npc.npcUuid, OperationAmendmentRequest(
+            request.taskId, request.requestId, request.expectedRevision, request.issuedTick, request.expiresTick, change))
+        if (reply.result.status == NpcActionStatus.SUCCEEDED) {
+            val receipt = checkNotNull(reply.amendment)
+            check(receipt.requestId == request.requestId && receipt.taskId == request.taskId)
+            check(receipt.revision == request.expectedRevision + if (receipt.outcome == OperationAmendmentOutcome.APPLIED) 1 else 0)
+            check(reply.observation?.task?.taskId == request.taskId)
+        } else check(reply.amendment == null)
+        return reply
     }
     private fun reload(server: net.minecraft.server.MinecraftServer) {
         val saved = TaskStore.forServer(server).save(CompoundTag()); check(BehaviorRuntimeService.reload().accepted)

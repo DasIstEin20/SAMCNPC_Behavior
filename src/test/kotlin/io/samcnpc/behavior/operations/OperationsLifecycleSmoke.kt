@@ -23,6 +23,7 @@ object OperationsLifecycleSmoke {
     private val enabled = java.lang.Boolean.getBoolean("samcnpc.operationsLifecycle")
     private val logger = com.mojang.logging.LogUtils.getLogger()
     private val report = Path.of("operations-lifecycle.txt")
+    private var author: OperationAuthoringScenario? = null
     private var reload: OperationReloadScenario? = null
     private var removals = emptyList<OperationRemovalScenario>()
     private var connection: OperationConnectionScenario? = null
@@ -32,7 +33,7 @@ object OperationsLifecycleSmoke {
     private var staleOnStop: NpcFacade? = null
     private val ids = mutableSetOf<UUID>()
     private val results = mutableListOf<String>()
-    private var phase = 0
+    private var phase = -1
     private var ticks = 0
     private var started = false
     private var failed = false
@@ -43,9 +44,9 @@ object OperationsLifecycleSmoke {
         guarded(event.server) {
             check(event.server.isDedicatedServer && event.server.playerCount == 0)
             OperationCases.configure(event.server)
-            val scenario = OperationReloadScenario(event.server)
-            reload = scenario
-            ids.add(scenario.scene.npcId)
+            val scenario = OperationAuthoringScenario(event.server)
+            author = scenario
+            ids.add(scenario.npcId)
             started = true
         }
     }
@@ -55,6 +56,18 @@ object OperationsLifecycleSmoke {
         guarded(event.server) {
             check(++ticks < 2400) { "Lifecycle campaign timed out phase=$phase" }
             when (phase) {
+                -1 -> {
+                    val scenario = checkNotNull(author)
+                    scenario.tick()
+                    if (scenario.complete) {
+                        results.add(scenario.report)
+                        author = null
+                        val next = OperationReloadScenario(event.server)
+                        reload = next
+                        ids.add(next.scene.npcId)
+                        phase = 0
+                    }
+                }
                 0 -> {
                     val scenario = checkNotNull(reload)
                     scenario.tick()
@@ -132,7 +145,7 @@ object OperationsLifecycleSmoke {
             check(checkNotNull(staleOnStop).stopControl().status == NpcActionStatus.REJECTED)
             staleOnStop = null
             stopScene = null
-            Files.writeString(report, "PASS scenarios=18 ticks=$ticks actual_native_lifecycle=true runtime_cleared_after_stop=true\n" + results.joinToString("\n") + "\n")
+            Files.writeString(report, "PASS scenarios=19 ticks=$ticks actual_native_lifecycle=true runtime_cleared_after_stop=true\n" + results.joinToString("\n") + "\n")
         } catch (error: Exception) {
             failed = true
             logger.error("Lifecycle post-stop verification failed", error)

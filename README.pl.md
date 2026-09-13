@@ -176,7 +176,7 @@ obszar i sprawdzane cele. Obsługiwane taktyki obejmują broń dystansową, tarc
 reakcje przerywają pracę i wznawiają ją po sprawdzeniu aktualnego świata. Akcje nie tworzą darmowych zasobów.
 
 NPC ma jedno główne zadanie i najwyżej dwie ramki przerwań. Ręczna pauza zatrzymuje budżet i zwalnia
-sterowanie; restart nie odnawia limitu. Format zapisu zadań 8 migruje starsze rekordy i zachowuje
+sterowanie; restart nie odnawia limitu. Format zapisu zadań 9 migruje starsze rekordy i zachowuje
 odrzucone dane z diagnostyką. Magazyn zadań ma limit 4096 wpisów; zapełnienie jawnie odrzuca nowy wpis.
 
 Stabilne publiczne API zlecania/kontroli operacji i rozszerzony katalog JSON pozostają do wykonania.
@@ -279,7 +279,7 @@ EULA Minecrafta przez użytkownika.
 GameTesty mają własny płaski świat w `run-gametest/`; nie używają zwykłych światów developerskich z `run/`.
 
 Testy jednostkowe obejmują walidację paczek, arbitraż, nawigację/wspinanie/pracę, limity zbierania
-i migrację zapisanego stanu. 195 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
+i migrację zapisanego stanu. 197 testów serwerowych sprawdza wyposażenie, usuwanie liści, pracę
 na wysokości, podpory z drewna/ziemi/bruku, podnoszenie podczas stawiania, ustawienie na krawędzi,
 zagnieżdżone odzyskiwanie, pełne sprzątanie, niebezpieczne/za długie oczekiwanie i dokładne rozliczenie drewna.
 Regresje na płaskim podłożu wymagają też prawdziwego lądowania na pniu i rozebrania podpór
@@ -308,20 +308,20 @@ Nowe wykonywalne akcje należą do zarejestrowanych handlerów Kotlin, a nie dan
 `runClientTaskSmoke` sprawdza trwały zbiór drewna, trzy ponowne otwarcia świata i dostawy dębu/ciemnego dębu.
 `runClientTaskCombatSmoke` przerywa dojście, kopanie, częściowy transfer i skok na podporę, po czym
 sprawdza walkę oraz wznowioną dostawę. `runClientFollowSmoke` i `runClientRetaliationSmoke` sprawdzają
-odpowiednie fizyczne zachowania. Behavior ma obecnie 290 testów jednostkowych; asercje runtime pozostają
+odpowiednie fizyczne zachowania. Behavior ma obecnie 307 testów jednostkowych; asercje runtime pozostają
 włączone. Warianty GUI `runClientConfigSmokeBare` i `runClientConfigSmokeDurable` używają osobnych
 katalogów i sprawdzają rzeczywiście wybrane ustawienia.
 
 ## Stan projektu i licencja
 
-Kampanie z 12–13 września przeszły 290 testów jednostkowych Behavior, 195 GameTestów
+Kampanie z 12–13 września przeszły 307 testów jednostkowych Behavior, 197 GameTestów
 Behavior i 132 Core, 24 żywe checkpointy zapisu/wczytania w osobnych JVM, 18 scenariuszy
 cyklu życia, 21 scenariuszy terenowych i 12 przypadków w prawdziwym kliencie.
 Pełna mieszana próba ukończyła 660 zadań ośmiu rodzin w 3641 sekundach aktywnej pracy;
 osobne pomiary nawigacji przeszły dla 1, 8, 32 i 64 NPC. Przeszły też uruchomienie
 trzech modów i kontrola dystrybucji. Poprawiony odczyt JSON odrzucił dziesięć błędnych
 reloadów bez przerwania aktywnej pracy. [Zakres dowodów](docs/VALIDATION.md)
-i [reguły wejścia JSON](docs/JSON_INPUT.md). Finalizacja publicznego API/katalogu
+i [reguły wejścia JSON](docs/JSON_INPUT.md). Typowane zlecanie zadań i pełny katalog parametrów operacji
 oraz osobny test skórek na dwóch uwierzytelnionych kontach pozostają otwarte.
 
 Wersja rozwojowa **0.1.0**. Repozytorium publikuje Behavior i przypina jego zależność Core;
@@ -329,3 +329,14 @@ nie zawiera opcjonalnego modułu LLM. Zgodność API i zaawansowane przypadki ro
 przedmiotem prac. Żaden zewnętrzny model nie otrzymuje obejścia walidacji paczek ani granicy akcji Core.
 
 [MIT](LICENSE). Projekt społecznościowy, niepowiązany oficjalnie z Mojang ani Microsoft.
+
+## Publiczne API nadzoru i tworzenie paczek
+
+API udostępnia opis 14 warunków i 23 akcji, ograniczoną walidację paczki, generowany
+schemat edytora, niemutowalny stan zadania, pause/resume/cancel oraz typowane korekty
+ilości, celu, źródeł i czasu. Sprawdza aktualnego gracza, zasięg, ID zadania i rewizje;
+ponowienie tej samej korekty nie powtarza jej efektu. Zapis zadań v9 migruje starsze
+rewizje sterowania. Typowane zlecanie i pełny katalog parametrów operacji pozostają
+otwarte; dotychczasowe komendy zadań działają. [API operacji](docs/OPERATION_API.md),
+[instrukcja autora](docs/BEHAVIOR_AUTHORING.md), [zakres testów](docs/VALIDATION.md).
+Te API nie włączają providera LLM.

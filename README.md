@@ -174,7 +174,7 @@ validated targets. Supported tactics include ranged equipment, shields and heali
 interrupt work and resume only after observing the current world. No action creates free supplies.
 
 One NPC has one primary task and at most two interruption frames. Manual pause freezes the budget
-and releases controls; reload/restart does not grant a fresh allowance. Task save format 8 migrates
+and releases controls; reload/restart does not grant a fresh allowance. Task save format 9 migrates
 earlier records and preserves rejected data with diagnostics. Persistent task storage is bounded
 to 4096 entries; full storage rejects a new entry explicitly.
 
@@ -279,7 +279,7 @@ accept Minecraft's EULA.
 GameTests use their own flat world in `run-gametest/`; ordinary dev worlds in `run/` are not reused.
 
 Unit tests cover pack validation, arbitration, navigation/elevation/work helpers, collection budgets,
-and saved-state migration. 195 dedicated GameTests exercise chest equipment, foliage clearance,
+and saved-state migration. 197 dedicated GameTests exercise chest equipment, foliage clearance,
 elevated work, wood/dirt/cobblestone scaffolds, pickup during placement, edge footing, nested recovery,
 complete cleanup, unsafe/deadline recovery and exact wood conservation. Flat-ground regressions
 also require real stump landings and scaffold descent before cutting the retained foundation.
@@ -307,20 +307,20 @@ New executable actions belong in Kotlin's registered handlers, not in pack data.
 `runClientTaskSmoke` covers durable wood gathering, three world reopens and real oak/dark-oak delivery.
 `runClientTaskCombatSmoke` covers interruption during approach, mining, partial transfer and a scaffold
 jump, then actual combat and resumed delivery. `runClientFollowSmoke` and `runClientRetaliationSmoke`
-exercise the corresponding physical policies. Current unit coverage is 290 Behavior tests; required
+exercise the corresponding physical policies. Current unit coverage is 307 Behavior tests; required
 runtime assertions remain enabled. GUI variants `runClientConfigSmokeBare` and
 `runClientConfigSmokeDurable` use separate directories and verify the actual selected settings.
 
 ## Project status and license
 
-The September 12–13 campaigns passed 290 Behavior units, 195 Behavior and 132 Core
+The September 12–13 campaigns passed 307 Behavior units, 197 Behavior and 132 Core
 GameTests, 24 live checkpoints saved/loaded in separate JVMs, 18 lifecycle scenarios,
 21 terrain cases and 12 real-client cases. A full mixed run completed 660 tasks across
 eight families in 3641 active seconds; separate navigation measurements passed at
 1, 8, 32 and 64 NPCs. Three-mod client/server and distribution checks also passed.
 The bounded JSON repair rejected ten invalid live reloads while preserving active work.
 See [validation scope](docs/VALIDATION.md) and [JSON input rules](docs/JSON_INPUT.md).
-Public operation API/catalog finalization and the separate two-authenticated-account
+Typed assignment/full operation parameter catalog and the separate two-authenticated-account
 skin proof remain open.
 
 Development version **0.1.0**. This repository publishes Behavior and pins its Core dependency;
@@ -328,3 +328,14 @@ it does not include the optional LLM module. API compatibility and advanced game
 development work. No external model can bypass pack validation or the Core action boundary.
 
 [MIT](LICENSE). A community project, not officially affiliated with Mojang or Microsoft.
+
+## Public supervision and pack authoring
+
+The public API now exposes 14 condition and 23 action descriptors, bounded candidate
+validation, generated editor schema, immutable task observations, pause/resume/cancel
+and typed quantity/destination/source/time corrections. Controls check current actor,
+range, task identity and revisions; replaying an amendment cannot repeat its effect.
+TaskStore v9 migrates older control revisions. Typed assignment and the complete
+operation parameter catalog remain pending; existing task commands are available.
+See [operation API](docs/OPERATION_API.md), [author guide](docs/BEHAVIOR_AUTHORING.md)
+and [validation scope](docs/VALIDATION.md). No LLM provider is enabled by these APIs.

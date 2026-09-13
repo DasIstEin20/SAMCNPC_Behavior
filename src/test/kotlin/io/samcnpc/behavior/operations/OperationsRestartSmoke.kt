@@ -93,6 +93,7 @@ object OperationsRestartSmoke {
             if(OperationCases.checkpoint(scene)) {
                 OperationAmendments.apply(scene,checkNotNull(actor))
                 check(TaskService.pause(server,scene.npcId).status == NpcActionStatus.SUCCEEDED)
+                check(scene.record.controlRevision >= 1L)
                 paused.add(scene.npcId)
                 logger.info("O4_CHECKPOINT kind={} remaining={} task={}",scene.kind,scene.record.primary.remainingTicks,scene.record.id)
             }
@@ -114,7 +115,7 @@ object OperationsRestartSmoke {
         check(oldActions.isNotEmpty())
         NbtIo.writeCompressed(root,expectedFile)
         actor?.close(); actor=null
-        complete(server,"checkpoints=${scenes.size} all_paused=true actual_world_saved=true old_actions=${oldActions.size}")
+        complete(server,"checkpoints=${scenes.size} all_paused=true control_revisions_persisted=true actual_world_saved=true old_actions=${oldActions.size}")
     }
     private fun loadTick(server: MinecraftServer) {
         if(!resumed) {
@@ -138,7 +139,10 @@ object OperationsRestartSmoke {
                 scene.requireReleased()
                 check(scene.npc.snapshot().recentCompletions.none { it.result.actionId in oldActions }) { "${scene.kind} restored a transient action receipt" }
                 OperationAmendments.replay(scene,checkNotNull(actor))
+                val savedControlRevision = wanted.getLong("controlRevision")
+                check(savedControlRevision >= 1 && scene.record.controlRevision == savedControlRevision)
                 check(TaskService.resume(server,scene.npcId).status == NpcActionStatus.SUCCEEDED)
+                check(scene.record.controlRevision == savedControlRevision + 1)
             }
             actor?.close(); actor=null; resumed=true
         }

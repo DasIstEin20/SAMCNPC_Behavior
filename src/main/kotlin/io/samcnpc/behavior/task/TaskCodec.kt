@@ -13,6 +13,7 @@ internal object TaskCodec {
         val tag = CompoundTag()
         tag.putUUID("npcUuid", record.npcUuid)
         tag.putUUID("taskId", record.id)
+        tag.putLong("controlRevision", record.controlRevision)
         tag.putString("status", record.status.name)
         tag.putString("reason", record.reason.name)
         tag.putString("detail", record.detail)
@@ -53,8 +54,15 @@ internal object TaskCodec {
         return tag
     }
 
-    fun read(tag: CompoundTag, sourceVersion: Int = 8): TaskRecord {
+    fun read(tag: CompoundTag, sourceVersion: Int = 9): TaskRecord {
         require(tag.hasUUID("npcUuid") && tag.hasUUID("taskId")) { "missing NPC/task UUID" }
+        val controlRevision = if (tag.contains("controlRevision")) {
+            require(tag.contains("controlRevision", Tag.TAG_LONG.toInt())) { "control revision must be a long" }
+            tag.getLong("controlRevision").also { require(it >= 0) { "negative control revision" } }
+        } else {
+            require(sourceVersion < 9) { "v9 task is missing control revision" }
+            0L
+        }
         val status = TaskStatus.entries.firstOrNull { it.name == tag.getString("status") } ?: errorValue("unknown task status")
         val reason = reason(tag)
         val reaction = if (tag.contains("reaction")) TaskReactionCodec.read(compound(tag, "reaction"), sourceVersion) else {
@@ -249,7 +257,7 @@ internal object TaskCodec {
         }
         require(status.terminal || logistics.outcomes.none { outcome -> frames.any { it.id == outcome.frameId } }) { "active inventory frame already has a final report" }
         return TaskRecord(tag.getUUID("npcUuid"), tag.getUUID("taskId"), frames, previous,
-            status, reason, detail, observed, failures, completed, reaction, lastCombat, amendments, logistics)
+            status, reason, detail, observed, failures, completed, reaction, lastCombat, amendments, logistics, controlRevision)
     }
 
     internal fun writeDefinition(definition: TaskDefinition): CompoundTag {

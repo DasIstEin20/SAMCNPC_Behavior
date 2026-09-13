@@ -55,6 +55,7 @@ object OperationsClientSmoke {
     private var stageTicks=0
     private var scene: OperationScene?=null
     private var tactical: OperationTacticalScene?=null
+    private var supervision: OperationSupervisionProbe?=null
     private var assigned=false
     private var result: String?=null
     private var completeTicks=0
@@ -115,7 +116,7 @@ object OperationsClientSmoke {
                 val origin=BlockPos(400+index%4*64,80,400+index/4*64)
                 val kind=kinds.getOrNull(index) ?: OperationKind.ATTACK
                 val next=OperationScene.create(server.overworld(),kind,origin)
-                scene=next; assigned=false; result=null; stageTicks=0; completeTicks=0
+                scene=next; assigned=false; result=null; stageTicks=0; completeTicks=0; supervision=null
                 tactical=if(index >= kinds.size) OperationTacticalScene(next,TacticalProbe.entries[index-kinds.size]) else null
                 player.setGameMode(GameType.SPECTATOR)
                 player.teleportTo(next.level,origin.x+10.5,origin.y+9.0,origin.z+16.5,0.0F,25.0F)
@@ -133,12 +134,14 @@ object OperationsClientSmoke {
                         if(!current.body.onGround()) return
                         OperationCases.prepare(current); assigned=true
                     }
+                    val probe=supervision ?: OperationSupervisionProbe(server,player,current.npcId).also { supervision=it }
+                    if(!probe.tick()) return
                     val record=current.record
                     check(record.status != TaskStatus.FAILED && record.status != TaskStatus.CANCELLED) { "${current.kind}: ${record.report()}" }
                     OperationResourceCases.advanceWorldInput(current)
                     if(record.status.terminal) {
                         OperationCases.verify(current)
-                        result="${current.kind} physical_effects=true remaining=${record.primary.remainingTicks} task=${record.id}"
+                        result="${current.kind} physical_effects=true public_controls=true public_amendments=true remaining=${record.primary.remainingTicks} task=${record.id}"
                     }
                 }
             }

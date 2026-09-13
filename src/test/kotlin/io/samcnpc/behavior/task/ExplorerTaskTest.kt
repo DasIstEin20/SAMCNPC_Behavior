@@ -95,7 +95,7 @@ class ExplorerTaskTest {
     }
     @Test fun legacyAndFutureFilesPreserveUninterpretableExplorerRecords() {
         val r=record()
-        for (version in listOf(7,9)) {
+        for (version in listOf(7,10)) {
             val file=file(r,version);val store=TaskStore.load(file)
             assertNull(store.get(r.npcUuid));assertNotNull(store.problemFor(r.npcUuid));assertEquals(file,store.save(CompoundTag()))
         }
@@ -107,6 +107,6 @@ class ExplorerTaskTest {
         r.advanceTime(251);r.pause()
         val store=TaskStore.load(file(r,7));val loaded=assertNotNull(store.get(r.npcUuid))
         assertEquals(TaskCodec.write(r),TaskCodec.write(loaded));assertEquals(749,loaded.primary.remainingTicks)
-        assertEquals(8,store.save(CompoundTag()).getInt("version"));assertNull(store.problemFor(r.npcUuid))
+        assertEquals(9,store.save(CompoundTag()).getInt("version"));assertNull(store.problemFor(r.npcUuid))
     }
 }

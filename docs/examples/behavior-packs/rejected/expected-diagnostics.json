@@ -1,0 +1,14 @@
+{
+  "unknown-action.json": [
+    "corpus:unknown_action: corpus:unknown_action rule[0] action[0]: unknown action 'samcnpc:execute_command'"
+  ],
+  "speed-too-small.json": [
+    "corpus:speed_0.09: corpus:speed_0.09 rule[0] action[0]: action 'samcnpc:move_to_summoner' follow speed must be in [0.1, 1.5]"
+  ],
+  "invalid-distance-relation.json": [
+    "corpus:related_distance: corpus:related_distance rule[0] action[0]: action 'samcnpc:move_to_summoner' follow startDistance must exceed stopDistance and be in [0.25, 32]"
+  ],
+  "missing-action-channel.json": [
+    "corpus:missing_action_channel: corpus:missing_action_channel rule[0] action[0]: action 'samcnpc:move_to_summoner' requests [MOVEMENT, LOOK] outside the pack channels"
+  ]
+}

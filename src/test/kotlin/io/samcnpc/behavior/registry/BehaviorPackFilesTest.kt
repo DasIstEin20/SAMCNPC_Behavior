@@ -25,6 +25,12 @@ class BehaviorPackFilesTest {
         Files.writeString(directory.resolve("excess.json"), "{}")
         val error = assertFailsWith<IOException> { BehaviorPackFiles.readExternal(root) }
         assertTrue("more than 64" in error.message.orEmpty())
+        Files.delete(directory.resolve("excess.json"))
+        // 64 JSON files plus the already present ignored file, then 959 more entries.
+        repeat(959) { index -> Files.createFile(directory.resolve("unfinished_" + index + ".tmp")) }
+        assertEquals(64, BehaviorPackFiles.readExternal(root).size)
+        Files.createFile(directory.resolve("one_more.tmp"))
+        assertTrue("exceeds 1024 entries" in assertFailsWith<IOException> { BehaviorPackFiles.readExternal(root) }.message.orEmpty())
     }
 
     @Test

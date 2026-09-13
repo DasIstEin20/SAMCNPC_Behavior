@@ -70,16 +70,24 @@ internal class TaskRecord(
     var lastCombat: TaskCombatOutcome? = null,
     val amendments: TaskAmendmentState = TaskAmendmentState(id),
     val logistics: TaskLogisticsState = TaskLogisticsState(),
+    controlRevision: Long = 0,
 ) {
+    var controlRevision: Long = controlRevision
+        private set
+
     val frames: MutableList<TaskFrame> = frames.toMutableList()
     val previousPacks: List<String> = java.util.List.copyOf(previousPacks)
     val active: TaskFrame get() = frames.last()
     val primary: TaskFrame get() = frames.first()
 
-    init { require(frames.size in 1..MAX_FRAMES) { "task must contain one primary and at most two interruptions" } }
+    init {
+        require(frames.size in 1..MAX_FRAMES) { "task must contain one primary and at most two interruptions" }
+        require(controlRevision >= 0) { "control revision must not be negative" }
+    }
 
     fun pause(): Boolean {
-        if (status.terminal || status == TaskStatus.PAUSED) return false
+        if (status.terminal || status == TaskStatus.PAUSED || controlRevision == Long.MAX_VALUE) return false
+        controlRevision++
         status = TaskStatus.PAUSED
         reason = TaskReason.USER_PAUSED
         detail = "paused; completed world effects are retained"
@@ -87,7 +95,8 @@ internal class TaskRecord(
     }
 
     fun resume(): Boolean {
-        if (status != TaskStatus.PAUSED) return false
+        if (status != TaskStatus.PAUSED || controlRevision == Long.MAX_VALUE) return false
+        controlRevision++
         status = active.status
         reason = TaskReason.USER_RESUMED
         detail = "resuming after fresh world observation"
@@ -241,6 +250,8 @@ internal class TaskRecord(
     fun finish(outcome: TaskStatus, why: TaskReason, message: String) {
         require(outcome.terminal)
         if (status.terminal) return
+        // Terminal state always permits cancellation, including at an exhausted revision.
+        if (controlRevision < Long.MAX_VALUE) controlRevision++
         for (frame in frames) {
             val inventory = frame.inventory ?: continue
             val definition = frame.definition as InventoryTaskDefinition

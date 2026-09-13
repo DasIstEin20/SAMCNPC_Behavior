@@ -1,0 +1,926 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samcnpc.invalid/schema/behavior-pack-registered-v1.json",
+  "title": "SAMCNPC registered behavior components v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "description",
+    "priority",
+    "channels",
+    "rules"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+      "maxLength": 128
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": -100000,
+      "maximum": 100000
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "movement",
+          "look",
+          "main_hand",
+          "off_hand",
+          "combat",
+          "interaction",
+          "block_action",
+          "inventory"
+        ]
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "priority",
+        "when",
+        "actions"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_.-]+$",
+          "maxLength": 96
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": -100000,
+          "maximum": 100000
+        },
+        "cooldownTicks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120000
+        },
+        "when": {
+          "$ref": "#/$defs/expr"
+        },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        }
+      }
+    },
+    "expr": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "test"
+          ],
+          "properties": {
+            "test": {
+              "$ref": "#/$defs/test"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all"
+          ],
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/expr"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "any"
+          ],
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "items": {
+                "$ref": "#/$defs/expr"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "not"
+          ],
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/expr"
+            }
+          }
+        }
+      ]
+    },
+    "test": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:always"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:distance_to_summoner"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "operator": {
+                  "description": "Compare the observed value with the supplied value.",
+                  "type": "string",
+                  "enum": [
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte",
+                    "eq"
+                  ]
+                },
+                "blocks": {
+                  "description": "Horizontal distance in blocks.",
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 256.0
+                }
+              },
+              "required": [
+                "operator",
+                "blocks"
+              ]
+            }
+          },
+          "required": [
+            "condition",
+            "args"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:has_attack_target"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:has_summoner"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:has_unhandled_damage"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:health_fraction"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "operator": {
+                  "description": "Compare the observed value with the supplied value.",
+                  "type": "string",
+                  "enum": [
+                    "gt",
+                    "gte",
+                    "lt",
+                    "lte",
+                    "eq"
+                  ]
+                },
+                "value": {
+                  "description": "Current health divided by maximum health.",
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0
+                }
+              },
+              "required": [
+                "operator",
+                "value"
+              ]
+            }
+          },
+          "required": [
+            "condition",
+            "args"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:summoner_online"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:target_alive"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:task_combat_ready"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:task_inventory_ready"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:task_inventory_requested"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:task_reaction_ready"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:task_ready"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "condition"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "condition": {
+              "const": "samcnpc:was_hurt_recently"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "withinTicks": {
+                  "description": "Elapsed game ticks since damage.",
+                  "type": "integer",
+                  "minimum": 1.0,
+                  "maximum": 120000.0
+                }
+              },
+              "required": [
+                "withinTicks"
+              ]
+            }
+          },
+          "required": [
+            "condition",
+            "args"
+          ]
+        }
+      ]
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:attack_target"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:begin_task_inventory"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:begin_task_reaction"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:clear_attack_target"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:look_at_summoner"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:look_at_target"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:move_to_summoner"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "speed": {
+                  "description": "Values above 1 request ordinary sprint; no hidden physics boost.",
+                  "type": "number",
+                  "minimum": 0.1,
+                  "maximum": 1.5
+                },
+                "stopDistance": {
+                  "description": "Horizontal stopping distance in blocks.",
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 16.0
+                },
+                "startDistance": {
+                  "description": "Horizontal distance needed to start following after stopping.",
+                  "type": "number",
+                  "minimum": 0.25,
+                  "maximum": 32.0,
+                  "x-samcnpc-default-from": {
+                    "parameter": "stopDistance",
+                    "offset": 2.0
+                  },
+                  "x-samcnpc-greater-than": "stopDistance"
+                }
+              },
+              "required": [
+                "speed",
+                "stopDistance"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "args"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:move_to_target"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "speed": {
+                  "description": "Values above 1 request ordinary sprint; no hidden physics boost.",
+                  "type": "number",
+                  "minimum": 0.1,
+                  "maximum": 1.5
+                },
+                "stopDistance": {
+                  "description": "Horizontal stopping distance in blocks.",
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 16.0
+                }
+              },
+              "required": [
+                "speed",
+                "stopDistance"
+              ]
+            }
+          },
+          "required": [
+            "action",
+            "args"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_combat_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_delivery_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_explorer_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_farm_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_fishing_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_food_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_inventory_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_lumberjack_demo"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_lumberjack_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_machine_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_mining_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_navigation_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:run_planting_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:set_attack_target_from_recent_attacker"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "leash": {
+                  "description": "Fixed retaliation pursuit radius in blocks.",
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 32.0,
+                  "default": 24.0
+                },
+                "durationTicks": {
+                  "description": "Original retaliation deadline in game ticks.",
+                  "type": "integer",
+                  "minimum": 20.0,
+                  "maximum": 2400.0,
+                  "default": 600.0
+                },
+                "allowPlayers": {
+                  "description": "Allow eligible players; summoner/friendly checks still apply.",
+                  "type": "boolean",
+                  "default": false
+                }
+              }
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
+              "const": "samcnpc:stop_movement"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        }
+      ]
+    }
+  },
+  "$comment": "Runtime additionally checks action channels, duplicate rule IDs, condition depth, related arguments, input byte/tree limits and reload/world context. Schema acceptance is not activation.",
+  "x-samcnpc-catalog-version": 1,
+  "x-samcnpc-definition-semantics-version": 1
+}

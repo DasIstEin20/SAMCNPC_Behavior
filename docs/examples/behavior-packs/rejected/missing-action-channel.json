@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "example:follow",
+  "description": "Follow using registered player-like movement.",
+  "priority": 0,
+  "channels": [
+    "movement"
+  ],
+  "rules": [
+    {
+      "id": "follow",
+      "priority": 0,
+      "when": {
+        "test": {
+          "condition": "samcnpc:has_summoner"
+        }
+      },
+      "actions": [
+        {
+          "action": "samcnpc:move_to_summoner",
+          "args": {
+            "speed": 1,
+            "stopDistance": 2
+          }
+        }
+      ]
+    }
+  ]
+}
