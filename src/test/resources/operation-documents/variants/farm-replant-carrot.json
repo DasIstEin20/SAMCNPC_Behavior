@@ -1,0 +1,41 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:farm",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "work": {
+      "area": {
+        "bounds": {
+          "min": {
+            "x": 0,
+            "y": 64,
+            "z": 0
+          },
+          "max": {
+            "x": 1,
+            "y": 64,
+            "z": 1
+          }
+        }
+      },
+      "crop": "CARROT",
+      "mode": "REPLANT"
+    },
+    "destinations": {
+      "positions": [
+        {
+          "x": 3,
+          "y": 64,
+          "z": 0
+        }
+      ]
+    },
+    "quantity": 16,
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    }
+  }
+}

@@ -1,3 +1,16 @@
+# Operation catalog validation — 2026-09-20
+
+Canonical L0 campaign: clean build, 388 units (45 Core/337 Behavior/6 LLM),
+208 required native Behavior tests, 12 actual client cases, both three-mod loading
+checks and Java17/source/distribution guards passed. Decoder admission case reached
+its navigation target; foreign actor and replay checks passed. 46 order documents
+and 276 independent Draft202012 validations cover the catalog and variants.
+
+Standalone checkout: clean build, 337 unit tests and exportOperationCatalog passed
+against Core 74d2ba9. This change adds metadata/strict document decoding; existing
+executors and persistence format are unchanged. Earlier campaigns below retain
+their original source scope and are not claimed as rerun in this milestone.
+
 # Validation scope — 2026-09-13
 
 Recorded campaigns below have distinct source scopes:

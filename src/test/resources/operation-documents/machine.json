@@ -1,0 +1,41 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:machine",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "feeds": [
+      {
+        "endpoint": {
+          "dimensionId": "minecraft:overworld",
+          "position": {
+            "x": 3,
+            "y": 64,
+            "z": 0
+          }
+        },
+        "slot": 0,
+        "itemId": "minecraft:iron_ore",
+        "quantity": 1
+      }
+    ],
+    "output": {
+      "endpoint": {
+        "dimensionId": "minecraft:overworld",
+        "position": {
+          "x": 3,
+          "y": 64,
+          "z": 0
+        }
+      },
+      "slot": 2,
+      "itemId": "minecraft:iron_ingot",
+      "quantity": 1
+    },
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    }
+  }
+}

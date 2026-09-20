@@ -44,8 +44,10 @@ internal class OperationSupervisionProbe(
         val body = checkNotNull(service.find(npcUuid)?.let(service::runtime)).snapshot()
         check(body.navigation == null && body.blockBreak == null && body.itemUse == null && body.rangedAttack == null)
         if (++heldTicks < 5) return false
+        val decoded = OperationDocumentApi.decodeChange("""{"documentVersion":1,"type":"EXTEND_TIME","parameters":{"ticks":20}}""")
+        check(decoded is OperationDocumentResult.Accepted) { decoded.toString() }
         val amendment = OperationAmendmentRequest(task.taskId, UUID.randomUUID(), task.definitionRevision,
-            observation.observedTick, observation.observedTick + 100, OperationChange.ExtendTime(20))
+            observation.observedTick, observation.observedTick + 100, decoded.value)
         val changed = OperationSupervisionApi.amend(server, actor, npcUuid, amendment)
         check(changed.result.status == NpcActionStatus.SUCCEEDED && changed.amendment?.outcome == OperationAmendmentOutcome.APPLIED) { changed.result.detail }
         val revised = checkNotNull(changed.observation)

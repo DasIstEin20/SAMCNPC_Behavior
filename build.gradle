@@ -599,3 +599,13 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
         if (!failures.isEmpty()) throw new GradleException("${failures.size()} required GameTest failure(s) despite runner exit: ${failures.first()}. See ${report}")
     }
 }
+
+// Generate author contracts from the same immutable descriptors as the runtime decoder.
+tasks.register('exportOperationCatalog', JavaExec) {
+    group = 'documentation'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.samcnpc.behavior.api.OperationCatalogExport'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    args layout.buildDirectory.dir('operation-contracts').get().asFile.absolutePath
+}

@@ -1,0 +1,28 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:patrol",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    },
+    "leash": 16,
+    "route": [
+      {
+        "x": 0,
+        "y": 64,
+        "z": 0
+      },
+      {
+        "x": 4,
+        "y": 64,
+        "z": 0
+      }
+    ],
+    "reaction": "SUPPORT",
+    "supportTargetUuid": "12345678-1234-5678-1234-567812345678"
+  }
+}

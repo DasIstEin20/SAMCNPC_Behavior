@@ -1,0 +1,24 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:fish",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "water": {
+      "x": 3,
+      "y": 64,
+      "z": 0
+    },
+    "standing": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    },
+    "catches": 1,
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    }
+  }
+}

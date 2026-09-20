@@ -1,0 +1,14 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:attack",
+  "definitionVersion": 2,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "targetUuid": "12345678-1234-5678-1234-567812345678",
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    }
+  }
+}

@@ -2,8 +2,8 @@
 
 Component catalog and candidate validation passed P11 Q. Observation/control is
 verified in R3; typed amendments and generated schema in S. Validation covers native
-world effects and actual client use. All sixteen typed assignment families passed grouped campaigns W/X/Y. The full operation catalog remains incomplete;
-these Kotlin APIs do not define or start a remote HTTP provider.
+world effects and actual client use. All sixteen typed assignment families passed grouped campaigns W/X/Y. A complete operation parameter catalog and strict definition-document decoder were added
+on 2026-09-20; grouped clean, native, real-client and three-mod loading verification passed. These APIs do not start a provider.
 
 ## Components and candidate packs
 
@@ -73,13 +73,13 @@ terminal cancellation still works without wraparound.
 
 These APIs expose no task executor, mutable NBT, Core action handles, command dispatcher,
 script target or direct world mutation. They do not start an LLM provider or network
-request. Assignment covers the sixteen families below; the full parameter catalog remains
-pending P11 work.
+request. Assignment covers the sixteen families below. The new operation catalog and
+definition document format are described below; authority remains in this gateway.
 Existing manual operation commands remain available.
 
 See [ADR 0076](adr/0076-immutable-component-catalog.md),
 [ADR 0077](adr/0077-versioned-operation-supervision.md) and
-[behavior pack authoring](BEHAVIOR_AUTHORING.md).
+[behavior pack authoring](BEHAVIOR_PACKS.md).
 
 
 ## Typed corrections and receipts
@@ -145,9 +145,9 @@ These types are immutable data. Container choices and machine feeds copy and bou
 input lists. Validation preserves the existing operation-specific ranges and relationships;
 it does not promise that a machine exists, stock is available, or a route remains safe.
 `OperationType` exposes the stable operation ID and definition version for all sixteen types.
-The full machine-readable operation parameter catalog is still pending. Behavior component
-metadata and its registered JSON schema cover behavior-pack conditions/actions, not a
-JSON serializer for these operation orders.
+OperationCatalogApi exposes the full machine-readable operation parameter catalog.
+OperationDocumentApi decodes these order/change documents. Behavior component metadata
+and its registered JSON schema separately cover behavior-pack conditions/actions.
 
 Observe before assigning. Use `observation.task?.taskId` as `expectedPriorTaskId` and the
 NPC's observed game tick to form `issuedTick`/`expiresTick` with a lifetime of 1..1200 ticks.
@@ -213,3 +213,71 @@ boundary are not provided. Existing tasks continue according to their own task b
 See [ADR 0081](adr/0081-public-combat-and-inventory-orders.md),
 [ADR 0082](adr/0082-public-harvest-order-boundary.md) and
 [ADR 0083](adr/0083-public-operation-policy-amendments.md).
+
+## Operation catalog and JSON definition documents (L0)
+
+`OperationCatalogApi.snapshot()` returns one cached immutable catalog, version 1.
+It includes all sixteen `OperationType` identities/definition versions, nested parameter
+types, bounded lists, units, defaults, field relations, completion bases and candidate
+amendment kinds. The task-state and reason vocabularies use the current runtime enums.
+See [the audit](OPERATION_CATALOG_AUDIT.md) and [ADR 0086](adr/0086-operation-catalog-and-definition-documents.md).
+
+`OperationDocumentApi.catalogJson()`, `orderSchema()` and `changeSchema()` return cached
+strings. Generate author artifacts with `gradlew.bat :samcnpc-behavior:exportOperationCatalog`
+(or `gradlew.bat exportOperationCatalog` in the standalone Behavior checkout).
+Files appear under `build/operation-contracts/` in that module.
+
+An order definition has four fields:
+
+```json
+{
+  "documentVersion": 1,
+  "type": "samcnpc:deliver",
+  "definitionVersion": 2,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "destination": {"x": 3, "y": 64, "z": 0},
+    "itemId": "minecraft:cobblestone",
+    "quantity": 32,
+    "anchor": {"x": 0, "y": 64, "z": 0}
+  }
+}
+```
+
+`decodeOrder(json)` returns `OperationDocumentResult.Accepted<OperationOrder>` or a
+bounded `Rejected(code, detail)`. This only validates a definition. Bind a real current
+actor/NPC and the observed task/expiry envelope before calling `assign`; no such
+identity or authority is accepted from this document. There is no automatic disk
+loader or network endpoint for orders. Decode at an input boundary, never per NPC tick.
+
+A change uses the same document version and an uppercase change discriminator:
+
+```json
+{"documentVersion":1,"type":"EXTEND_TIME","parameters":{"ticks":1200}}
+```
+
+`decodeChange(json)` returns a typed `OperationChange` after the established semantic
+checks for that change. It does not promise compatibility with the current task:
+`amend` still enforces its revisions, expiry, operation-specific restrictions, receipts,
+safe work boundary, history limits and world observations. REPLACE embeds a complete
+order document, retains the operation family/dimension and cannot reset retry budgets.
+
+All objects reject unknown/duplicate keys; integers are checked without rounding.
+Input is at most 64 KiB UTF-8 and reuses the bounded pack lexical parser (depth 32,
+16384 nodes, strings at most 512 code points, numeric tokens at most 64 characters).
+Null is accepted only where advertised. Optional compound fields normalize their
+listed defaults; explicit null is distinct from omission. Fish returnTo defaults to
+anchor but may explicitly be null. Missing defense budget defaults to dutyTicks+400;
+an explicitly supplied budget object uses its own listed defaults.
+
+Schemas are structural Draft 2020-12 documents. `x-unit`, `x-defaultFrom` and
+`x-semanticRelations` are data annotations, not an executable expression language.
+Use the runtime decoder/validateOrder for geometry, totals, method-dependent fields,
+resource relationships and other semantics. Assignment additionally checks the world.
+A successful generic schema validation does not mean a resource exists, a chest is
+available or a player is permitted to assign work.
+
+The author corpus contains one document for each family and thirty explicit variants
+under `src/test/resources/operation-documents/` in the Behavior module. These are
+finite examples, not world fixtures or automatic commands. No source position or
+resource should be treated as an observation of the player's actual world.

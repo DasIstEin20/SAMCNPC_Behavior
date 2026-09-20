@@ -1,0 +1,13 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:navigate",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "destination": {
+      "x": 5,
+      "y": 64,
+      "z": 0
+    }
+  }
+}

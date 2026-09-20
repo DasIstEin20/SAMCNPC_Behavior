@@ -1,0 +1,49 @@
+{
+  "documentVersion": 1,
+  "type": "samcnpc:food",
+  "definitionVersion": 1,
+  "parameters": {
+    "dimensionId": "minecraft:overworld",
+    "work": {
+      "kind": "HUNT",
+      "area": {
+        "bounds": {
+          "min": {
+            "x": 0,
+            "y": 64,
+            "z": 0
+          },
+          "max": {
+            "x": 1,
+            "y": 64,
+            "z": 1
+          }
+        }
+      },
+      "targets": {
+        "typeIds": [
+          "minecraft:cow"
+        ]
+      }
+    },
+    "outputs": [
+      "minecraft:apple"
+    ],
+    "destinations": {
+      "positions": [
+        {
+          "x": 3,
+          "y": 64,
+          "z": 0
+        }
+      ]
+    },
+    "quantity": 16,
+    "keepFood": 4,
+    "anchor": {
+      "x": 0,
+      "y": 64,
+      "z": 0
+    }
+  }
+}
