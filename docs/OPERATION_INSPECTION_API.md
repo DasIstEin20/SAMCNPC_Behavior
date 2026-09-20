@@ -44,9 +44,14 @@ inspection performs no world scan. The overload accepting OperationWorldRequest
 explicitly captures bounded visual facts after the same actor authorization;
 see [Visual observations](VISUAL_OBSERVATIONS.md). It never exposes nearby
 container inventories. [On-demand event/failure journals](OPERATION_EVENTS.md) are available.
-The final LLM ContextBuilder remains unfinished.
+The LLM ContextBuilder is documented in LLM_CONTEXT.md.
 Raw human action/task diagnostics can contain foreign reservation coordinates
 and must not be forwarded to the model.
 
 Decision: [ADR 0090](adr/0090-authorized-operation-inspection.md).
 Validation status and exact runtime evidence are recorded in PROJECT_STATE.md.
+
+A separate opt-in `OperationStockApi.inspect(...)` projects one exact-item count
+from a visible reachable vanilla chest through the same authority checks. Unknown
+is not zero, and ordinary inspection still performs no stock read. See
+[Stock observation](STOCK_OBSERVATION.md) for scope, restrictions and verification.

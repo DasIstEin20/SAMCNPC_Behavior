@@ -1,3 +1,20 @@
+# Verified visible stock observation — 2026-09-20
+
+Core now provides an explicit one-item stock sensor for visible reachable vanilla
+normal/trapped single/double chests. It refuses locks/ungenerated loot, unknown
+chunks and unsupported containers, and never generates loot via getItem. Behavior
+projects the read through current summoner/operator, range and dimension checks.
+No automatic inventory scan or Supervisor runtime is enabled by this API alone.
+
+Evidence: stock-evidence.json; clean build, 493 units (Core49/Behavior364/LLM80),
+146 Core and 215 Behavior native cases, Core animation client, config GUI, dedicated
+and integrated client with five stock reads after real deliveries on each side.
+All 816 frozen source/build hashes and boundary/three-JAR guards PASS. Raw NBT stays
+inside Core; serialization cost depends on existing item tags and must be considered
+when scheduling explicit reads. See docs/STOCK_OBSERVATION.md and ADR0098.
+LLM plan remains 23/36; next is the Supervisor runtime. Real model tests remain
+USER_DEFERRED and authenticated skins MANUAL_PENDING/nonblocking.
+
 # Exact amendment receipts — verified 2026-09-20
 
 OperationSupervisionApi.amendmentReceipt reads the exact original payload's existing

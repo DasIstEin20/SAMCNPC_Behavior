@@ -42,3 +42,7 @@ compute age from their current game clock, account for lifecycle generations and
 reobserve stale facts before a new effect. No observation authorizes an operation.
 
 Decision: ADR 0091. Exact test evidence is recorded in PROJECT_STATE.md.
+
+The separate opt-in `observeVisibleStock` sensor can count one specified item in a
+reachable visible vanilla chest. It does not change visual block/entity projections
+or enable an implicit inventory scan. See [Stock observation](STOCK_OBSERVATION.md).
