@@ -13,7 +13,8 @@ The version-1 inspection contains:
 - copied own-body health/effects, all 36 inventory slots and separate equipment;
 - the existing task observation, with IDs, revisions, budgets and frame ordering;
 - actual definition parameters for each of at most three frames;
-- measured progress, or explicit NotInitialized when no measurement exists.
+- measured progress, or explicit NotInitialized when no measurement exists;
+- per-frame accounting and own work reservations ([Resource inspection](RESOURCE_INSPECTION.md)).
 
 All capture happens on the server thread. Collections and nested semantic sets
 are detached/unmodifiable. Action result text is limited to 256 characters and
@@ -42,7 +43,7 @@ inspection performs no world scan. The overload accepting OperationWorldRequest
 explicitly captures bounded visual facts after the same actor authorization;
 see [Visual observations](VISUAL_OBSERVATIONS.md). It never exposes nearby
 container inventories. Generic event/failure journals, lifecycle generations,
-resources and the final LLM ContextBuilder remain separate unfinished L1 work.
+and the final LLM ContextBuilder remain separate unfinished L1 work.
 
 Decision: [ADR 0090](adr/0090-authorized-operation-inspection.md).
 Validation status and exact runtime evidence are recorded in PROJECT_STATE.md.

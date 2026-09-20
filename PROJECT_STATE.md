@@ -1,3 +1,14 @@
+# Own accounting and reservations — 2026-09-20
+
+The authorized inspection projects per-item physical/produced/transport/legacy
+accounting with uncertainty, plus own queued/held harvest/container reservations.
+It does not reconcile ledgers, advance arbitration, renew leases or reveal
+container stock/another NPC's coordination. Canonical clean build passed 418
+units, 210 Behavior native cases, 12 actual client operations and both three-mod
+smokes; all 737 frozen source/build hashes match. Core remains unchanged.
+Standalone Behavior clean build and all 352 units passed; publication sources
+match the frozen resource campaign. Evidence: docs/RESOURCE_VALIDATION.json. See docs/RESOURCE_INSPECTION.md.
+
 # Verified opt-in visual inspection — 2026-09-20
 
 Authorized public inspection can explicitly request bounded real-eye entity and

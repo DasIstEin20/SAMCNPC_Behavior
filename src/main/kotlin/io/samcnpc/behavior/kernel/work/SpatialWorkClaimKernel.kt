@@ -56,6 +56,23 @@ internal class SpatialWorkClaimKernel(
         return true
     }
 
+    /** Inspection never calls advance(): reading cannot arbitrate, renew or release another actor's lease. */
+    fun inspect(npcUuid: UUID, gameTime: Long): List<SpatialWorkReservation> {
+        val previousTick = lastTick ?: return emptyList()
+        if (gameTime < 0 || gameTime < previousTick) return emptyList()
+        val result = mutableListOf<SpatialWorkReservation>()
+        val claim = claims[npcUuid]
+        if (claim != null && claim.expires > gameTime) {
+            result.add(SpatialWorkReservation.Held(claim.task, claim.key.dimension, claim.key.anchor, claim.expires))
+        }
+        val request = requests[npcUuid]
+        if (request != null && gameTime - request.lastTick <= leaseTicks) {
+            result.add(SpatialWorkReservation.Requested(request.task, request.key.dimension, request.key.anchor,
+                request.firstTick, request.lastTick))
+        }
+        return java.util.List.copyOf(result)
+    }
+
     fun release(npcUuid: UUID, taskId: UUID? = null) {
         if (taskId == null || claims[npcUuid]?.task == taskId) removeClaim(npcUuid)
         if (taskId == null || requests[npcUuid]?.task == taskId) requests.remove(npcUuid)

@@ -17,6 +17,7 @@ internal object ContainerStepReservations {
         try { return ContainerTransferKernel.transfer(npc, world, position, itemId, count, direction, inventorySlot, containerSlot) }
         finally { claims.release(npc.npcUuid, taskId) }
     }
+    fun inspect(npcUuid: UUID, gameTime: Long) = claims.inspect(npcUuid, gameTime)
     fun release(npcUuid: UUID) = claims.release(npcUuid)
     fun clear() = claims.clear()
 }

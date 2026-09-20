@@ -42,6 +42,7 @@ internal class OperationSupervisionProbe(
             check(inspection.operation.task?.taskId == task.taskId)
             check(inspection.frames.map { it.frameId } == task.frames.map { it.frameId })
             for ((index, frame) in inspection.frames.withIndex()) {
+                verifyAccounting(frame)
                 check(frame.definition.operationId == task.frames[index].operationId)
                 check(frame.definition.definitionVersion == task.frames[index].definitionVersion)
                 check(frame.definition.parameters.fields["dimensionId"] == OperationValue.Text(observation.dimensionId))
@@ -80,6 +81,26 @@ internal class OperationSupervisionProbe(
         check(conflict.observation?.task?.frames == expectedFrames)
         complete = true
         return true
+    }
+
+    private fun verifyAccounting(frame: OperationFrameInspection) {
+        val withoutLedger = setOf("samcnpc:navigate", "samcnpc:explore", "samcnpc:attack", "samcnpc:defend",
+            "samcnpc:attack_area", "samcnpc:patrol")
+        if (frame.definition.operationId in withoutLedger) {
+            check(frame.resources == OperationResourceInspection.NotTracked)
+            return
+        }
+        val resources = frame.resources
+        check(resources is OperationResourceInspection.Checkpoint)
+        check(resources.items.size <= 64)
+        for (item in resources.items) {
+            check(item.counters.all { it.unit == OperationCountUnit.ITEMS })
+            if (resources.kind == OperationResourceLedgerKind.PHYSICAL || resources.kind == OperationResourceLedgerKind.PRODUCED) {
+                val counts = item.counters.associate { it.name to it.value }
+                check(counts.getValue("initial") + counts.getValue("gathered") + counts.getValue("supplied") ==
+                    counts.getValue("retained") + counts.getValue("consumed") + counts.getValue("delivered") + counts.getValue("lost"))
+            }
+        }
     }
 
     private fun request(observation: OperationObservation, control: OperationControl): OperationControlRequest {

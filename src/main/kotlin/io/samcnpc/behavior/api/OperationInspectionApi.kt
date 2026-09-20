@@ -27,7 +27,10 @@ class OperationInspection internal constructor(
     frames: List<OperationFrameInspection>,
     /** Null means not requested; no implicit scan occurs during ordinary inspection. */
     val world: OperationWorldInspection?,
+    reservations: List<OperationWorkReservation>,
 ) {
+    val reservations: List<OperationWorkReservation> = java.util.List.copyOf(reservations)
+    init { require(this.reservations.size <= 4) }
     val version: Int get() = OperationInspectionApi.VERSION
     val frames: List<OperationFrameInspection> = java.util.List.copyOf(frames)
 }
@@ -35,4 +38,5 @@ class OperationFrameInspection internal constructor(
     val frameId: UUID,
     val definition: OperationDefinitionSnapshot,
     val progress: OperationProgress,
+    val resources: OperationResourceInspection,
 )

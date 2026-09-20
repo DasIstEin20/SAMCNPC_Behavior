@@ -30,10 +30,11 @@ internal object TaskInspections {
                 val terminalCombat = if (record != null && frame === record.primary && record.status.terminal) record.lastCombat else null
                 val definition = TaskDefinitionInspections.capture(frame.definition)
                 val progress = TaskProgressInspections.capture(frame, terminalCombat)
-                frames.add(OperationFrameInspection(frame.id, definition, progress))
+                frames.add(OperationFrameInspection(frame.id, definition, progress, TaskResourceInspections.capture(frame)))
             }
             val world = if (worldRequest == null) null else TaskWorldInspections.capture(npc, copied, worldRequest)
-            inspection = OperationInspection(copied, body, checkNotNull(observed.observation), frames, world)
+            val reservations = TaskReservationInspections.capture(npcUuid, physical.gameTime)
+            inspection = OperationInspection(copied, body, checkNotNull(observed.observation), frames, world, reservations)
             observed
         }
         return OperationInspectionReply(reply.result, inspection)
