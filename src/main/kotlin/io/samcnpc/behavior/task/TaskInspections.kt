@@ -2,6 +2,7 @@ package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.api.*
 import io.samcnpc.behavior.observation.OperationGenerationRegistry
+import io.samcnpc.behavior.observation.OperationSubscriptions
 import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.core.api.*
 import net.minecraft.server.MinecraftServer
@@ -42,7 +43,8 @@ internal object TaskInspections {
             }
             val world = if (worldRequest == null) null else TaskWorldInspections.capture(npc, copied, worldRequest)
             val reservations = TaskReservationInspections.capture(npcUuid, physical.gameTime)
-            inspection = OperationInspection(copied, body, generations, checkNotNull(observed.observation), frames, world, reservations)
+            inspection = OperationInspection(copied, body, generations, checkNotNull(observed.observation),
+                OperationSubscriptions.read(npcUuid, generations), frames, world, reservations)
             observed
         }
         return OperationInspectionReply(reply.result, inspection)

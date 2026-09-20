@@ -25,6 +25,7 @@ class OperationInspection internal constructor(
     val body: NpcBodyInspection,
     val generations: OperationGenerations,
     val operation: OperationObservation,
+    val journal: OperationJournalState,
     frames: List<OperationFrameInspection>,
     /** Null means not requested; no implicit scan occurs during ordinary inspection. */
     val world: OperationWorldInspection?,

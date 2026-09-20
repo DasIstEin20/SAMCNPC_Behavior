@@ -1,6 +1,6 @@
 # ADR 0093: Observation lifetimes and on-demand Behavior events
 
-Date: 2026-09-20. Status: generations accepted and verified; on-demand events proposed/in progress.
+Date: 2026-09-20. Status: accepted; generations and on-demand events verified.
 
 Late external decisions need more than a game tick or inventory-load UUID.
 An authorized inspection should include independent server-session, successful
@@ -15,7 +15,7 @@ an Entity, Level, ServerPlayer or facade. Callback records are removed on close,
 authority loss, unload, successful reload and server stop. No invalidated callback
 runs later. Consumers can observe closure and request a new authorized subscription.
 
-Only watched NPCs need an event journal: proposed limits 128 subscriptions,
+Only watched NPCs need an event journal: limits 128 subscriptions,
 four per NPC, 32 retained entries per journal and bounded delivery batches.
 An ordinary non-subscribed inspection reports that history was not recorded;
 it must not pretend an empty journal proves an absence of earlier failures.

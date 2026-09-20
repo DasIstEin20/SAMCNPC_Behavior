@@ -14,6 +14,8 @@ internal class OperationSupervisionProbe(
 ) {
     private var before: OperationTaskSnapshot? = null
     private var generations: OperationGenerations? = null
+    private var subscription: OperationSubscription? = null
+    private val eventBatches = mutableListOf<OperationEventBatch>()
     private var heldTicks = 0
     var complete = false
         private set
@@ -49,6 +51,8 @@ internal class OperationSupervisionProbe(
                 check(frame.definition.definitionVersion == task.frames[index].definitionVersion)
                 check(frame.definition.parameters.fields["dimensionId"] == OperationValue.Text(observation.dimensionId))
             }
+            check(inspection.journal == OperationJournalState.NotRecorded)
+            subscription = checkNotNull(OperationEventApi.subscribe(server, actor, npcUuid) { eventBatches.add(it) }.subscription)
             before = task
             val paused = OperationSupervisionApi.control(server, actor, npcUuid, request(observation, OperationControl.PAUSE))
             check(paused.result.status == NpcActionStatus.SUCCEEDED) { paused.result.detail }
@@ -65,6 +69,12 @@ internal class OperationSupervisionProbe(
         if (++heldTicks < 5) return false
         val current = checkNotNull(OperationInspectionApi.inspect(server, actor, npcUuid).inspection)
         check(current.generations == generations) { "Ordinary ticks/control revisions changed body lifetime" }
+        check(checkNotNull(subscription).state == OperationSubscriptionState.ACTIVE)
+        check(current.journal is OperationJournalState.Recorded)
+        val events = eventBatches.flatMap { it.journal.events }
+        check(events.count { it.kind == OperationEventKind.CONTROL_CHANGED } == 1)
+        check(events.none { it.kind.decisionBoundary })
+        check(eventBatches.all { it.generations == current.generations && it.npcUuid == npcUuid })
         val decoded = OperationDocumentApi.decodeChange("""{"documentVersion":1,"type":"EXTEND_TIME","parameters":{"ticks":20}}""")
         check(decoded is OperationDocumentResult.Accepted) { decoded.toString() }
         val amendment = OperationAmendmentRequest(task.taskId, UUID.randomUUID(), task.definitionRevision,
@@ -83,6 +93,8 @@ internal class OperationSupervisionProbe(
         val conflict = OperationSupervisionApi.amend(server, actor, npcUuid, amendment.copy(change = OperationChange.ExtendTime(21)))
         check(conflict.result.code == NpcActionCode.CONFLICT && conflict.amendment == null)
         check(conflict.observation?.task?.frames == expectedFrames)
+        check(OperationEventApi.unsubscribe(server, checkNotNull(subscription)).status == NpcActionStatus.SUCCEEDED)
+        check(checkNotNull(subscription).state == OperationSubscriptionState.UNSUBSCRIBED)
         complete = true
         return true
     }

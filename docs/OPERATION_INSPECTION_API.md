@@ -43,7 +43,8 @@ evidence, not a fresh observation of an old location. The ordinary three-argumen
 inspection performs no world scan. The overload accepting OperationWorldRequest
 explicitly captures bounded visual facts after the same actor authorization;
 see [Visual observations](VISUAL_OBSERVATIONS.md). It never exposes nearby
-container inventories. Generic event/failure journals and the final LLM ContextBuilder remain unfinished.
+container inventories. [On-demand event/failure journals](OPERATION_EVENTS.md) are available.
+The final LLM ContextBuilder remains unfinished.
 Raw human action/task diagnostics can contain foreign reservation coordinates
 and must not be forwarded to the model.
 

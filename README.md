@@ -351,3 +351,5 @@ and [validation scope](docs/VALIDATION.md). These APIs do not start an LLM provi
 complete operation parameter discovery and [detailed inspection](docs/OPERATION_INSPECTION_API.md) are available.
 
 Observation generations verified (2026-09-20): 357 standalone unit tests; canonical 423 units, 211 Behavior Forge tests, 12 client scenarios (9 generation probes), three-mod client/dedicated smokes. [Contract](docs/OBSERVATION_GENERATIONS.md), [evidence](docs/LIFETIME_VALIDATION.json). Event subscriptions and LLM ContextBuilder remain unfinished.
+
+2026-09-20: On-demand event subscriptions/journals verified. Standalone364 units; canonical430 units,214 Forge,12 client cases(9 event probes),actual dedicated shutdown closure. [Contract](docs/OPERATION_EVENTS.md), [evidence](docs/EVENTS_VALIDATION.json).

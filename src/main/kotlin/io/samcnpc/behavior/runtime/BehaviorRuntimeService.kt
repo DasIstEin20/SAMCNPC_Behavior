@@ -1,6 +1,11 @@
 package io.samcnpc.behavior.runtime
 
 import io.samcnpc.behavior.observation.OperationGenerationRegistry
+import io.samcnpc.behavior.observation.OperationSubscriptions
+import io.samcnpc.behavior.api.OperationSubscriptionState
+import net.minecraftforge.event.TickEvent
+import net.minecraftforge.event.entity.player.PlayerEvent
+import net.minecraftforge.eventbus.api.EventPriority
 
 import io.samcnpc.behavior.api.ValidationReport
 import io.samcnpc.behavior.lumberjack.LumberjackService
@@ -66,6 +71,7 @@ object BehaviorRuntimeService {
         if (result.activated) {
             activeRegistry.set(result.snapshot)
             observationLifetimes.registryChanged()
+            OperationSubscriptions.clear(OperationSubscriptionState.REGISTRY_RELOADED)
             if (server != null) {
                 for (npcUuid in runtimes.keys.toList()) invalidate(server, npcUuid)
             }
@@ -213,8 +219,19 @@ object BehaviorRuntimeService {
         runtime.metrics.finish(decision, started)
     }
 
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    fun observationTick(event: TickEvent.ServerTickEvent) {
+        if (event.phase == TickEvent.Phase.END) OperationSubscriptions.tick(event.server)
+    }
+
+    @SubscribeEvent
+    fun actorLogout(event: PlayerEvent.PlayerLoggedOutEvent) {
+        OperationSubscriptions.closeActor(event.entity.uuid)
+    }
+
     @SubscribeEvent
     fun remove(event: NpcRemovedEvent) {
+        OperationSubscriptions.closeNpc(event.handle.npcUuid, OperationSubscriptionState.NPC_UNAVAILABLE)
         observationLifetimes.remove(event.handle.npcUuid)
         BehaviorPlanning.release(event.handle.npcUuid)
         runtimes.remove(event.handle.npcUuid)
@@ -227,6 +244,7 @@ object BehaviorRuntimeService {
 
     @SubscribeEvent
     fun serverStarted(event: ServerStartedEvent) {
+        OperationSubscriptions.clear(OperationSubscriptionState.SERVER_STOPPED)
         activeServer = event.server
         observationLifetimes.begin()
         // A mod constructor can run before userdev establishes its final game/resource paths.
@@ -237,6 +255,7 @@ object BehaviorRuntimeService {
 
     @SubscribeEvent
     fun stop(event: ServerStoppingEvent) {
+        OperationSubscriptions.clear(OperationSubscriptionState.SERVER_STOPPED)
         observationLifetimes.clear()
         for (npcUuid in runtimes.keys.toList()) invalidate(event.server, npcUuid)
         runtimes.clear()

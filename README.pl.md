@@ -352,3 +352,5 @@ i [zakres testów](docs/VALIDATION.md). API nie włącza providera LLM;
 pełny katalog parametrów oraz [szczegółowa inspekcja](docs/OPERATION_INSPECTION_API.md) są dostępne.
 
 Observation generations verified (2026-09-20): 357 standalone unit tests; canonical 423 units, 211 Behavior Forge tests, 12 client scenarios (9 generation probes), three-mod client/dedicated smokes. [Contract](docs/OBSERVATION_GENERATIONS.md), [evidence](docs/LIFETIME_VALIDATION.json). Event subscriptions and LLM ContextBuilder remain unfinished.
+
+2026-09-20: Zweryfikowano subskrypcje i dziennik zdarzeń. Repo:364 testy jednostkowe; pełny projekt:430 unit,214 Forge,12 scenariuszy klienta(9 prób zdarzeń), zamknięcie subskrypcji przy rzeczywistym stopie serwera. [Kontrakt](docs/OPERATION_EVENTS.md), [dowody](docs/EVENTS_VALIDATION.json).
