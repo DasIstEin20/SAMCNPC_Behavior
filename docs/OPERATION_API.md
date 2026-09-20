@@ -288,3 +288,16 @@ OperationInspectionApi captures own-body details, actual versioned task paramete
 and measured family progress under the same actor authorization. See
 [operation inspection](OPERATION_INSPECTION_API.md); no world object or executor
 handle crosses that boundary. World sensors and event journals are separate work.
+
+## Read-only exact amendment receipts (2026-09-20)
+
+
+Use OperationSupervisionApi.amendmentReceipt(server, actor, npcUuid, originalRequest)
+to query an existing outcome. This uses the same connected-player, summoner/operator,
+dimension, distance and loaded-NPC checks. It compares the entire original payload,
+including actor, task/request UUIDs, revision and both timestamps. PENDING, APPLIED,
+REJECTED and EXPIRED remain distinct. No matching receipt returns NOT_FOUND with
+amendment=null and does not submit the request. Current task observations remain
+available to an authorized caller; they do not substitute for historical receipts.
+This is useful after a lost reply without risking a previously unsubmitted amendment.
+Assignment and control still do not expose historical exactly-once receipts.

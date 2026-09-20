@@ -113,6 +113,11 @@ object TaskAmendmentGameTests {
                     TaskChange.Redirect(ContainerChoices(listOf(pos(second)))))
                 val reply = publicReply(server, npc, actor.player, short)
                 check(reply.result.status == NpcActionStatus.SUCCEEDED && reply.amendment?.outcome == OperationAmendmentOutcome.PENDING)
+                val beforeRead = TaskCodec.write(record)
+                val lookup = OperationSupervisionApi.amendmentReceipt(server, actor.player, npc.npcUuid,
+                    OperationAmendmentRequest(short.taskId, short.requestId, short.expectedRevision,
+                        short.issuedTick, short.expiresTick, OperationChange.Recipients(OperationContainers(listOf(pos(second))))))
+                check(lookup.amendment == reply.amendment && TaskCodec.write(record) == beforeRead)
                 expiring = short
             }
             val expiredRequest = expiring
@@ -120,6 +125,11 @@ object TaskAmendmentGameTests {
                 val replay = publicReply(server, npc, actor.player, expiredRequest)
                 check(replay.result.status == NpcActionStatus.SUCCEEDED && replay.amendment?.outcome == OperationAmendmentOutcome.EXPIRED)
                 check(record.amendments.revision == 0 && (record.primary.definition as LumberjackTaskDefinition).destination == pos(first))
+                val beforeRead = TaskCodec.write(record)
+                val lookup = OperationSupervisionApi.amendmentReceipt(server, actor.player, npc.npcUuid,
+                    OperationAmendmentRequest(expiredRequest.taskId, expiredRequest.requestId, expiredRequest.expectedRevision,
+                        expiredRequest.issuedTick, expiredRequest.expiresTick, OperationChange.Recipients(OperationContainers(listOf(pos(second))))))
+                check(lookup.amendment == replay.amendment && TaskCodec.write(record) == beforeRead)
                 expiryVerified = true
             }
             if (!queued && expiryVerified && state.job.pillarSession?.placedPositions?.isNotEmpty() == true) {

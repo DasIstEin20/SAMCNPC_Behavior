@@ -1,6 +1,8 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.api.*
+import io.samcnpc.core.api.NpcActionResult
+import io.samcnpc.core.api.NpcActionCode
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import java.util.UUID
@@ -14,6 +16,18 @@ internal object TaskPublicAmendments {
             val record = TaskStore.forServer(server).get(npcUuid)
             val receipt = if (record?.id == input.taskId) receipt(record, request) else null
             OperationReply(result, TaskSupervision.report(server, npc).observation, receipt)
+        }
+
+    fun lookup(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID,
+               input: OperationAmendmentRequest): OperationReply =
+        TaskSupervision.withNpc(server, actor, npcUuid) { npc ->
+            val record = TaskStore.forServer(server).get(npcUuid)
+            val request = TaskAmendmentRequest(input.taskId, input.requestId, actor.uuid,
+                input.expectedDefinitionRevision, input.issuedTick, input.expiresTick, change(input.change))
+            val matched = if (record?.id == input.taskId) receipt(record, request) else null
+            val result = if (matched != null) NpcActionResult.succeeded("recorded amendment receipt")
+                else NpcActionResult.rejected("no receipt for this exact amendment payload", NpcActionCode.NOT_FOUND)
+            OperationReply(result, TaskSupervision.report(server, npc).observation, matched)
         }
 
     internal fun change(input: OperationChange): TaskChange = when (input) {

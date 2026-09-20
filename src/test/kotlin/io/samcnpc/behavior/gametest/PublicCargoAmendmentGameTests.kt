@@ -46,10 +46,21 @@ object PublicCargoAmendmentGameTests {
             check(changed.result.status == NpcActionStatus.SUCCEEDED && changed.amendment?.outcome == OperationAmendmentOutcome.APPLIED)
             check(record.primary.remainingTicks == 900 && record.amendments.revision == 1)
             val extend = sources.copy(requestId = UUID.randomUUID(), expectedDefinitionRevision = 1, change = OperationChange.ExtendTime(77))
+            val beforeLookup = TaskCodec.write(record)
+            val absent = OperationSupervisionApi.amendmentReceipt(server, actor.player, npc.npcUuid, extend)
+            check(absent.result.code == NpcActionCode.NOT_FOUND && absent.amendment == null)
+            check(TaskCodec.write(record) == beforeLookup) { "receipt lookup submitted an unrecorded time extension" }
             val added = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, extend)
             check(added.result.status == NpcActionStatus.SUCCEEDED && added.amendment?.outcome == OperationAmendmentOutcome.APPLIED)
             check(record.primary.remainingTicks == 977 && record.primary.definition.budget.ticks == 977)
             val before = TaskCodec.write(record)
+            val lookedUp = OperationSupervisionApi.amendmentReceipt(server, actor.player, npc.npcUuid, extend)
+            check(lookedUp.amendment == added.amendment && TaskCodec.write(record) == before)
+            val wrongPayload = OperationSupervisionApi.amendmentReceipt(server, actor.player, npc.npcUuid,
+                extend.copy(change = OperationChange.ExtendTime(78)))
+            check(wrongPayload.result.code == NpcActionCode.NOT_FOUND && wrongPayload.amendment == null)
+            check(TaskCodec.write(record) == before)
+
             val replay = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, extend)
             check(replay.amendment == added.amendment && TaskCodec.write(record) == before)
             val conflict = OperationSupervisionApi.amend(server, actor.player, npc.npcUuid, extend.copy(change = OperationChange.ExtendTime(78)))

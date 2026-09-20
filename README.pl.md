@@ -15,6 +15,11 @@ odpowiedzieć na atak lub wykonać ograniczone zadanie drwala. Steruje NPC przez
 Behavior wymaga Core. Nie potrzebuje LLM, kluczy API ani usługi w chmurze.
 Sama instalacja nie przypisuje automatycznie paczek zachowań nowo przywołanym NPC.
 
+Publiczne API integracji udostępnia 16 rodzin operacji, ścisłe schematy parametrów,
+autoryzowany odczyt ciała/zadania/świata, ograniczone dzienniki zdarzeń i odczyt
+potwierdzeń dokładnych korekt bez ponownego wykonania.
+[API](docs/OPERATION_API.md), [weryfikacja](docs/DECISION_VALIDATION.json).
+
 ## Możliwości
 
 - **Deklaratywne paczki JSON:** wersjonowane warunki i akcje, priorytety reguł, odstępy między

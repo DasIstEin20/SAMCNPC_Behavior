@@ -88,6 +88,12 @@ internal class OperationSupervisionProbe(
         check(resumed.result.status == NpcActionStatus.SUCCEEDED) { resumed.result.detail }
         check(resumed.observation?.task?.controlRevision == original.controlRevision + 2)
         check(resumed.observation?.task?.frames == expectedFrames)
+        val receipt = OperationSupervisionApi.amendmentReceipt(server, actor, npcUuid, amendment)
+        check(receipt.amendment == changed.amendment && receipt.observation?.task?.frames == expectedFrames)
+        val absent = OperationSupervisionApi.amendmentReceipt(server, actor, npcUuid,
+            amendment.copy(requestId = UUID.randomUUID(), expectedDefinitionRevision = checkNotNull(revised.task).definitionRevision))
+        check(absent.result.code == NpcActionCode.NOT_FOUND && absent.amendment == null &&
+            absent.observation?.task?.frames == expectedFrames)
         val replay = OperationSupervisionApi.amend(server, actor, npcUuid, amendment)
         check(replay.amendment == changed.amendment && replay.observation?.task?.frames == expectedFrames)
         val conflict = OperationSupervisionApi.amend(server, actor, npcUuid, amendment.copy(change = OperationChange.ExtendTime(21)))

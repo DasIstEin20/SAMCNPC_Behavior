@@ -15,6 +15,11 @@ to an attacker, or running a bounded lumberjack job. It controls NPCs through Co
 Behavior requires Core. It does not require an LLM, API keys, or a cloud service.
 Installing it does not automatically assign behavior packs to newly summoned NPCs.
 
+The public integration API exposes 16 typed operation families, strict parameter
+schemas, authorized body/task/world inspection, bounded event journals and read-only
+exact amendment receipts. See [the API](docs/OPERATION_API.md) and
+[current validation](docs/DECISION_VALIDATION.json).
+
 ## Features
 
 - **Declarative JSON packs:** versioned conditions and actions, rule priorities, cooldowns,

@@ -22,6 +22,11 @@ object OperationSupervisionApi {
     fun control(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID, request: OperationControlRequest): OperationReply =
         TaskSupervision.control(server, actor, npcUuid, request)
 
+    /** Read-only lookup for the exact original payload. A missing receipt never submits the amendment. */
+    fun amendmentReceipt(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID,
+                         request: OperationAmendmentRequest): OperationReply =
+        TaskPublicAmendments.lookup(server, actor, npcUuid, request)
+
     fun amend(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID, request: OperationAmendmentRequest): OperationReply =
         TaskPublicAmendments.request(server, actor, npcUuid, request)
 }

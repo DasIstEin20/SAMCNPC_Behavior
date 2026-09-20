@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "utc": "2026-09-20T05:06:08.954479+00:00",
+  "units": {
+    "samcnpc-core": 47,
+    "samcnpc-behavior": 364,
+    "samcnpc-llm": 38
+  },
+  "behaviorNativeTests": 214,
+  "actualClientCases": 12,
+  "clientOperatorReceiptInspectionCases": 9,
+  "dedicatedAdmissionChecks": 30,
+  "fullContextHttpDecisions": 2,
+  "independentSchemaChecks": 171,
+  "frozenSourceFiles": 774,
+  "cleanBuild": true,
+  "boundaryDistributionGuards": true,
+  "forgeReports": {
+    "operations": "PASS cases=12 actual_world_effects=true\nMINING physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5698 task=ff4e2aa9-be0e-4d76-8894-d05ce3b922c1\nFARM physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5690 task=73f8d602-bdfa-4aa5-ba18-f7dda4f7ea4a\nPLANTING physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5793 task=98de8822-eb69-438d-9dfb-c4498f22b6dd\nWOOD_REPLANT physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5729 task=5d862da1-9a3d-4e71-94ef-ebc1d2e496ae\nTRANSPORT physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2078 task=d5269a2f-3c1d-4aef-9160-5585f96ca104\nINVENTORY physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2179 task=f515d6e0-be1e-4644-a0e6-3e17f13704ca\nFOOD physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2073 task=4bdace9e-17f4-4d78-95d1-73131843cd38\nPATROL physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=1429 task=74b1defc-6c0c-4adf-9dae-95aaf9cb7561\nDEFEND physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=1520 task=016d628e-dd67-42c0-9e44-3c1606f9e285\nRANGED public_tactics_amendment=true actual_projectile_defeat=true carried_arrows_consumed=true helmet_equipped=true\nHEALING public_tactics_amendment=true potion_consumed=1 bottle_returned=1 recovered_and_counterattacked=true actual_defeat=true\nSHIELD public_tactics_amendment=true real_frontal_hit_blocked=true durability_paid=7 carried_shield=true\nframes=[1063, 1116, 812, 1000, 1139, 855, 1171, 1302, 1019, 438, 529, 148] walking=[709, 652, 608, 620, 932, 651, 923, 859, 392, 0, 127, 0] uses=[0, 0, 0, 0, 0, 0, 0, 0, 0, 309, 92, 17] screenshots=12",
+    "client": "PASS titleScreen=true frames=233 configGui=true configSave=true staleDraft=true logo=true mods=[samcnpc_behavior, samcnpc_core, samcnpc_llm] behaviorValidation=true componentCatalog=14/23 registeredSchema=true typedOrders=true configLoaded=true defaultDisabled=true emulatedHttp=true boundedBodyTimeout=true http503=true recovery=true calls=4",
+    "server": "PASS dedicated=true ticks=53 coreApi=true mods=[samcnpc_behavior, samcnpc_core, samcnpc_llm] behaviorValidation=true componentCatalog=14/23 registeredSchema=true typedOrders=true configLoaded=true defaultDisabled=true emulatedHttp=true boundedBodyTimeout=true http503=true recovery=true calls=4 contextWorker=true detachedAfterDismiss=true inventorySlots=36 hiddenBlockOmitted=true contextBytes=9725 contextBounds=true captureAuthority=true decisionHttpCalls=2 fullSchemaBytes=47149 jsonObjectBytes=52405 lateHttpRejected=true httpResumeApplied=true admissionChecks=30 admissionReplay=true lateManualControlRejected=true exactReceiptReadOnly=true lostReplyNoRetry=true subscriptionsStopped=true"
+  },
+  "unchangedCoreNativeEvidence": "visual-evidence.json (141 cases; Core sources unchanged)",
+  "realModels": "USER_DEFERRED_NOT_VERIFIED",
+  "authenticatedSkinAccounts": "MANUAL_PENDING_NONBLOCKING",
+  "standaloneBehavior": {
+    "cleanBuild": true,
+    "units": 364,
+    "sourceFilesMatchingFrozenCanonical": 529,
+    "coreCommit": "53e3f25069e404f60d7d8c3d08c6bcc4d4802283",
+    "utc": "2026-09-20T05:08:39.439465+00:00",
+    "runtimeEvidenceScope": "canonical decision campaign; standalone runtime not repeated"
+  }
+}

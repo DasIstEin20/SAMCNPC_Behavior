@@ -1,3 +1,25 @@
+# Exact amendment receipts — verified 2026-09-20
+
+OperationSupervisionApi.amendmentReceipt reads the exact original payload's existing
+PENDING/APPLIED/REJECTED/EXPIRED receipt. A missing request returns NOT_FOUND and is
+never submitted. Current connected-summoner/operator, loaded-NPC, dimension and
+range checks remain mandatory. No task persistence format change.
+
+Canonical clean build: 449 units; 214 native Behavior cases; 12 actual client cases
+with 9 receipt consumers; 30 LLM admission probes; full-context HTTP and three-mod
+loading smokes; boundary/distribution PASS. All 774 frozen source/build hashes match.
+Standalone Behavior clean build: 364 units PASS; all 529 module source files match
+the canonical milestone. Core remains pinned to 53e3f25069e404f60d7d8c3d08c6bcc4d4802283.
+Runtime proof comes from the canonical campaign, not a repeated standalone launch.
+See docs/DECISION_VALIDATION.json, docs/OPERATION_API.md and ADR0095.
+
+Current public surface also includes 16 typed operations, strict document/catalog
+validation, own accounting/reservations, legal visual observations, generations and
+bounded on-demand journals. Behavior remains independently useful without LLM.
+Authenticated skins remain manual/nonblocking; actual LLM model profiles are deferred.
+
+Earlier sections below retain evidence for their specifically dated snapshots.
+
 # Own accounting and reservations — 2026-09-20
 
 The authorized inspection projects per-item physical/produced/transport/legacy
