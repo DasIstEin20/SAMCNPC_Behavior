@@ -1,6 +1,8 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.behavior.api.*
+import io.samcnpc.behavior.observation.OperationGenerationRegistry
+import io.samcnpc.behavior.runtime.BehaviorRuntimeService
 import io.samcnpc.core.api.*
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -15,6 +17,12 @@ internal object TaskInspections {
             val body = npc.inspectBody() ?: return@withNpc OperationReply(
                 NpcActionResult.unsupported("NPC does not expose own-body inspection"), null)
             val physical = npc.snapshot()
+            val generations = when (val value = BehaviorRuntimeService.inspectionGenerations(server, npcUuid,
+                physical.dimensionId, npc.inventoryLoadSnapshot()?.generation, physical.gameTime)) {
+                is OperationGenerationRegistry.Result.Available -> value.value
+                is OperationGenerationRegistry.Result.Unavailable -> return@withNpc OperationReply(
+                    NpcActionResult.rejected("inspection lifecycle unavailable: " + value.reason.name, NpcActionCode.NOT_READY), null)
+            }
             val equipment = body.equipment
             val copied = physical.copy(equipment = NpcEquipmentKnowledge(body.mainHand.knowledge,
                 equipment.getValue(NpcInspectionSlot.OFF_HAND).knowledge, equipment.getValue(NpcInspectionSlot.HEAD).knowledge,
@@ -34,7 +42,7 @@ internal object TaskInspections {
             }
             val world = if (worldRequest == null) null else TaskWorldInspections.capture(npc, copied, worldRequest)
             val reservations = TaskReservationInspections.capture(npcUuid, physical.gameTime)
-            inspection = OperationInspection(copied, body, checkNotNull(observed.observation), frames, world, reservations)
+            inspection = OperationInspection(copied, body, generations, checkNotNull(observed.observation), frames, world, reservations)
             observed
         }
         return OperationInspectionReply(reply.result, inspection)

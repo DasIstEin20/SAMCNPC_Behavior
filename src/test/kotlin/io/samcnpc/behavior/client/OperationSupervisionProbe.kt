@@ -13,6 +13,7 @@ internal class OperationSupervisionProbe(
     private val npcUuid: UUID,
 ) {
     private var before: OperationTaskSnapshot? = null
+    private var generations: OperationGenerations? = null
     private var heldTicks = 0
     var complete = false
         private set
@@ -33,6 +34,7 @@ internal class OperationSupervisionProbe(
             val inspectionReply = OperationInspectionApi.inspect(server, actor, npcUuid, OperationWorldRequest())
             check(inspectionReply.result.status == NpcActionStatus.SUCCEEDED) { inspectionReply.result.detail }
             val inspection = checkNotNull(inspectionReply.inspection)
+            generations = inspection.generations
             val world = checkNotNull(inspection.world)
             check(world.observedTick == inspection.physical.gameTime && world.dimensionId == inspection.physical.dimensionId)
             check(world.source == OperationObservationSource.NPC_VISUAL_SENSOR)
@@ -61,6 +63,8 @@ internal class OperationSupervisionProbe(
         val body = checkNotNull(service.find(npcUuid)?.let(service::runtime)).snapshot()
         check(body.navigation == null && body.blockBreak == null && body.itemUse == null && body.rangedAttack == null)
         if (++heldTicks < 5) return false
+        val current = checkNotNull(OperationInspectionApi.inspect(server, actor, npcUuid).inspection)
+        check(current.generations == generations) { "Ordinary ticks/control revisions changed body lifetime" }
         val decoded = OperationDocumentApi.decodeChange("""{"documentVersion":1,"type":"EXTEND_TIME","parameters":{"ticks":20}}""")
         check(decoded is OperationDocumentResult.Accepted) { decoded.toString() }
         val amendment = OperationAmendmentRequest(task.taskId, UUID.randomUUID(), task.definitionRevision,

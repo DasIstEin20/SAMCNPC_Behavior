@@ -9,6 +9,7 @@ independent of this optional detailed read.
 
 The version-1 inspection contains:
 
+- server-session, registry and body [generations](OBSERVATION_GENERATIONS.md);
 - physical state and bounded recent action completions from Core;
 - copied own-body health/effects, all 36 inventory slots and separate equipment;
 - the existing task observation, with IDs, revisions, budgets and frame ordering;
@@ -42,8 +43,9 @@ evidence, not a fresh observation of an old location. The ordinary three-argumen
 inspection performs no world scan. The overload accepting OperationWorldRequest
 explicitly captures bounded visual facts after the same actor authorization;
 see [Visual observations](VISUAL_OBSERVATIONS.md). It never exposes nearby
-container inventories. Generic event/failure journals, lifecycle generations,
-and the final LLM ContextBuilder remain separate unfinished L1 work.
+container inventories. Generic event/failure journals and the final LLM ContextBuilder remain unfinished.
+Raw human action/task diagnostics can contain foreign reservation coordinates
+and must not be forwarded to the model.
 
 Decision: [ADR 0090](adr/0090-authorized-operation-inspection.md).
 Validation status and exact runtime evidence are recorded in PROJECT_STATE.md.

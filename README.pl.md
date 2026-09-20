@@ -350,3 +350,5 @@ po wolnym od bloków odcinku. Asercje fizycznych regresji pozostają włączone.
 [API operacji](docs/OPERATION_API.md), [instrukcja autora](docs/BEHAVIOR_AUTHORING.md)
 i [zakres testów](docs/VALIDATION.md). API nie włącza providera LLM;
 pełny katalog parametrów oraz [szczegółowa inspekcja](docs/OPERATION_INSPECTION_API.md) są dostępne.
+
+Observation generations verified (2026-09-20): 357 standalone unit tests; canonical 423 units, 211 Behavior Forge tests, 12 client scenarios (9 generation probes), three-mod client/dedicated smokes. [Contract](docs/OBSERVATION_GENERATIONS.md), [evidence](docs/LIFETIME_VALIDATION.json). Event subscriptions and LLM ContextBuilder remain unfinished.

@@ -53,8 +53,12 @@ internal class CombatGameTestArena(val helper: GameTestHelper, summoner: net.min
                 // GameTest's default reporter prints only the message, losing the failing invariant.
                 val logger = com.mojang.logging.LogUtils.getLogger()
                 logger.error("Physical task assertion failed at tick {} for NPC {}", helper.tick, body.uuid, error)
-                logger.error("Physical failure inventory={} drops={}", npc.inventoryContents().filter { !it.stack.isEmpty },
-                    helper.level.getEntitiesOfClass(ItemEntity::class.java, body.boundingBox.inflate(16.0)).map { "${it.item}@${it.position()}" })
+                // Cleanup may already have removed/replaced the fixture body. Preserve the original assertion.
+                val current = service.find(body.uuid)?.let(service::runtime)
+                if (current != null) {
+                    logger.error("Physical failure inventory={} drops={}", current.inventoryContents().filter { !it.stack.isEmpty },
+                        helper.level.getEntitiesOfClass(ItemEntity::class.java, body.boundingBox.inflate(16.0)).map { "${it.item}@${it.position()}" })
+                }
                 throw error
             }
         }

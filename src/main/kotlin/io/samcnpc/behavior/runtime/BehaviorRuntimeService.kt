@@ -1,5 +1,7 @@
 package io.samcnpc.behavior.runtime
 
+import io.samcnpc.behavior.observation.OperationGenerationRegistry
+
 import io.samcnpc.behavior.api.ValidationReport
 import io.samcnpc.behavior.lumberjack.LumberjackService
 import io.samcnpc.behavior.task.TaskService
@@ -50,6 +52,7 @@ object BehaviorRuntimeService {
     private val activeRegistry = AtomicReference(BehaviorRegistrySnapshot.EMPTY)
     private val runtimes: MutableMap<UUID, RuntimeState> = mutableMapOf()
     private var activeServer: net.minecraft.server.MinecraftServer? = null
+    private val observationLifetimes = OperationGenerationRegistry()
     private val measureDecisions = java.lang.Boolean.getBoolean("samcnpc.behavior.profile")
 
     fun reloadAtStartup() {
@@ -62,11 +65,22 @@ object BehaviorRuntimeService {
         val result = loader.loadCandidate()
         if (result.activated) {
             activeRegistry.set(result.snapshot)
+            observationLifetimes.registryChanged()
             if (server != null) {
                 for (npcUuid in runtimes.keys.toList()) invalidate(server, npcUuid)
             }
         }
         return result.report
+    }
+
+    internal fun inspectionGenerations(server: net.minecraft.server.MinecraftServer, npcUuid: UUID,
+                                       dimensionId: String, loadGeneration: UUID?, tick: Long):
+        OperationGenerationRegistry.Result {
+        if (activeServer !== server || !server.isSameThread) {
+            return OperationGenerationRegistry.Result.Unavailable(
+                OperationGenerationRegistry.Failure.NOT_STARTED)
+        }
+        return observationLifetimes.capture(npcUuid, dimensionId, loadGeneration, tick)
     }
 
     fun activePackIds(): List<String> = activeRegistry.get().packs.keys.sorted()
@@ -201,6 +215,7 @@ object BehaviorRuntimeService {
 
     @SubscribeEvent
     fun remove(event: NpcRemovedEvent) {
+        observationLifetimes.remove(event.handle.npcUuid)
         BehaviorPlanning.release(event.handle.npcUuid)
         runtimes.remove(event.handle.npcUuid)
         BehaviorTargetMemory.remove(event.handle.npcUuid)
@@ -213,6 +228,7 @@ object BehaviorRuntimeService {
     @SubscribeEvent
     fun serverStarted(event: ServerStartedEvent) {
         activeServer = event.server
+        observationLifetimes.begin()
         // A mod constructor can run before userdev establishes its final game/resource paths.
         // Reload once the authoritative server is live so built-ins and server config activate on
         // both dedicated production servers and ForgeGradle command-line runs.
@@ -221,6 +237,7 @@ object BehaviorRuntimeService {
 
     @SubscribeEvent
     fun stop(event: ServerStoppingEvent) {
+        observationLifetimes.clear()
         for (npcUuid in runtimes.keys.toList()) invalidate(event.server, npcUuid)
         runtimes.clear()
         BehaviorTargetMemory.clearAll()

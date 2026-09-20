@@ -23,6 +23,7 @@ data class OperationInspectionReply(val result: NpcActionResult, val inspection:
 class OperationInspection internal constructor(
     val physical: NpcSnapshot,
     val body: NpcBodyInspection,
+    val generations: OperationGenerations,
     val operation: OperationObservation,
     frames: List<OperationFrameInspection>,
     /** Null means not requested; no implicit scan occurs during ordinary inspection. */
