@@ -1,6 +1,6 @@
 # F02 / llm_integration — plan budowy
 
-Data: 2026-09-20. Status: **IN_PROGRESS, L0 ukończone, 4/36 punktów zamkniętych**.
+Data: 2026-09-20. Status: **IN_PROGRESS, L0, L1.1 oraz L3.1/.2/.4 ukończone, 8/36 punktów zamkniętych**.
 To osobny plan rozwoju istniejącego modułu samcnpc-llm, poza licznikiem P00–P12
 (104/112) i Acceptance Zoo (23/23). L0 domyka istniejące P11.1/P11.7, nie tworzy
 konkurencyjnego katalogu ani drugiego wykonawcy. Pierwotne dopisanie planu nie uruchamiało implementacji. Użytkownik 2026-09-20
@@ -46,12 +46,12 @@ Behavior, bez nowej ścieżki wykonywania.
 
 | Obszar | Istnieje | Do wykonania |
 |---|---|---|
-| Operacje | [OperationType i OperationOrder](../src/main/kotlin/io/samcnpc/behavior/api/OperationOrder.kt): 16 rodzin, stabilne ID i wersje; osobne typy combat/inventory/harvest | Pełny machine-readable katalog parametrów i kodowanie zleceń zgodne z obecnymi walidatorami |
-| Kontrola | [OperationSupervisionApi](../src/main/kotlin/io/samcnpc/behavior/api/OperationSupervisionApi.kt): validateOrder, observe, assign, amend, control | Adapter decyzji, zaufany kontekst żądania, kolejka i unieważnianie spóźnionych odpowiedzi |
-| Task | [OperationObservation](../src/main/kotlin/io/samcnpc/behavior/api/OperationObservation.kt): UUID, revisions, state/reason, budżety, do 3 frames | Pełny cel/parametry, rzeczywiste sumy postępu, faza, bieżące działanie, rezerwacje, journal błędów i zdarzenia przez publiczny odczyt |
-| Ciało/inventory | [NpcSnapshot](../core/src/main/kotlin/io/samcnpc/core/api/NpcSnapshot.kt), [NpcInventory](../core/src/main/kotlin/io/samcnpc/core/api/NpcInventory.kt), NpcItemKnowledge | Publiczna projekcja przez Behavior; audyt brakujących effects/enchantments/usable/ammo i sensorów, bez udawania dostępnych danych |
-| Metadane | [BehaviorCatalogApi](../src/main/kotlin/io/samcnpc/behavior/api/BehaviorCatalogApi.kt): katalog 14 warunków/23 akcji | To nie katalog parametrów 16 operacji; wykorzystać istniejące konwencje zamiast dublować rejestry |
-| LLM | [LlmBoundary](https://github.com/DasIstEin20/SAMCNPC_LLM/blob/main/src/main/kotlin/io/samcnpc/llm/api/LlmBoundary.kt): disabled shell, LlmProvider.propose(String), walidacja BehaviorProposal | Typowane LlmRequest/LlmResponse i provider decyzji; jawnie zaplanować zmianę/deprecjację dotychczasowego interfejsu |
+| Operacje | [OperationType i OperationOrder](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/api/OperationOrder.kt): 16 rodzin, stabilne ID i wersje; osobne typy combat/inventory/harvest | Pełny machine-readable katalog parametrów i kodowanie zleceń zgodne z obecnymi walidatorami |
+| Kontrola | [OperationSupervisionApi](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/api/OperationSupervisionApi.kt): validateOrder, observe, assign, amend, control | Adapter decyzji, zaufany kontekst żądania, kolejka i unieważnianie spóźnionych odpowiedzi |
+| Task | [OperationObservation](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/api/OperationObservation.kt): UUID, revisions, state/reason, budżety, do 3 frames | Pełny cel/parametry, rzeczywiste sumy postępu, faza, bieżące działanie, rezerwacje, journal błędów i zdarzenia przez publiczny odczyt |
+| Ciało/inventory | [NpcSnapshot](../samcnpc-core/src/main/kotlin/io/samcnpc/core/api/NpcSnapshot.kt), [NpcInventory](../samcnpc-core/src/main/kotlin/io/samcnpc/core/api/NpcInventory.kt), NpcItemKnowledge | Publiczna projekcja przez Behavior; audyt brakujących effects/enchantments/usable/ammo i sensorów, bez udawania dostępnych danych |
+| Metadane | [BehaviorCatalogApi](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/api/BehaviorCatalogApi.kt): katalog 14 warunków/23 akcji | To nie katalog parametrów 16 operacji; wykorzystać istniejące konwencje zamiast dublować rejestry |
+| LLM | [LlmBoundary](../samcnpc-llm/src/main/kotlin/io/samcnpc/llm/api/LlmBoundary.kt): disabled shell, LlmProvider.propose(String), walidacja BehaviorProposal | Typowane LlmRequest/LlmResponse i provider decyzji; jawnie zaplanować zmianę/deprecjację dotychczasowego interfejsu |
 | Uprawnienia | Połączony ServerPlayer, summoner/operator, ta sama dimension, odległość do 256 bloków | F02 respektuje te reguły. Brak delegacji offline i sterowania spoza zasięgu; nie zakładać ich istnienia |
 
 Odczyt kodu nie zastępuje testów. Dotychczasowe kampanie dowodzą swojej zapisanej
@@ -340,18 +340,20 @@ Budżet tokenów/kosztu per goal/serwer jest dodatkowy do limitu liczby wywoła�
 Dowód L0.1–L0.4: [audyt](OPERATION_CATALOG_AUDIT.md), ADR 0086,
 388 jednostkowych testów czystego buildu, 46 dokumentów i 276 niezależnych sprawdzeń schema.
 Kampania przeszła 208 testów serwera, 12 scenariuszy klienta i oba starty trzech modów.
-Dowody: autonomy/run-20260920-llm/.
+Dowody: autonomy/run-20260920-llm/l0-evidence.json.
 
 Wyjście: konsument zna dokładny kontrakt każdej operacji bez importu runtime internals.
 Istniejące części P11 zalicza się wyłącznie na podstawie ich rzeczywistych dowodów.
 
 ### L1 — Publiczne obserwacje, events i ContextBuilder (po L0)
 
-- [ ] L1.1 Opisać brakujące publiczne odczyty: cele/postęp/faza/akcja/rezerwy/failures i legalne sensory; dodać małe API Behavior.
+- [x] L1.1 Opisać brakujące publiczne odczyty: cele/postęp/faza/akcja/rezerwy/failures i legalne sensory; dodać małe API Behavior.
 - [ ] L1.2 Zbudować NpcLlmContext v1 z pełnymi 36 slotami, semantyką equipment i źródłem/świeżością każdego faktu świata.
 - [ ] L1.3 Udostępnić ogólne zdarzenia Behavior oraz failure codes/journal; kontrolować subscribe/unsubscribe, coalescing i limity.
 - [ ] L1.4 Zapewnić autoryzowany snapshot na serwerze, immutable DTO poza nim, unknown/truncation i budżety kontekstu.
 - [ ] L1.5 Testami świata wykazać brak x-ray/chunk loading/wycieku cudzych danych, poprawny postęp/inventory i brak callbacków po unload.
+
+Audyt L1.1: [LLM_CONTEXT_AUDIT](LLM_CONTEXT_AUDIT.md). Implementacja i dowody L1.2–L1.5 pozostają otwarte.
 
 Wyjście: kontekst opisuje rzeczywisty stan bez providera; brakujące dane są jawne.
 
@@ -373,11 +375,15 @@ wykonywanie decyzji nadal wymaga tych bramek. Realny model/backend pozostaje
 USER_DEFERRED; nie blokuje implementacji ani testów emulatora i nie otrzymuje PASS.
 Szczegóły: LLM_CONFIGURATION.md i ADR 0087.
 
-- [ ] L3.1 Rozwinąć istniejący LlmProvider do typowanego kontraktu; config disabled, sekrety i migracja/deprecjacja starego API pozostają tylko w LLM.
-- [ ] L3.2 Dodać bounded HTTP, profile schema/modelu, timeout, cancel, obsługę refusal/incomplete/unsupported; bez cichego osłabiania walidacji.
+- [x] L3.1 Rozwinąć istniejący LlmProvider do typowanego kontraktu; config disabled, sekrety i migracja/deprecjacja starego API pozostają tylko w LLM.
+- [x] L3.2 Dodać bounded HTTP, profile schema/modelu, timeout, cancel, obsługę refusal/incomplete/unsupported; bez cichego osłabiania walidacji.
 - [ ] L3.3 Dodać event queue, fair scheduling, request/token/cost budgets, coalescing, backoff i circuit breaker; zero world access w workerze.
-- [ ] L3.4 Testowym serwerem HTTP wymusić opóźnienie, brak końca body, 429/5xx, zły auth, odmowę, urwany JSON i utratę odpowiedzi; sprawdzić cleanup.
-- [ ] L3.5 Zweryfikować prawdziwe LM Studio i Ollama na przypiętych wersjach/modelach, zapisać profile i pomiary; vLLM/cloud sprawdzać osobno przed deklaracją wsparcia.
+- [x] L3.4 Testowym serwerem HTTP wymusić opóźnienie, brak końca body, 429/5xx, zły auth, odmowę, urwany JSON i utratę odpowiedzi; sprawdzić cleanup.
+- [ ] L3.5 **USER_DEFERRED (decyzja 2026-09-20, nie blokuje emulatora):** Zweryfikować prawdziwe LM Studio i Ollama na przypiętych wersjach/modelach, zapisać profile i pomiary; vLLM/cloud sprawdzać osobno przed deklaracją wsparcia.
+
+Dowód L3.1/.2/.4: provider-evidence.json, clean build, 401 testów jednostkowych,
+rzeczywisty klient i dedicated Forge z emulatorem HTTP. Serwer wykonał 22 ticki
+podczas próby transportu; GUI renderowało się w czasie timeoutu.
 
 Wyjście: działający transport i jawne granice zgodności. Mock HTTP nie jest dowodem
 działania modelu. Brak jednego backendu ogranicza deklarację zgodności, nie blokuje

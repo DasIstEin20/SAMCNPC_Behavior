@@ -178,9 +178,10 @@ and releases controls; reload/restart does not grant a fresh allowance. Task sav
 earlier records and preserves rejected data with diagnostics. Persistent task storage is bounded
 to 4096 entries; full storage rejects a new entry explicitly.
 
-Typed public assignment, observation, control and correction APIs share the command runtime.
-Complete operation parameter discovery and operation JSON remain pending. Behavior-pack JSON
-validation is available. The optional LLM provider and crafting integration are deferred.
+Typed assignment, observation, control and correction APIs use the existing task runtime.
+The complete operation parameter catalog and strict operation JSON decoder are available.
+[Detailed inspection](docs/OPERATION_INSPECTION_API.md) adds copied body/task state and measured
+progress. LLM integration develops in its separate optional repository; crafting is deferred.
 
 ## Fishing, exploration and machine work
 
@@ -322,8 +323,10 @@ cases and 19 lifecycle scenarios against Core `74d2ba9`; standalone Core passed
 Earlier Zoo campaigns completed 660 tasks across eight families in 3641 active seconds,
 21 terrain cases and navigation measurements for 1, 8, 32 and 64 NPCs. Those results
 retain their earlier source scope. See [validation scope](docs/VALIDATION.md).
-Complete operation parameter discovery, the two-authenticated-account skin proof and
-final release acceptance remain open. Provider and crafting work are deferred.
+The operation catalog is complete. Two-account authenticated skin acceptance remains a
+nonblocking manual test. Final release acceptance and crafting remain open.
+The 2026-09-20 inspection campaign passed 410 units, 209 native Behavior tests and 12
+client scenarios; [validation scope](docs/VALIDATION.md) distinguishes current and older runs.
 
 Development version **0.1.0**. This repository publishes Behavior and pins its Core dependency;
 it does not include the optional LLM module. API compatibility and advanced gameplay cases remain
@@ -345,4 +348,4 @@ cancel and unload still release them. Core also prevents an occupied initial pat
 center from blocking a supplied clear side route. All physical regression assertions remain.
 See [operation API](docs/OPERATION_API.md), [author guide](docs/BEHAVIOR_AUTHORING.md)
 and [validation scope](docs/VALIDATION.md). These APIs do not start an LLM provider;
-complete operation parameter discovery remains open.
+complete operation parameter discovery and [detailed inspection](docs/OPERATION_INSPECTION_API.md) are available.

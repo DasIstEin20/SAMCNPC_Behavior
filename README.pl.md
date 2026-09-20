@@ -179,10 +179,10 @@ NPC ma jedno główne zadanie i najwyżej dwie ramki przerwań. Ręczna pauza za
 sterowanie; restart nie odnawia limitu. Format zapisu zadań 9 migruje starsze rekordy i zachowuje
 odrzucone dane z diagnostyką. Magazyn zadań ma limit 4096 wpisów; zapełnienie jawnie odrzuca nowy wpis.
 
-Publiczne typowane API zlecania, obserwacji, sterowania i korekt używa mechanizmu komend.
-Pełny katalog parametrów i format JSON operacji pozostają otwarte. Walidacja JSON paczek
-zachowań jest dostępna.
-Opcjonalny dostawca LLM i integracja craftingu są odłożone.
+Publiczne API zlecania, obserwacji, sterowania i korekt używa istniejącego runtime zadań.
+Pełny katalog parametrów i ścisły dekoder JSON operacji są gotowe.
+[Szczegółowa inspekcja](docs/OPERATION_INSPECTION_API.md) udostępnia kopię stanu ciała,
+parametry zadania i zmierzony postęp. LLM powstaje w osobnym opcjonalnym repo; crafting jest odłożony.
 
 ## Łowienie, eksploracja i praca maszyn
 
@@ -325,8 +325,10 @@ Obejmuje to regresję zablokowanego początku ścieżki.
 Wcześniejsza próba Zoo ukończyła 660 zadań ośmiu rodzin w 3641 sekundach aktywnej pracy.
 Przeszły też 21 scenariuszy terenowych i pomiary dla 1, 8, 32 i 64 NPC. Te wyniki
 zachowują wcześniejszy zakres źródeł. [Zakres testów](docs/VALIDATION.md).
-Pełny katalog parametrów, test skórek na dwóch uwierzytelnionych kontach oraz końcowa
-akceptacja wydania pozostają otwarte. Provider LLM i crafting są odłożone.
+Katalog parametrów jest ukończony. Test skórek dwóch kont pozostaje ręczny i nie blokuje
+autonomicznych prac. Końcowa akceptacja wydania i crafting pozostają otwarte.
+Kampania inspekcji z 2026-09-20 przeszła 410 testów jednostkowych, 209 natywnych testów
+Behavior i 12 scenariuszy klienta; [zakres testów](docs/VALIDATION.md) rozdziela kampanie.
 
 Wersja rozwojowa **0.1.0**. Repozytorium publikuje Behavior i przypina jego zależność Core;
 nie zawiera opcjonalnego modułu LLM. Zgodność API i zaawansowane przypadki rozgrywki pozostają
@@ -347,4 +349,4 @@ anulowanie i unload nadal ją zwalniają. Core pozwala też ominąć zajęty poc
 po wolnym od bloków odcinku. Asercje fizycznych regresji pozostają włączone.
 [API operacji](docs/OPERATION_API.md), [instrukcja autora](docs/BEHAVIOR_AUTHORING.md)
 i [zakres testów](docs/VALIDATION.md). API nie włącza providera LLM;
-pełny katalog parametrów operacji pozostaje otwarty.
+pełny katalog parametrów oraz [szczegółowa inspekcja](docs/OPERATION_INSPECTION_API.md) są dostępne.

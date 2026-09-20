@@ -1,3 +1,18 @@
+# Authorized operation inspection — 2026-09-20
+
+Current canonical milestone: clean build, 410 units (46 Core / 345 Behavior / 19 LLM),
+209 required native Behavior tests, 12 real client operation scenarios including
+9 operator inspection probes, three-mod GUI/client/dedicated HTTP-emulator smoke,
+and source/boundary/distribution guards PASS. All 720 frozen source/build hashes
+matched the tested campaign. Core is pinned to verified commit 74da575.
+
+Inspection preserves actual definition parameters/versions for all 16 families,
+measured progress units and uncertainty. It enforces existing actor/thread/range
+checks and returns immutable body/task values. It adds no world scan or executor.
+See OPERATION_INSPECTION_API.md and ADR 0090. Standalone clean build and all 345 Behavior unit tests passed.
+
+Earlier campaigns below retain their recorded source scope.
+
 # Operation catalog validation — 2026-09-20
 
 Canonical L0 campaign: clean build, 388 units (45 Core/337 Behavior/6 LLM),

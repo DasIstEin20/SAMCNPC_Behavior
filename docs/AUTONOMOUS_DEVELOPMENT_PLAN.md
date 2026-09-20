@@ -1,7 +1,7 @@
 # SAMCNPC — lokalny plan autonomicznego rozwoju
 
 Plan F02 dopisany 2026-09-20: [LLM_INTEGRATION_PLAN](LLM_INTEGRATION_PLAN.md),
-**IN_PROGRESS, 4/36, L0 ukończone**. Katalog operacji → kontekst →
+**IN_PROGRESS, 8/36, L0 ukończone**. Katalog operacji → kontekst →
 kontrakt decyzji → provider → Translator → Supervisor → Planner → akceptacja.
 [ADR 0085](adr/0085-llm-high-level-planning.md) zastępuje wcześniejszy wymóg
 sterowania prymitywami. L0 mapuje istniejące P11.1/P11.7; osobny plan F02 nie
@@ -167,13 +167,13 @@ wykonania planu. Nie inicjalizować Git ani nie publikować dokumentów na potrz
 
 To ustalenia statyczne i hipotezy do sprawdzenia, a nie raport z nowych prób w grze.
 Źródła wejściowe:
-[Core API](../core/src/main/kotlin/io/samcnpc/core/api/NpcFacade.kt),
-[model Behavior](../src/main/kotlin/io/samcnpc/behavior/model/BehaviorModel.kt),
-[definicje](../src/main/kotlin/io/samcnpc/behavior/registry/BehaviorDefinitions.kt),
-[runtime](../src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorRuntimeService.kt),
-[pamięć celu](../src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorTargetMemory.kt),
-[przypisania](../src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorAssignmentStore.kt),
-[rezerwacje](../src/main/kotlin/io/samcnpc/behavior/kernel/work/SpatialWorkClaimKernel.kt).
+[Core API](../samcnpc-core/src/main/kotlin/io/samcnpc/core/api/NpcFacade.kt),
+[model Behavior](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/model/BehaviorModel.kt),
+[definicje](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/registry/BehaviorDefinitions.kt),
+[runtime](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorRuntimeService.kt),
+[pamięć celu](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorTargetMemory.kt),
+[przypisania](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/runtime/BehaviorAssignmentStore.kt),
+[rezerwacje](../samcnpc-behavior/src/main/kotlin/io/samcnpc/behavior/kernel/work/SpatialWorkClaimKernel.kt).
 
 ## 4. Procedura autonomicznego wykonania i wznowienia
 
@@ -248,7 +248,7 @@ całego workspace ani światów użytkownika. Nie traktować kopii jako nowego �
 | P11 | Finalizacja zewnętrznych paczek JSON | Z5: krytyczna weryfikacja mechanizmów; bez zależności od P2 | WAITING_FOR_ZOO |
 | P12 | Pełna lokalna akceptacja produktu i dystrybucji | P11 | NOT_STARTED |
 | F01 | Kreator GUI — daleka przyszłość | Poza aktywnym zakresem | DEFERRED |
-| F02 | Integracja LLM: Translator → Supervisor → Planner | L0 mapuje P11.1/P11.7; osobny plan | IN_PROGRESS, 4/36; L0 ukończone |
+| F02 | Integracja LLM: Translator → Supervisor → Planner | L0 mapuje P11.1/P11.7; osobny plan | IN_PROGRESS, 7/36; L0 ukończone |
 | F03 | Crafting — osobny przyszły moduł samcnpc-crafting, na sam koniec | Poza aktywnym zakresem; nie blokuje F02 | DEFERRED_LAST |
 
 Zależności oznaczają ukończenie wymaganej części, nie samą obecność kodu. Niezależne
@@ -739,7 +739,7 @@ użytkownik rzeczywiście wykonuje przy tworzeniu paczek i które potrzebują fo
 
 ### F02 — llm_integration: Translator, Supervisor i Planner
 
-Status **IN_PROGRESS, 4/36 punktów; L0 ukończone**.
+Status **IN_PROGRESS, 7/36 punktów; L0 ukończone**.
 Pełny plan: [LLM_INTEGRATION_PLAN](LLM_INTEGRATION_PLAN.md), kontrakt:
 [LLM_BOUNDARY](LLM_BOUNDARY.md), decyzja: [ADR 0085](adr/0085-llm-high-level-planning.md).
 

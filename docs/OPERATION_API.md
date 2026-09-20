@@ -281,3 +281,10 @@ The author corpus contains one document for each family and thirty explicit vari
 under `src/test/resources/operation-documents/` in the Behavior module. These are
 finite examples, not world fixtures or automatic commands. No source position or
 resource should be treated as an observation of the player's actual world.
+
+## Detailed read-only inspection
+
+OperationInspectionApi captures own-body details, actual versioned task parameters
+and measured family progress under the same actor authorization. See
+[operation inspection](OPERATION_INSPECTION_API.md); no world object or executor
+handle crosses that boundary. World sensors and event journals are separate work.

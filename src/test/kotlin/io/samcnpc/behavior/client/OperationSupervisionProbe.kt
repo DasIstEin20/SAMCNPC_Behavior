@@ -30,6 +30,17 @@ internal class OperationSupervisionProbe(
             check(npc.snapshot().summonerUuid != actor.uuid && actor.hasPermissions(2)) {
                 "client fixture must exercise actual operator access to another summoner's NPC"
             }
+            val inspectionReply = OperationInspectionApi.inspect(server, actor, npcUuid)
+            check(inspectionReply.result.status == NpcActionStatus.SUCCEEDED) { inspectionReply.result.detail }
+            val inspection = checkNotNull(inspectionReply.inspection)
+            check(inspection.body.inventory.size == 36 && inspection.physical.npcUuid == npcUuid)
+            check(inspection.operation.task?.taskId == task.taskId)
+            check(inspection.frames.map { it.frameId } == task.frames.map { it.frameId })
+            for ((index, frame) in inspection.frames.withIndex()) {
+                check(frame.definition.operationId == task.frames[index].operationId)
+                check(frame.definition.definitionVersion == task.frames[index].definitionVersion)
+                check(frame.definition.parameters.fields["dimensionId"] == OperationValue.Text(observation.dimensionId))
+            }
             before = task
             val paused = OperationSupervisionApi.control(server, actor, npcUuid, request(observation, OperationControl.PAUSE))
             check(paused.result.status == NpcActionStatus.SUCCEEDED) { paused.result.detail }

@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "utc": "2026-09-20T01:58:36.089950+00:00",
+  "units": {
+    "samcnpc-core": 46,
+    "samcnpc-behavior": 345,
+    "samcnpc-llm": 19
+  },
+  "behaviorNativeTests": 209,
+  "actualClientCases": 12,
+  "clientOperatorInspectionCases": 9,
+  "frozenSourceFiles": 720,
+  "cleanBuild": true,
+  "boundaryDistributionGuards": true,
+  "forgeReports": {
+    "operations": "PASS cases=12 actual_world_effects=true\nMINING physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5701 task=ad0f563c-7096-400c-8b8e-7fcd26e4ed10\nFARM physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5672 task=79acc3b5-7335-4ed7-ac19-f6d7e2bdb116\nPLANTING physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5793 task=5a9ff410-4451-4830-b362-75bf3976ba09\nWOOD_REPLANT physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=5731 task=5305e8b3-e0db-40b3-b47a-afdb8f91df89\nTRANSPORT physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2078 task=30c5dc05-0d62-4dfa-a7ef-3608c054096d\nINVENTORY physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2179 task=e08ead9f-9fac-4660-822d-2986cc6d552c\nFOOD physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=2073 task=a06032f4-0137-4e3c-bfd6-5e2e52e12d8f\nPATROL physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=1429 task=c5a440c7-30cf-439d-9d8f-94c9a7664bf5\nDEFEND physical_effects=true public_controls=true public_amendments=true public_assignment=true remaining=1520 task=4685d341-fb21-4b6e-9664-28e232b04ea0\nRANGED public_tactics_amendment=true actual_projectile_defeat=true carried_arrows_consumed=true helmet_equipped=true\nHEALING public_tactics_amendment=true potion_consumed=1 bottle_returned=1 recovered_and_counterattacked=true actual_defeat=true\nSHIELD public_tactics_amendment=true real_frontal_hit_blocked=true durability_paid=7 carried_shield=true\nframes=[1064, 1168, 811, 998, 1137, 856, 1169, 1301, 1017, 438, 529, 149] walking=[691, 715, 609, 614, 925, 649, 924, 858, 387, 0, 128, 0] uses=[0, 0, 0, 0, 0, 0, 0, 0, 0, 310, 93, 18] screenshots=12",
+    "client": "PASS titleScreen=true frames=232 configGui=true configSave=true staleDraft=true logo=true mods=[samcnpc_behavior, samcnpc_core, samcnpc_llm] behaviorValidation=true componentCatalog=14/23 registeredSchema=true typedOrders=true configLoaded=true defaultDisabled=true emulatedHttp=true boundedBodyTimeout=true http503=true recovery=true calls=4",
+    "server": "PASS dedicated=true ticks=41 coreApi=true mods=[samcnpc_behavior, samcnpc_core, samcnpc_llm] behaviorValidation=true componentCatalog=14/23 registeredSchema=true typedOrders=true configLoaded=true defaultDisabled=true emulatedHttp=true boundedBodyTimeout=true http503=true recovery=true calls=4"
+  },
+  "realModels": "USER_DEFERRED_NOT_VERIFIED",
+  "authenticatedSkinAccounts": "MANUAL_PENDING_NONBLOCKING",
+  "standaloneBehavior": {
+    "cleanBuild": true,
+    "unitTests": 345,
+    "coreCommit": "74da575fd659c82046040849470726e23a75ecab",
+    "sourceMatch": true
+  }
+}

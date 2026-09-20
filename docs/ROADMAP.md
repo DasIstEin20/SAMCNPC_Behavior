@@ -1,7 +1,7 @@
 # Development roadmap — local execution
 
 F02 update 2026-09-20: [LLM_INTEGRATION_PLAN](LLM_INTEGRATION_PLAN.md) is IN_PROGRESS
-with 4/36 implementation points (L0 complete). Operation catalog → context/decisions/provider →
+with 8/36 implementation points (L0 and L1 audit complete; transport verified). Operation catalog → context/decisions/provider →
 Translator → Supervisor → Planner. ADR 0085 supersedes primitive LLM control.
 The dated progress snapshot below is historical; current evidence is in PROJECT_STATE.md.
 
