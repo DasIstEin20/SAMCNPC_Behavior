@@ -7,7 +7,7 @@ import net.minecraft.server.level.ServerPlayer
 import java.util.UUID
 
 internal object TaskInspections {
-    fun capture(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID): OperationInspectionReply {
+    fun capture(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID, worldRequest: OperationWorldRequest? = null): OperationInspectionReply {
         var inspection: OperationInspection? = null
         val reply = TaskSupervision.withNpc(server, actor, npcUuid) { npc ->
             val observed = TaskSupervision.report(server, npc)
@@ -32,7 +32,8 @@ internal object TaskInspections {
                 val progress = TaskProgressInspections.capture(frame, terminalCombat)
                 frames.add(OperationFrameInspection(frame.id, definition, progress))
             }
-            inspection = OperationInspection(copied, body, checkNotNull(observed.observation), frames)
+            val world = if (worldRequest == null) null else TaskWorldInspections.capture(npc, copied, worldRequest)
+            inspection = OperationInspection(copied, body, checkNotNull(observed.observation), frames, world)
             observed
         }
         return OperationInspectionReply(reply.result, inspection)

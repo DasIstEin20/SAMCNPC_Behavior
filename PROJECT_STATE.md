@@ -1,3 +1,19 @@
+# Verified opt-in visual inspection — 2026-09-20
+
+Authorized public inspection can explicitly request bounded real-eye entity and
+block/fluid observations. Occluded/invisible/spectator data and foreign private
+body/container facts are excluded; missing chunks never load and remain unknown.
+The ordinary body/task inspection does not scan automatically.
+
+Canonical evidence: clean build, 412 units (47/346/19), 141 Core and 210 Behavior
+native cases, 12 real client operations with 9 operator visual-inspection probes,
+Core animation client and both three-mod GUI/HTTP smokes, boundary/distribution
+checks and all 730 frozen source/build hashes PASS. Standalone clean build passed
+346 Behavior units; source matches the verified visual milestone.
+Core commit: 53e3f25069e404f60d7d8c3d08c6bcc4d4802283.
+See docs/VISUAL_OBSERVATIONS.md, ADR 0091 and docs/VISUAL_VALIDATION.json.
+Resource accounting/lifecycle/journal/ContextBuilder remain subsequent work.
+
 # Authorized operation inspection — 2026-09-20
 
 Current canonical milestone: clean build, 410 units (46 Core / 345 Behavior / 19 LLM),

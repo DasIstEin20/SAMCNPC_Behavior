@@ -13,6 +13,10 @@ object OperationInspectionApi {
     /** Same connected-summoner/operator, dimension and distance checks as task supervision. */
     fun inspect(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID): OperationInspectionReply =
         TaskInspections.capture(server, actor, npcUuid)
+
+    /** Opt-in visual observations use the same authorization and real-eye Core sensor. */
+    fun inspect(server: MinecraftServer, actor: ServerPlayer, npcUuid: UUID, world: OperationWorldRequest): OperationInspectionReply =
+        TaskInspections.capture(server, actor, npcUuid, world)
 }
 
 data class OperationInspectionReply(val result: NpcActionResult, val inspection: OperationInspection?)
@@ -21,6 +25,8 @@ class OperationInspection internal constructor(
     val body: NpcBodyInspection,
     val operation: OperationObservation,
     frames: List<OperationFrameInspection>,
+    /** Null means not requested; no implicit scan occurs during ordinary inspection. */
+    val world: OperationWorldInspection?,
 ) {
     val version: Int get() = OperationInspectionApi.VERSION
     val frames: List<OperationFrameInspection> = java.util.List.copyOf(frames)

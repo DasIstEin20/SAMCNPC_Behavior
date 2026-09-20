@@ -84,10 +84,11 @@ disabled until the admission gates are implemented.
 NpcEntityWorldView.visibleFrom checks a loaded-block collider ray but does not
 check Entity.isInvisible or spectator status. Its existing NpcEntityObservation
 has neither value. A planner sensor must not infer perceptibility from a clear
-ray alone. Add copied mechanical visibility flags to the public Core observation
-(with unknown for third-party adapters), then filter invisible/spectator entities
-at the Behavior sensor boundary. Do not change ordinary combat policy as a side
-effect. Include a real-world invisible/occluded entity regression.
+ray alone. Implement a separate real-eye visual sensor in Core with a capped
+candidate iteration and loaded-only rays. Exclude invisible/spectator entities
+inside that sensor; copy apparent facts only. This avoids forwarding private
+combat metadata and leaves ordinary combat policy unchanged. Include real-world
+invisible/occluded entity and unloaded-chunk regressions.
 
 For fluid blocks, visibleBlockFrom uses Fluid.NONE and an outline. A bounded
 raycast from the actual NPC eye with includeFluids=true uses LoadedNpcBlocks and
@@ -100,3 +101,27 @@ NpcInventoryLoadSnapshot.generation identifies an NBT-load observation, not ever
 newly spawned body/session. It cannot alone stand in for a complete NPC lifecycle
 or server/reload generation. Generation invalidation must cover spawn, unload,
 reload and server stop explicitly.
+
+
+## Resource/lifecycle follow-up after the visual slice
+
+HarvestResources contains a bounded (64-kind) physical conservation ledger:
+initial, gathered, supplied, consumed, delivered, lost and retained. ProducedResources
+adds stock/output/sourceOutput/deliveredOutput/protectedGathered provenance;
+TransportLedger separately tracks protected stock, cargo and cargo loss. These
+are task checkpoints, not fresh chest contents. Project immutable per-item
+counters with uncertainty/reconciliation and explicit source semantics; do not
+forward old containerCount, endpoint before/after stock or mutable ledger maps.
+
+SpatialWorkClaimKernel has at most one claim and one request per NPC. Add an
+O(1), read-only own-NPC projection; it must not call advance(), renew leases or
+arbitrate merely because a planner inspected state. Exclude expired or reversed-
+clock entries. HarvestWorkClaims and ContainerStepReservations use separate
+instances. A lease/request is coordination, not permission, item possession,
+a stock guarantee or proof that its block still exists.
+
+BehaviorRuntimeService owns activeServer, reload activation and removal/stop
+cleanup. Generations must change on successful registry activation and server
+session change, and invalidate a removed/reloaded body even with the same UUID.
+Core NpcRemovedEvent is available; NpcSummonedEvent alone does not cover loading
+an existing saved NPC. Inventory load generation alone is insufficient.

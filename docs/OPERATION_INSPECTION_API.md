@@ -37,9 +37,12 @@ only when its matching terminal result is available; guard/patrol states do not
 invent a cumulative kill ledger they never recorded.
 
 Uncertainty and pending reconciliation remain visible. A counter is retained task
-evidence, not a fresh observation of an old location. This API does not scan the
-world or expose nearby container inventories. Legal world sensors, generic event/
-failure journals and the final LLM ContextBuilder are separate unfinished L1 work.
+evidence, not a fresh observation of an old location. The ordinary three-argument
+inspection performs no world scan. The overload accepting OperationWorldRequest
+explicitly captures bounded visual facts after the same actor authorization;
+see [Visual observations](VISUAL_OBSERVATIONS.md). It never exposes nearby
+container inventories. Generic event/failure journals, lifecycle generations,
+resources and the final LLM ContextBuilder remain separate unfinished L1 work.
 
 Decision: [ADR 0090](adr/0090-authorized-operation-inspection.md).
 Validation status and exact runtime evidence are recorded in PROJECT_STATE.md.
