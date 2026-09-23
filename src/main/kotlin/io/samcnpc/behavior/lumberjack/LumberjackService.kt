@@ -1555,6 +1555,8 @@ internal object LumberjackService {
             }
             is TemporaryPillarKernel.PillarProgress.Failed -> {
                 LOGGER.info("Lumberjack pillar stopped npc={} target={} code={} detail={}", job.npcUuid, job.targetPosition, progress.code, progress.detail)
+                if (progress.code == TemporaryPillarResultCode.PILLAR_EFFECT_UNCERTAIN)
+                    return finish(server, npc, job, NpcActionResult.failed(progress.detail, NpcActionCode.EFFECT_UNCERTAIN))
                 if (progress.code == TemporaryPillarResultCode.PILLAR_TARGET_OBSTRUCTED) LumberjackDeferredWork.record(job, world, progress.obstruction)
                 // A geometry failure does not become solvable by immediately rebuilding against
                 // the same trunk. Material exhaustion is different: the wood-only fallback must

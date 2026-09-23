@@ -212,6 +212,7 @@ internal object TaskService {
     fun observeTick(server: MinecraftServer, snapshot: NpcSnapshot, npc: NpcFacade? = null, world: NpcWorldView? = null) {
         val store = TaskStore.forServer(server)
         val record = store.get(snapshot.npcUuid) ?: return
+        if (rejectInvalidState(server, store, record) != null) return
         if (record.status.terminal) {
             // Older saves may retain a dead task's temporary pack. Reconcile only that
             // exact assignment; player changes and the terminal report remain authoritative.
@@ -243,6 +244,8 @@ internal object TaskService {
     fun executeSelected(server: MinecraftServer, npc: NpcFacade, world: NpcWorldView, actionId: String = ACTION_ID): NpcActionResult {
         val store = TaskStore.forServer(server)
         val record = store.get(npc.npcUuid) ?: return NpcActionResult.rejected(store.problemFor(npc.npcUuid) ?: "no assigned task", NpcActionCode.NOT_READY)
+        val problem = rejectInvalidState(server, store, record)
+        if (problem != null) return NpcActionResult.failed(problem, NpcActionCode.NOT_READY)
         val expectedAction = if (record.active.definition is InventoryTaskDefinition) INVENTORY_ACTION_ID else if (record.active.definition is AttackTaskDefinition) COMBAT_ACTION_ID else when (record.primary.definition) {
             is AttackTaskDefinition, is CombatMissionDefinition -> COMBAT_ACTION_ID
             is InventoryTaskDefinition -> INVENTORY_ACTION_ID
@@ -378,6 +381,16 @@ internal object TaskService {
         preserveWork(server, record)
         BehaviorRuntimeService.releaseTaskControl(server, record.npcUuid)
         restorePreviousPacks(server,record)
+    }
+
+    private fun rejectInvalidState(server: MinecraftServer, store: TaskStore, record: TaskRecord): String? {
+        val problem = record.stateProblem() ?: return null
+        if (!record.status.terminal) {
+            record.finish(TaskStatus.FAILED, TaskReason.STATE_MISMATCH, problem)
+            store.changed()
+            finishControl(server, record)
+        }
+        return problem
     }
 
     private fun restorePreviousPacks(server: MinecraftServer, record: TaskRecord) {

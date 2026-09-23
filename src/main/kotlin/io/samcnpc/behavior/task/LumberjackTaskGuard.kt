@@ -45,6 +45,7 @@ internal class LumberjackTaskGuard(
     override fun placeHeldBlock(placement: NpcBlockPlacement, hand: NpcHand): NpcActionResult {
         if (!definition.area.contains(placement.position)) return deny("support placement is outside the permitted work area")
         val result = delegate.placeHeldBlock(placement, hand)
+        if (result.code == NpcActionCode.EFFECT_UNCERTAIN) problem = result.detail
         if (result.status == NpcActionStatus.SUCCEEDED) placedBlock = true
         return result
     }

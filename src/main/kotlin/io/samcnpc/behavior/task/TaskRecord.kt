@@ -38,6 +38,29 @@ internal class TaskFrame(
     var fishing: FishingTaskState? = null,
     var explorer: ExplorerTaskState? = null,
 ) {
+    init { require(stateProblem() == null) { stateProblem().orEmpty() } }
+
+    /** States may be captured lazily, but an existing state must belong to this intent. */
+    fun stateProblem(): String? {
+        val intent = definition
+        val unexpected = when {
+            resources != null && !(intent is DeliveryTaskDefinition && intent.version == 1) -> "resources"
+            lumberjack != null && intent !is LumberjackTaskDefinition -> "lumberjack"
+            combat != null && intent !is AttackTaskDefinition && intent !is CombatMissionDefinition -> "combat"
+            transport != null && intent !is TransportTaskDefinition && !(intent is DeliveryTaskDefinition && intent.version == 2) -> "transport"
+            inventory != null && intent !is InventoryTaskDefinition -> "inventory"
+            mining != null && intent !is MiningTaskDefinition -> "mining"
+            food != null && intent !is FoodTaskDefinition -> "food"
+            farming != null && intent !is FarmTaskDefinition -> "farming"
+            planting != null && intent !is PlantingTaskDefinition && !(intent is LumberjackTaskDefinition && lumberjack?.replantDefinition != null) -> "planting"
+            machine != null && intent !is MachineTaskDefinition -> "machine"
+            fishing != null && intent !is FishingTaskDefinition -> "fishing"
+            explorer != null && intent !is ExplorerTaskDefinition -> "explorer"
+            else -> return null
+        }
+        return "unexpected $unexpected runtime state for ${intent.operationId}"
+    }
+
     val status: TaskStatus get() = if (waitTicks > 0) TaskStatus.WAITING else TaskStatus.RUNNING
 }
 
@@ -79,6 +102,14 @@ internal class TaskRecord(
     val previousPacks: List<String> = java.util.List.copyOf(previousPacks)
     val active: TaskFrame get() = frames.last()
     val primary: TaskFrame get() = frames.first()
+
+    fun stateProblem(): String? {
+        for (frame in frames) {
+            val problem = frame.stateProblem()
+            if (problem != null) return problem
+        }
+        return null
+    }
 
     init {
         require(frames.size in 1..MAX_FRAMES) { "task must contain one primary and at most two interruptions" }
@@ -155,6 +186,11 @@ internal class TaskRecord(
     fun advanceTime(ticks: Int) {
         require(ticks >= 0)
         if (status.terminal || status == TaskStatus.PAUSED || ticks == 0) return
+        val problem = stateProblem()
+        if (problem != null) {
+            finish(TaskStatus.FAILED, TaskReason.STATE_MISMATCH, problem)
+            return
+        }
         reaction.cooldownRemaining = (reaction.cooldownRemaining - ticks).coerceAtLeast(0)
         logistics.cooldownRemaining = (logistics.cooldownRemaining - ticks).coerceAtLeast(0)
         for (frame in frames) {
@@ -254,7 +290,9 @@ internal class TaskRecord(
         if (controlRevision < Long.MAX_VALUE) controlRevision++
         for (frame in frames) {
             val inventory = frame.inventory ?: continue
-            val definition = frame.definition as InventoryTaskDefinition
+            // A mismatched frame is retained for diagnostics/quarantine, not interpreted
+            // as an inventory operation with fabricated completion accounting.
+            val definition = frame.definition as? InventoryTaskDefinition ?: continue
             if (logistics.outcomes.none { it.frameId == frame.id }) {
                 inventory.detail = message.take(MAX_DETAIL_LENGTH)
                 logistics.outcomes.add(inventory.outcome(frame.id, definition.work.kind, false,

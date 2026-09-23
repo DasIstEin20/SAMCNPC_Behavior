@@ -18,6 +18,24 @@ import kotlin.test.assertTrue
 class LumberjackPersistenceTest {
     private val npcUuid = UUID.fromString("3060e844-139d-4807-a4d9-127ee9377993")
 
+    @Test fun uncertainForeignPlacementRemainsUncertainAfterReloadWithoutAFabricatedReceipt() {
+        val (root, entry) = fixture(19)
+        entry.putString("phase", "PILLAR_UP")
+        entry.put("pillarSession", pillarFixture().apply {
+            putString("state", "WAIT_FOR_LEGAL_PLACEMENT_WINDOW")
+            putString("lastResult", "PILLAR_EFFECT_UNCERTAIN")
+            put("placement", position(3, 2, 3))
+            putInt("expectedMaterialCount", 2)
+        })
+        val first = LumberjackDemoStore.load(root)
+        val session = assertNotNull(assertNotNull(first.jobFor(npcUuid)).pillarSession)
+        assertEquals("PILLAR_EFFECT_UNCERTAIN", session.lastResult.name)
+        assertTrue(session.placedPositions.isEmpty() && session.placedBlockIds.isEmpty())
+        val restored = assertNotNull(assertNotNull(LumberjackDemoStore.load(first.save(CompoundTag())).jobFor(npcUuid)).pillarSession)
+        assertEquals(session.lastResult, restored.lastResult)
+        assertTrue(restored.placedPositions.isEmpty() && restored.placedBlockIds.isEmpty())
+    }
+
     @Test
     fun `scaffold waits have persisted bounded counters`() {
         val (root, entry) = fixture(16)

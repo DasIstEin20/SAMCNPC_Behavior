@@ -23,6 +23,8 @@ internal class TaskStore private constructor() : SavedData() {
     fun changed() { setDirty() }
 
     fun put(record: TaskRecord): NpcActionResult {
+        val stateProblem = record.stateProblem()
+        if (stateProblem != null) return NpcActionResult.rejected(stateProblem, NpcActionCode.NOT_READY)
         val problem = problemFor(record.npcUuid)
         if (problem != null) return NpcActionResult.rejected(problem, NpcActionCode.NOT_READY)
         val previous = records[record.npcUuid]

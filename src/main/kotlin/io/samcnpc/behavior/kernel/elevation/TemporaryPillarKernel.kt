@@ -1,6 +1,7 @@
 package io.samcnpc.behavior.kernel.elevation
 
 import io.samcnpc.core.api.NpcActionResult
+import io.samcnpc.core.api.NpcActionCode
 import io.samcnpc.core.api.NpcActionStatus
 import io.samcnpc.core.api.NpcBlockFace
 import io.samcnpc.core.api.NpcBlockPlacement
@@ -101,6 +102,8 @@ internal object TemporaryPillarKernel {
     }
 
     fun tick(npc: NpcFacade, world: NpcWorldView, session: PillarSession): PillarProgress {
+        if (session.lastResult == PillarResultCode.PILLAR_EFFECT_UNCERTAIN)
+            return PillarProgress.Failed(session.lastResult, "foreign placement effects require reconciliation; no retry authorized")
         val resuming = session.revalidateSupports
         if (resuming || session.state == PillarState.VALIDATE_BASE) {
             if (!reconcileSupports(npc, world, session)) return PillarProgress.Failed(session.lastResult, "recorded scaffold geometry changed or is unverified")
@@ -126,7 +129,7 @@ internal object TemporaryPillarKernel {
         }
         return when (session.state) {
             PillarState.VALIDATE_BASE -> validateStepBase(snapshot.position, snapshot.onGround, snapshot.inWater, snapshot.inLava, snapshot.climbing, snapshot.riding, session, world)
-            PillarState.POSITION_ON_SUPPORT -> positionOnSupport(npc, snapshot.position, session, world)
+            PillarState.POSITION_ON_SUPPORT -> positionOnSupport(npc, snapshot.position, snapshot.velocity, snapshot.onGround, session, world)
             PillarState.EQUIP_BLOCK -> equipMaterial(npc, session)
             PillarState.START_JUMP -> startJump(npc, snapshot.position, session, world)
             PillarState.WAIT_FOR_LEGAL_PLACEMENT_WINDOW -> placeDuringJump(npc, snapshot.position, snapshot.velocity.y, session, world)
@@ -139,6 +142,7 @@ internal object TemporaryPillarKernel {
 
     /** The parent task calls this only after no useful elevated target remains. */
     fun beginCleanup(session: PillarSession) {
+        if (session.lastResult == PillarResultCode.PILLAR_EFFECT_UNCERTAIN) return
         session.cleanupTicks = 0
         session.state = PillarState.DESCEND_BREAK
         session.currentPlacement = null
@@ -148,6 +152,7 @@ internal object TemporaryPillarKernel {
 
     /** Reuses the already verified vertical work scaffold for the parent task's next high target. */
     fun continueToTarget(session: PillarSession, target: NpcBlockPosition) {
+        if (session.lastResult == PillarResultCode.PILLAR_EFFECT_UNCERTAIN) return
         session.targetPosition = target
         session.state = PillarState.VALIDATE_BASE
         session.currentPlacement = null
@@ -184,6 +189,7 @@ internal object TemporaryPillarKernel {
      * broken, and an occupied scaffold is left alone. The NPC uses its normal block-break API.
      */
     fun tickCleanup(npc: NpcFacade, world: NpcWorldView, session: PillarSession): PillarProgress {
+        if (session.lastResult == PillarResultCode.PILLAR_EFFECT_UNCERTAIN) return PillarProgress.CleanupIncomplete
         val snapshot = npc.snapshot()
         // Fluids can prevent a landing forever. Occupants and lost footing also have a
         // persisted deadline; neither a restart nor a transient pickup may renew it.
@@ -344,8 +350,18 @@ internal object TemporaryPillarKernel {
             session.lastResult = PillarResultCode.PILLAR_HEIGHT_LIMIT
             return PillarProgress.Failed(session.lastResult)
         }
-        val feet = currentFeetCell(position)
-        when (val validation = validateBase(position, onGround, inWater, inLava, climbing, riding, feet, world)) {
+        var feet = currentFeetCell(position)
+        var baseValidation = validateBase(position, onGround, inWater, inLava, climbing, riding, feet, world)
+        if (baseValidation == PillarBeginResult.Failed(PillarResultCode.PILLAR_NO_SAFE_BASE)) {
+            // Residual motion can move the mathematical feet cell beyond a block while
+            // the body still stands on its edge. Re-observe the real adjacent support.
+            val supportedFeet = adjacentSupport(position, world)
+            if (supportedFeet != null) {
+                feet = supportedFeet
+                baseValidation = validateBase(position, onGround, inWater, inLava, climbing, riding, feet, world)
+            }
+        }
+        when (val validation = baseValidation) {
             null -> Unit
             is PillarBeginResult.BlockedByLeaf -> return PillarProgress.BlockedByLeaf(validation.position)
             is PillarBeginResult.Failed -> {
@@ -374,6 +390,8 @@ internal object TemporaryPillarKernel {
     private fun positionOnSupport(
         npc: NpcFacade,
         position: NpcPosition,
+        velocity: NpcVector,
+        onGround: Boolean,
         session: PillarSession,
         world: NpcWorldView,
     ): PillarProgress {
@@ -389,6 +407,11 @@ internal object TemporaryPillarKernel {
         val offsetZ = position.z - (support.z + 0.5)
         if (hypot(offsetX, offsetZ) <= SUPPORT_CENTER_TOLERANCE) {
             npc.stopControl()
+            // Releasing input is not a brake. Let ordinary friction settle the body
+            // before committing a jump; the same positioning deadline keeps running.
+            if (!onGround || hypot(velocity.x, velocity.z) > 0.01) {
+                return PillarProgress.Running("waiting for physical motion to settle over the support")
+            }
             session.state = PillarState.EQUIP_BLOCK
             return PillarProgress.Running("standing safely over the current support")
         }
@@ -431,7 +454,7 @@ internal object TemporaryPillarKernel {
     private fun startJump(npc: NpcFacade, position: NpcPosition, session: PillarSession, world: NpcWorldView): PillarProgress {
         val placement = session.currentPlacement ?: return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE)
         if (currentFeetCell(position) != placement || world.observeBlock(placement)?.isAir != true) {
-            return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE)
+            return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE, "jump footing changed: position=$position expected=$placement")
         }
         val supportTop = NpcPosition(placement.x + 0.5, placement.y.toDouble(), placement.z + 0.5)
         val look = lookAt(npc, supportTop)
@@ -440,7 +463,7 @@ internal object TemporaryPillarKernel {
         }
         val jump = npc.jump()
         if (jump.status != NpcActionStatus.SUCCEEDED) {
-            return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE)
+            return fail(session, PillarResultCode.PILLAR_NO_SAFE_BASE, "jump rejected: $jump; position=$position")
         }
         session.state = PillarState.WAIT_FOR_LEGAL_PLACEMENT_WINDOW
         return PillarProgress.Running("jumped; waiting until the feet cell is legally clear for placement")
@@ -474,6 +497,8 @@ internal object TemporaryPillarKernel {
         }
         session.expectedMaterialCountAfterPlacement = held.stack.count - 1
         val placed = npc.placeHeldBlock(NpcBlockPlacement(placement, NpcBlockFace.UP), io.samcnpc.core.api.NpcHand.MAIN)
+        if (placed.code == NpcActionCode.EFFECT_UNCERTAIN)
+            return fail(session, PillarResultCode.PILLAR_EFFECT_UNCERTAIN, placed.detail)
         if (placed.status != NpcActionStatus.SUCCEEDED) {
             session.expectedMaterialCountAfterPlacement = null
             return fail(

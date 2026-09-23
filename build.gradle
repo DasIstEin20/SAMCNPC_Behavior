@@ -323,9 +323,19 @@ tasks.withType(Test).configureEach {
 }
 
 tasks.named('processResources', ProcessResources).configure {
+    def identitySources = files(fileTree('src/main'), file('build.gradle'), rootProject.file('build.gradle'), rootProject.file('gradle.properties')).files
+    def fingerprint = java.security.MessageDigest.getInstance('SHA-256')
+    identitySources.sort { rootProject.relativePath(it).replace('\\', '/') }.each { source ->
+        fingerprint.update(rootProject.relativePath(source).replace('\\', '/').getBytes('UTF-8'))
+        fingerprint.update((byte) 0)
+        fingerprint.update(source.bytes)
+        fingerprint.update((byte) 0)
+    }
+    def buildId = fingerprint.digest().encodeHex().toString()
+    inputs.property 'buildId', buildId
     inputs.property 'version', project.version
     filesMatching('META-INF/mods.toml') {
-        expand version: project.version
+        expand version: project.version, buildId: buildId
     }
 }
 

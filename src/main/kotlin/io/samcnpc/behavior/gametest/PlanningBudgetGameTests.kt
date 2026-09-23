@@ -40,14 +40,22 @@ object PlanningBudgetGameTests {
                 budget = TaskBudget(ticks = 600), version = 2, anchor = arena.start))
         }
         arena.observe { npc, record ->
+            // addFreshEntity can precede chunk entity-tracking readiness. A successful
+            // spawn is not yet proof that Core can resolve a same-chunk item UUID.
+            if (!assigned && bodies.any { helper.level.getEntity(it.uuid) !== it }) {
+                check(helper.tick < 80) { "scanner fixture chunks did not become entity-visible" }
+                return@observe
+            }
             val service = CoreNpcApi.service(server)
             val workers = bodies.map { checkNotNull(service.find(it.uuid)?.let(service::runtime)) }
             if (!assigned) {
+                check(!record.status.terminal) { "fixture became ready only after the cargo task ended" }
                 for (worker in workers) {
                     val drop = ItemEntity(helper.level, worker.snapshot().position.x, worker.snapshot().position.y,
                         worker.snapshot().position.z, ItemStack(Items.IRON_AXE))
                     drop.setNoPickUpDelay(); check(helper.level.addFreshEntity(drop))
-                    check(worker.pickupItem(drop.uuid).status == NpcActionStatus.SUCCEEDED)
+                    val pickup = worker.pickupItem(drop.uuid)
+                    check(pickup.status == NpcActionStatus.SUCCEEDED) { "scanner ${worker.npcUuid} fixture pickup: $pickup" }
                     val definition = LumberjackTaskDefinition(worker.snapshot().dimensionId,
                         WorkArea(WorkBox(absolute(helper, 1, 1, 1), absolute(helper, 25, 27, 25))),
                         WoodSelection(listOf("samcnpc:oak")), destination, 1, budget = TaskBudget(ticks = 600), version = 2)

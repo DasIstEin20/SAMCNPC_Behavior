@@ -9,6 +9,7 @@ import net.minecraftforge.fml.common.Mod
 @Mod(SamcnpcBehavior.MOD_ID)
 class SamcnpcBehavior {
     init {
+        RuntimeCompatibility.verify()
         BehaviorRuntimeService.reloadAtStartup()
         MinecraftForge.EVENT_BUS.register(BehaviorRuntimeService)
         MinecraftForge.EVENT_BUS.register(BehaviorCommands)
