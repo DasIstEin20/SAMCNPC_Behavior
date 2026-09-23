@@ -15,9 +15,9 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.block.Blocks
 import net.minecraftforge.registries.ForgeRegistries
 
-internal class CombatGameTestArena(val helper: GameTestHelper, summoner: net.minecraft.server.level.ServerPlayer? = null) {
+internal class CombatGameTestArena(val helper: GameTestHelper, summoner: net.minecraft.server.level.ServerPlayer? = null, floorOffset: Int = 0) {
     private val server = helper.level.server
-    private val origin = helper.absolutePos(BlockPos.ZERO)
+    private val origin = helper.absolutePos(BlockPos(0,floorOffset,0))
     val start = NpcPosition(origin.x + 0.5, origin.y + 1.0, origin.z + 0.5)
     val body: LivingEntity
     private val others = mutableListOf<LivingEntity>()
@@ -26,7 +26,7 @@ internal class CombatGameTestArena(val helper: GameTestHelper, summoner: net.min
     private var setup: ((NpcFacade) -> Unit)? = null
     private var checkTick: ((NpcFacade, TaskRecord) -> Unit)? = null
     init {
-        for (x in -3..30) for (z in -10..12) for (y in 0..5) helper.setBlock(BlockPos(x, y, z), if (y == 0) Blocks.STONE else Blocks.AIR)
+        for (x in -3..30) for (z in -10..12) for (y in 0..5) helper.setBlock(BlockPos(x, y+floorOffset, z), if (y == 0) Blocks.STONE else Blocks.AIR)
         if (summoner == null) {
             val type = checkNotNull(ForgeRegistries.ENTITY_TYPES.getValue(ResourceLocation.fromNamespaceAndPath("samcnpc_core", "npc")))
             body = checkNotNull(type.create(helper.level)) as LivingEntity

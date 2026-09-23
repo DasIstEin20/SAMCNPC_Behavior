@@ -42,7 +42,7 @@ internal object MiningStateCodec {
             require(d.work.canRemove(id) && selection.removed.put(p,id) == null) { "duplicate/unauthorized mined block" }
         }
         require(selection.frontier.size+selection.examined.size <= MiningWorkOrder.MAX_REMOVED) { "vein frontier exceeds bound" }
-        require((selection.frontier+selection.examined+selection.cleared+selection.removed.keys).all(d.work.area::contains)) { "mining state outside allowed work cells" }
+        require((selection.frontier+selection.examined+selection.cleared+selection.removed.keys).all(d.work::contains)) { "mining state outside allowed work cells" }
         require(selection.frontier.none { it in selection.examined || it in selection.removed }) { "vein frontier repeats examined work" }
         if (d.work.method == MiningMethod.VEIN) {
             require((selection.veinAnchor == null) == selection.removed.isEmpty()) { "vein anchor lacks actual removal" }
@@ -53,7 +53,7 @@ internal object MiningStateCodec {
         else require(selection.cleared.isEmpty()) { "non-volume contains clearance facts" }
         val target=s.target
         if (target != null) {
-            require(d.work.area.contains(target.position) && d.work.canRemove(target.blockId)) { "unauthorized pending mining intent" }
+            require(d.work.contains(target.position) && d.work.canRemove(target.blockId)) { "unauthorized pending mining intent" }
             require(if (s.phase == MiningPhase.COLLECT) selection.removed[target.position] == target.blockId else target.position !in selection.removed) { "mining phase differs from removal evidence" }
         }
         require(!s.exhausted || if (d.work.method == MiningMethod.VEIN && selection.veinAnchor != null) selection.frontier.isEmpty() && !selection.limited else selection.cursor == d.work.volume) { "mining exhausted before selection ended" }

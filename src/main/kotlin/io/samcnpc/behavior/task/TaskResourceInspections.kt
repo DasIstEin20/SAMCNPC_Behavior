@@ -10,6 +10,7 @@ internal object TaskResourceInspections {
         is DeliveryTaskDefinition -> if (d.version >= 2) transport(frame) else legacy(frame, d)
         is TransportTaskDefinition -> transport(frame)
         is LumberjackTaskDefinition -> physical(frame.lumberjack?.resources)
+        is PrepareFieldTaskDefinition -> physical(frame.fieldPreparation?.resources)
         is PlantingTaskDefinition -> physical(frame.planting?.resources)
         is FishingTaskDefinition -> physical(frame.fishing?.resources)
         is MachineTaskDefinition -> physical(frame.machine?.resources)

@@ -23,14 +23,16 @@ internal object InventoryStateCodec {
         val resources = InventoryLedgerCodec.read(InventoryWorkCodec.compound(tag, "resources"))
         val goals = counts(tag, "goals"); val picked = counts(tag, "picked")
         val work = definition.work
-        require(goals.keys.all { it in work.itemIds } && (work is PickupNearby || goals.values.sum() <= 2304)) { "inventory goals exceed the captured work" }
+        require((work is CollectContainer || goals.keys.all { it in work.itemIds }) &&
+            goals.values.sumOf { it.toLong() } <= if (work is CollectContainer) work.maxItems else 2304) { "inventory goals exceed the captured work" }
         require(work is PickupNearby || picked.isEmpty()) { "container work contains deliberate pickup credit" }
         require(picked.keys.all { it in work.itemIds } && (work !is PickupNearby || picked.values.sum() <= work.maxItems)) { "pickup credit exceeds the explicit limit" }
         require(resources.entries.all { (id, value) ->
-            (value.supplied == 0 || work is SupplyStock && id in goals) && (value.delivered == 0 || work is UnloadExcess && id in goals) &&
+            (value.supplied == 0 || (work is SupplyStock || work is CollectContainer) && id in goals) && (value.delivered == 0 || work is UnloadExcess && id in goals) &&
             value.consumed == 0 && (picked[id] ?: 0) <= value.gathered
         }) { "inventory ledger has effects outside the authorized work kind" }
         require(goals.all { (id, count) -> when (work) {
+            is CollectContainer -> (resources.entries[id]?.supplied ?: 0) <= count
             is SupplyStock -> count <= work.needs.first { it.itemId == id }.target && (resources.entries[id]?.supplied ?: 0) <= count
             is UnloadExcess -> count <= (resources.entries[id]?.initial ?: 0) && (resources.entries[id]?.delivered ?: 0) <= count
             is PickupNearby -> false
@@ -53,6 +55,7 @@ internal object InventoryStateCodec {
             require(p in work.containers?.positions.orEmpty() && HarvestResources.validCounts(mapOf(block to 1)) && size in 1..64) { "invalid inventory endpoint checkpoint" }
             require(state.checkpoints.put(p, ContainerCheckpoint(block, size)) == null) { "duplicate inventory endpoint checkpoint" }
         }
+        require(work !is CollectContainer || state.checkpoints.keys == setOf(work.source)) { "collection lacks its captured source checkpoint" }
         for (entry in InventoryWorkCodec.list(tag, "deferred", 8)) {
             val p = LumberjackTaskCodec.readPosition(entry)
             require(p in work.containers?.positions.orEmpty() && state.deferred.add(p)) { "invalid/duplicate deferred inventory endpoint" }

@@ -21,21 +21,6 @@ internal enum class MiningMethod { EXPOSED, VEIN, TUNNEL, EXCAVATION }
 internal enum class MiningCounting { DELIVERED_ITEMS, REMOVED_RESOURCE_BLOCKS, CLEARED_VOLUME }
 internal enum class TunnelDirection(val x: Int,val z: Int) { EAST(1,0), WEST(-1,0), SOUTH(0,1), NORTH(0,-1) }
 
-/** Origin is the left floor-level cell when looking along the supplied direction. */
-internal data class TunnelGeometry(val origin: NpcBlockPosition,val direction: TunnelDirection,val width: Int,val height: Int,val length: Int) {
-    fun validationProblem(): String? = if (width !in 1..3 || height !in 2..4 || length !in 1..32) "tunnel dimensions must be width1..3, height2..4, length1..32" else null
-    fun cell(index: Int): NpcBlockPosition {
-        require(validationProblem() == null && index in 0 until width*height*length)
-        val cross=width*height; val step=index/cross; val lateral=index%cross/height; val vertical=height-1-index%height
-        return NpcBlockPosition(origin.x+direction.x*step-direction.z*lateral,origin.y+vertical,origin.z+direction.z*step+direction.x*lateral)
-    }
-    fun bounds(): WorkBox {
-        val end=cell(width*height*length-1)
-        return WorkBox(NpcBlockPosition(minOf(origin.x,end.x),origin.y,minOf(origin.z,end.z)),
-            NpcBlockPosition(maxOf(origin.x,end.x),origin.y+height-1,maxOf(origin.z,end.z)))
-    }
-}
-
 /** Desired resources and authorized access removals are deliberately separate filters. */
 internal data class MiningWorkOrder(
     val area: WorkArea,
@@ -44,20 +29,22 @@ internal data class MiningWorkOrder(
     val access: WorkResourceIds? = null,
     val tunnel: TunnelGeometry? = null,
 ) {
-    val volume: Int get() = area.bounds.width*area.bounds.height*area.bounds.depth
+    val volume: Int get() = if (method == MiningMethod.TUNNEL) tunnel?.volume ?: 0
+        else area.bounds.width*area.bounds.height*area.bounds.depth
     fun validationProblem(): String? {
         area.validationProblem()?.let { return it }
-        if (volume !in 1..MAX_SCAN_CELLS) return "mining scan volume must be1..$MAX_SCAN_CELLS cells"
         if ((method == MiningMethod.EXPOSED || method == MiningMethod.VEIN) && access != null) return "exposed/vein work cannot authorize unrelated access removal"
         if (method == MiningMethod.TUNNEL) {
             val geometry=tunnel ?: return "tunnel geometry is required"
             geometry.validationProblem()?.let { return it }
             if (geometry.bounds() != area.bounds || area.exclusions.isNotEmpty()) return "tunnel work area must match its exact geometry without holes"
         } else if (tunnel != null) return "non-tunnel work cannot carry tunnel geometry"
+        if (volume !in 1..MAX_SCAN_CELLS) return "mining scan volume must be1..$MAX_SCAN_CELLS cells"
         if ((method == MiningMethod.TUNNEL || method == MiningMethod.EXCAVATION) && volume > MAX_REMOVED) return "excavation volume exceeds$MAX_REMOVED cells"
         return null
     }
     fun canRemove(id: String): Boolean = resources.matches(id) || access?.matches(id) == true
+    fun contains(position: NpcBlockPosition): Boolean = area.contains(position) && tunnel?.contains(position) != false
     fun cell(index: Int): NpcBlockPosition {
         require(index in 0 until volume)
         val geometry=tunnel

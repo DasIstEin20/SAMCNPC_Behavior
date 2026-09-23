@@ -6,6 +6,7 @@ import io.samcnpc.behavior.api.*
 internal object TaskPublicInventoryOrders {
     fun definition(order: OperationInventoryOrder, budget: TaskBudget): InventoryTaskDefinition {
         val work = when (val value = order.work) {
+            is OperationInventoryWork.Collect -> CollectContainer(value.source, value.maxItems)
             is OperationInventoryWork.Supply -> supply(value)
             is OperationInventoryWork.Unload -> unload(value)
             is OperationInventoryWork.Pickup -> pickup(value)

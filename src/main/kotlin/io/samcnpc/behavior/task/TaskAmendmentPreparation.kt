@@ -34,6 +34,7 @@ internal object TaskAmendmentPreparation {
         val old = record.primary.definition
         require(old !is ExplorerTaskDefinition || policyOnly(request.change)) { "exploration bounds and visited-cell contract are fixed; cancel and assign another expedition to replace them" }
         require(old !is FishingTaskDefinition || policyOnly(request.change)) { "fishing pond/quota is fixed; cancel and assign another task to replace it" }
+        require(old !is PrepareFieldTaskDefinition || policyOnly(request.change)) { "field geometry is fixed; cancel and assign another task before changing it" }
         require(old !is MachineTaskDefinition || policyOnly(request.change)) { "machine feed contract is fixed; cancel and assign another contract before changing ports or quantities" }
         var proposed = TaskChanges.proposed(old, request.change)
         if (!policyOnly(request.change) && proposed is DeliveryTaskDefinition && proposed.version == 1) proposed = proposed.copy(version = 2, anchor = snapshot.position)
@@ -72,6 +73,12 @@ internal object TaskAmendmentPreparation {
         val snapshot = npc.snapshot()
         val proposed = proposed(record, request, snapshot)
         val candidate = TaskCodec.read(TaskCodec.write(record))
+        candidate.primary.fieldPreparation?.let { next ->
+            val prior=checkNotNull(record.primary.fieldPreparation)
+            next.resources.observedLoadGeneration=prior.resources.observedLoadGeneration
+            next.resources.mustReconcileLoad=prior.resources.mustReconcileLoad
+            next.reconcileWorld=prior.reconcileWorld;next.reconcileCursor=prior.reconcileCursor
+        }
         candidate.primary.fishing?.resources?.let { next ->
             val prior=checkNotNull(record.primary.fishing).resources
             next.observedLoadGeneration=prior.observedLoadGeneration;next.mustReconcileLoad=prior.mustReconcileLoad
@@ -140,6 +147,7 @@ internal object TaskAmendmentPreparation {
         if (!policyOnly(request.change)) when (proposed) {
             is ExplorerTaskDefinition -> throw IllegalArgumentException("exploration contract cannot be replaced during captured work")
             is FishingTaskDefinition -> throw IllegalArgumentException("fishing pond/quota cannot be replaced during captured work")
+            is PrepareFieldTaskDefinition -> throw IllegalArgumentException("field geometry cannot be replaced during captured work")
             is MachineTaskDefinition -> throw IllegalArgumentException("machine feed contract cannot be replaced during captured work")
             is PlantingTaskDefinition -> {
                 require(proposed.contains(snapshot.position)) { "NPC is outside proposed planting travel boundary" }

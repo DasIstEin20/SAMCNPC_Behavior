@@ -38,6 +38,7 @@ internal object TaskDefinitionInspections {
             is CombatMissionDefinition -> TaskCombatInspections.mission(d)
             is MiningTaskDefinition -> TaskHarvestInspections.mining(d)
             is FarmTaskDefinition -> TaskHarvestInspections.farm(d)
+            is PrepareFieldTaskDefinition -> merged(travel(d.anchor,d.travelRadius,d.returnTo),record("area" to TaskInspectionValues.area(d.area)))
             is PlantingTaskDefinition -> TaskHarvestInspections.planting(d)
             is FoodTaskDefinition -> TaskHarvestInspections.food(d)
             is LumberjackTaskDefinition -> TaskHarvestInspections.lumberjack(d)
@@ -46,6 +47,7 @@ internal object TaskDefinitionInspections {
     }
 
     private fun inventory(work: InventoryWork): OperationValue.Record = when (work) {
+        is CollectContainer -> record("kind" to v(work.kind.name), "source" to v(work.source), "maxItems" to v(work.maxItems))
         is SupplyStock -> record("kind" to v(work.kind.name), "sources" to containers(work.containers),
             "needs" to sequence(work.needs.map { record("itemId" to v(it.itemId), "minimum" to v(it.minimum),
                 "target" to v(it.target), "sourceReserve" to v(it.sourceReserve)) }))

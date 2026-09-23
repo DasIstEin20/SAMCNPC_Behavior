@@ -101,7 +101,7 @@ class ResourceProgressTest {
         val migrated = assertNotNull(store.get(record.npcUuid))
         assertEquals(record.id, migrated.id)
         assertNull(migrated.primary.resources)
-        assertEquals(9, store.save(CompoundTag()).getInt("version"))
+        assertEquals(10, store.save(CompoundTag()).getInt("version"))
         assertEquals(TaskReactionPolicy(), migrated.reaction.policy)
         assertEquals(0, migrated.reaction.cooldownRemaining)
         assertNull(migrated.lastCombat)

@@ -38,7 +38,7 @@ class MachinePersistenceTest {
         for (candidate in listOf(missing,forged,output,extra,done)) assertFailsWith<IllegalArgumentException> { TaskCodec.read(candidate) }
     }
     @Test fun preMachineAndFutureStoresPreserveRejectedMachineDataVerbatim() {
-        for (version in listOf(5,10)) {
+        for (version in listOf(5,11)) {
             val t=record();val file=CompoundTag();file.putInt("version",version);file.put("tasks",ListTag().apply { add(TaskCodec.write(t)) })
             val store=TaskStore.load(file);assertNull(store.get(t.npcUuid));assertNotNull(store.problemFor(t.npcUuid));assertEquals(file,store.save(CompoundTag()))
         }

@@ -8,6 +8,9 @@ internal object InventoryWorkCodec {
     fun write(work: InventoryWork) = CompoundTag().apply {
         putString("kind", work.kind.name)
         when (work) {
+            is CollectContainer -> {
+                put("source", LumberjackTaskCodec.position(work.source)); putInt("maxItems", work.maxItems)
+            }
             is SupplyStock -> {
                 put("containers", LumberjackSupplyCodec.writeChoices(work.containers))
                 put("items", ListTag().apply { for (need in work.needs) add(CompoundTag().apply {
@@ -27,8 +30,12 @@ internal object InventoryWorkCodec {
         }
     }
     fun read(tag: CompoundTag): InventoryWork {
-        val items = list(tag, "items", 16)
+        val items = if (tag.getString("kind") == "COLLECT") emptyList() else list(tag, "items", 16)
         val work = when (tag.getString("kind")) {
+            "COLLECT" -> {
+                keys(tag, "kind", "source", "maxItems")
+                CollectContainer(LumberjackTaskCodec.readPosition(compound(tag, "source")), int(tag, "maxItems"))
+            }
             "SUPPLY" -> {
                 keys(tag, "kind", "containers", "items")
                 SupplyStock(items.map { keys(it, "item", "minimum", "target", "reserve"); StockNeed(it.getString("item"), int(it, "minimum"), int(it, "target"), int(it, "reserve")) }, choices(tag))

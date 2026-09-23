@@ -15,12 +15,14 @@ class InventoryWorkTest {
     private val start = NpcPosition(0.0, 64.0, 0.0)
     private val container = NpcBlockPosition(4, 64, 0)
     private fun choices() = ContainerChoices(listOf(container))
+    private fun capture(body: Fixture, definition: InventoryTaskDefinition, revision: Int, parent: TaskRecord? = null) =
+        assertIs<InventoryCaptureResult.Captured>(InventoryTaskCapture.capture(body, definition, revision, parent)).state
     private fun supply() = SupplyStock(listOf(StockNeed(item, 4, 16, 2)), choices())
     private fun definition(work: InventoryWork = supply(), ticks: Int = 1200) = InventoryTaskDefinition("minecraft:overworld", work, start,
         workTicks = minOf(600, ticks / 2), budget = TaskBudget(ticks))
     private fun parent() = TaskRecord.start(UUID(0, 1), NavigateTaskDefinition("minecraft:overworld", NpcPosition(8.0, 64.0, 0.0), budget = TaskBudget(2000)), emptyList())
     private fun interrupt(record: TaskRecord, fixture: Fixture, definition: InventoryTaskDefinition = definition()) {
-        val state = InventoryTaskCapture.capture(fixture, definition, record.amendments.revision, record)
+        val state = capture(fixture, definition, record.amendments.revision, record)
         assertNull(record.interrupt(definition)); record.active.inventory = state
     }
     @Test fun hysteresisIsImmutableAndRejectsContradictoryReserves() {
@@ -39,11 +41,11 @@ class InventoryWorkTest {
     }
     @Test fun supplyTriggersBelowMinimumAndCapturesAQuotaWithoutCountingEquipmentTwice() {
         val body = Fixture(); body.set(1, item, 4)
-        assertTrue(InventoryTaskCapture.capture(body, definition(), 0).goals.isEmpty())
+        assertTrue(capture(body, definition(), 0).goals.isEmpty())
         body.set(1, item, 3)
-        assertEquals(mapOf(item to 13), InventoryTaskCapture.capture(body, definition(), 0).goals)
+        assertEquals(mapOf(item to 13), capture(body, definition(), 0).goals)
         body.offHand = stack(item, 1)
-        assertTrue(InventoryTaskCapture.capture(body, definition(), 0).goals.isEmpty())
+        assertTrue(capture(body, definition(), 0).goals.isEmpty())
         body.offHand = NpcItemStackSnapshot.EMPTY; body.set(0, item, 2)
         assertEquals(5, HarvestResources.inventoryCounts(body)[item])
     }
@@ -51,9 +53,9 @@ class InventoryWorkTest {
         val body = Fixture(); body.set(0, item, 5); body.set(1, item, 20); body.offHand = stack(item, 3)
         assertEquals(18, InventoryTaskCapture.unloadable(body, item, 10))
         val work = UnloadExcess(listOf(ItemReserve(item, 10)), choices())
-        assertEquals(mapOf(item to 18), InventoryTaskCapture.capture(body, definition(work), 0).goals)
+        assertEquals(mapOf(item to 18), capture(body, definition(work), 0).goals)
         val parent = TaskRecord.start(body.npcUuid, TransportTaskDefinition("minecraft:overworld", choices(), ContainerChoices(listOf(NpcBlockPosition(8,64,0))), item, 20, start), emptyList())
-        assertTrue(InventoryTaskCapture.capture(body, definition(work), 0, parent).goals.isEmpty())
+        assertTrue(capture(body, definition(work), 0, parent).goals.isEmpty())
     }
     @Test fun interruptionPauseLoadAndTimeoutRetainThePrimaryDeadlineAndAttempts() {
         val body = Fixture(); val record = parent(); val task = record.id; val primary = record.primary.id
@@ -118,7 +120,7 @@ class InventoryWorkTest {
     }
     @Test fun forgedCreditAndUnexpectedStateFieldsFailClosed() {
         val body = Fixture(); val definition = definition(); val record = TaskRecord.start(body.npcUuid, definition, emptyList())
-        record.primary.inventory = InventoryTaskCapture.capture(body, definition, 0)
+        record.primary.inventory = capture(body, definition, 0)
         val encoded = InventoryStateCodec.write(checkNotNull(record.primary.inventory))
         encoded.putString("executor", "arbitrary.class")
         assertFailsWith<IllegalArgumentException> { InventoryStateCodec.read(encoded, definition) }
@@ -128,7 +130,7 @@ class InventoryWorkTest {
     }
     @Test fun aSatisfiedLabelCannotForgeStockOrUnloadCompletion() {
         val body = Fixture(); val d = definition(); val record = TaskRecord.start(body.npcUuid,d,emptyList())
-        val state = InventoryTaskCapture.capture(body,d,0); record.primary.inventory = state
+        val state = capture(body,d,0); record.primary.inventory = state
         state.returning(InventoryWorkReason.SATISFIED,"forged label")
         record.reconciledPosition = start
         record.endInventory(true,message=state.detail)

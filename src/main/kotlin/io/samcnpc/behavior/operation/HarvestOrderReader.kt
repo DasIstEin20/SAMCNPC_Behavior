@@ -32,7 +32,7 @@ internal object HarvestOrderReader {
         OperationMiningMethod.valueOf(p.text("method")), OperationValueReader.resources(p.get("resources")),
         if (p.get("access").isJsonNull) null else OperationValueReader.resources(p.get("access")), p.maybe("tunnel")?.let { tunnel ->
             OperationTunnelGeometry(OperationValueReader.block(tunnel.obj("origin")), OperationTunnelDirection.valueOf(tunnel.text("direction")),
-                tunnel.int("width"), tunnel.int("height"), tunnel.int("length"))
+                tunnel.int("width"), tunnel.int("height"), tunnel.int("length"), if (tunnel.has("stepDown")) tunnel.int("stepDown") else 0)
         })
     private fun farm(p: JsonObject) = OperationFarmWork(OperationValueReader.area(p.obj("area")), OperationCrop.valueOf(p.text("crop")),
         OperationFarmMode.valueOf(p.text("mode")), p.int("cycles"), p.flag("prepareSoil"),

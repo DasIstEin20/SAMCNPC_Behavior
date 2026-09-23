@@ -13,7 +13,10 @@ internal object PlantingSupplies {
         val target=minOf(2304,d.work.keepSaplings+remainingLayouts*d.work.species.layoutSize*d.work.species.layoutSize)
         val work=SupplyStock(listOf(StockNeed(d.work.species.blockId,d.work.keepSaplings+missing,target,d.work.sourceKeep)),sources)
         val definition=InventoryTaskDefinition(d.dimensionId,work,d.anchor,npc.snapshot().position,d.travelRadius,workTicks=duration-40,budget=TaskBudget(duration))
-        val captured=InventoryTaskCapture.capture(npc,definition,record.amendments.revision,record)
+        val captured = when (val result = InventoryTaskCapture.capture(npc,definition,record.amendments.revision,record)) {
+            is InventoryCaptureResult.Captured -> result.state
+            is InventoryCaptureResult.Rejected -> return TaskPlanting.stop(e,npc,s,PlantingProblem.SUPPLY_ENDED,result.code)
+        }
         val problem=record.interrupt(definition)
         if (problem != null) return TaskPlanting.stop(e,npc,s,PlantingProblem.SUPPLY_ENDED,problem)
         record.active.inventory=captured; s.supplyFrame=record.active.id; s.phase=PlantingPhase.SUPPLY

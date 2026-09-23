@@ -43,6 +43,7 @@ internal object OperationValueReader {
     }, containers(p.obj("destinations")))
     fun pickup(p: JsonObject) = OperationInventoryWork.Pickup(p.getAsJsonArray("itemIds").map { it.asString }, p.number("radius"), p.int("maxItems"))
     fun inventory(p: JsonObject): OperationInventoryWork = when (p.text("kind")) {
+        "COLLECT" -> OperationInventoryWork.Collect(block(p.obj("source")), p.int("maxItems"))
         "SUPPLY" -> supply(p)
         "UNLOAD" -> unload(p)
         "PICKUP" -> pickup(p)

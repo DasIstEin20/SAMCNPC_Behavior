@@ -17,12 +17,13 @@ enum class OperationType(val operationId: String, val definitionVersion: Int) {
     DEFEND("samcnpc:defend", 1),
     ATTACK_AREA("samcnpc:attack_area", 1),
     PATROL("samcnpc:patrol", 1),
-    INVENTORY("samcnpc:inventory_work", 1),
-    MINING("samcnpc:mine", 1),
+    INVENTORY("samcnpc:inventory_work", 2),
+    MINING("samcnpc:mine", 2),
     FARM("samcnpc:farm", 1),
     PLANTING("samcnpc:plant_trees", 1),
     FOOD("samcnpc:food", 1),
     LUMBERJACK("samcnpc:lumberjack", 2),
+    FIELD_PREPARATION("samcnpc:prepare_field", 1),
 }
 
 data class OperationBudget(val ticks: Int = 6000, val attempts: Int = 3, val backoffTicks: Int = 20)

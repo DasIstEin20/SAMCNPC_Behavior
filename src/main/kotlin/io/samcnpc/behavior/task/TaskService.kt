@@ -20,6 +20,8 @@ internal object TaskService {
     const val FISHING_ACTION_ID = "samcnpc:run_fishing_task"
     const val MACHINE_PACK_ID = "samcnpc:task_machine"
     const val MACHINE_ACTION_ID = "samcnpc:run_machine_task"
+    const val FIELD_PACK_ID = "samcnpc:task_prepare_field"
+    const val FIELD_ACTION_ID = "samcnpc:run_prepare_field_task"
     const val PLANTING_PACK_ID = "samcnpc:task_planting"
     const val PLANTING_ACTION_ID = "samcnpc:run_planting_task"
     const val FARM_PACK_ID = "samcnpc:task_farming"
@@ -34,7 +36,7 @@ internal object TaskService {
     const val INVENTORY_ACTION_ID = "samcnpc:run_inventory_task"
     const val INVENTORY_BEGIN_ACTION_ID = "samcnpc:begin_task_inventory"
     const val REACTION_ACTION_ID = "samcnpc:begin_task_reaction"
-    fun isTaskAction(id: String): Boolean = id == EXPLORER_ACTION_ID || id == FISHING_ACTION_ID || id == MACHINE_ACTION_ID || id == PLANTING_ACTION_ID || id == FARM_ACTION_ID || id == FOOD_ACTION_ID || id == MINING_ACTION_ID || id == ACTION_ID || id == DELIVERY_ACTION_ID || id == LUMBERJACK_ACTION_ID || id == COMBAT_ACTION_ID || id == REACTION_ACTION_ID || id == INVENTORY_ACTION_ID || id == INVENTORY_BEGIN_ACTION_ID
+    fun isTaskAction(id: String): Boolean = id == FIELD_ACTION_ID || id == EXPLORER_ACTION_ID || id == FISHING_ACTION_ID || id == MACHINE_ACTION_ID || id == PLANTING_ACTION_ID || id == FARM_ACTION_ID || id == FOOD_ACTION_ID || id == MINING_ACTION_ID || id == ACTION_ID || id == DELIVERY_ACTION_ID || id == LUMBERJACK_ACTION_ID || id == COMBAT_ACTION_ID || id == REACTION_ACTION_ID || id == INVENTORY_ACTION_ID || id == INVENTORY_BEGIN_ACTION_ID
     private fun packFor(definition: TaskDefinition): String = when (definition) {
         is AttackTaskDefinition, is CombatMissionDefinition -> COMBAT_PACK_ID
         is InventoryTaskDefinition -> INVENTORY_PACK_ID
@@ -43,6 +45,7 @@ internal object TaskService {
         is ExplorerTaskDefinition -> EXPLORER_PACK_ID
         is FishingTaskDefinition -> FISHING_PACK_ID
         is MachineTaskDefinition -> MACHINE_PACK_ID
+        is PrepareFieldTaskDefinition -> FIELD_PACK_ID
         is PlantingTaskDefinition -> PLANTING_PACK_ID
         is FarmTaskDefinition -> FARM_PACK_ID
         is FoodTaskDefinition -> FOOD_PACK_ID
@@ -79,6 +82,7 @@ internal object TaskService {
         if (definition is InventoryTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the inventory travel boundary")
         if (definition is FishingTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the fishing travel boundary")
         if (definition is MachineTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the machine travel boundary")
+        if (definition is PrepareFieldTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the field travel boundary")
         if (definition is PlantingTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the planting travel boundary")
         if (definition is FarmTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the farm travel boundary")
         if (definition is FoodTaskDefinition && !definition.contains(snapshot.position)) return NpcActionResult.rejected("NPC must start inside the food travel boundary")
@@ -97,6 +101,12 @@ internal object TaskService {
         val lumberjack = if (definition is LumberjackTaskDefinition) {
             TaskLumberjack.capture(npc, definition) ?: return NpcActionResult.rejected("lumberjack requires an observable container and bounded inventory", NpcActionCode.NOT_READY)
         } else null
+        val inventory = if (definition is InventoryTaskDefinition) {
+            when (val captured = InventoryTaskCapture.capture(npc, definition, 0)) {
+                is InventoryCaptureResult.Captured -> captured.state
+                is InventoryCaptureResult.Rejected -> return NpcActionResult.rejected(captured.code, NpcActionCode.NOT_READY)
+            }
+        } else null
         val prior = TaskStore.forServer(server).get(npc.npcUuid)
         if (prior?.status?.terminal == true) {
             val preserved = TaskLumberjack.preserve(server, prior, npc.worldView())
@@ -107,11 +117,12 @@ internal object TaskService {
         if (definition is ExplorerTaskDefinition) record.primary.explorer = TaskExplorer.capture(npc,definition) ?: return NpcActionResult.rejected("exploration requires a dry supported anchor at the NPC position")
         if (definition is FishingTaskDefinition) record.primary.fishing = TaskFishing.capture(npc) ?: return NpcActionResult.rejected("fishing requires a carried vanilla rod and no existing cast")
         if (definition is MachineTaskDefinition) record.primary.machine = TaskMachine.capture(npc,definition) ?: return NpcActionResult.rejected("machine requires observable bounded ports, carried feeds and a confirmed Core transfer state")
+        if (definition is PrepareFieldTaskDefinition) record.primary.fieldPreparation = TaskPrepareField.capture(npc) ?: return NpcActionResult.rejected("field preparation requires a bounded inventory checkpoint")
         if (definition is PlantingTaskDefinition) record.primary.planting = TaskPlanting.capture(npc) ?: return NpcActionResult.rejected("planting requires a bounded inventory checkpoint")
         if (definition is FarmTaskDefinition) record.primary.farming = TaskFarm.capture(npc,definition) ?: return NpcActionResult.rejected("farm requires a bounded inventory checkpoint")
         if (definition is FoodTaskDefinition) record.primary.food = TaskFood.capture(npc,definition) ?: return NpcActionResult.rejected("food requires a bounded inventory checkpoint")
         if (definition is MiningTaskDefinition) record.primary.mining = TaskMining.capture(npc) ?: return NpcActionResult.rejected("mining requires a bounded inventory checkpoint")
-        if (definition is InventoryTaskDefinition) record.primary.inventory = InventoryTaskCapture.capture(npc, definition, 0)
+        record.primary.inventory = inventory
         record.primary.lumberjack = lumberjack
         if (definition is TransportTaskDefinition || definition is DeliveryTaskDefinition && definition.version == 2) record.primary.transport = TaskTransport.capture(npc, definition)
             ?: return NpcActionResult.rejected("transport requires bounded carried inventory")
@@ -157,7 +168,10 @@ internal object TaskService {
             val body = service.find(npcUuid)?.let(service::runtime) ?: return@control NpcActionResult.rejected("inventory body is unavailable", NpcActionCode.NOT_FOUND)
             val validation = definition.validationProblem()
             if (validation != null || !definition.contains(body.snapshot().position)) return@control NpcActionResult.rejected(validation ?: "inventory boundary does not contain NPC")
-            InventoryTaskCapture.capture(body, definition, record.amendments.revision, record)
+            when (val captured = InventoryTaskCapture.capture(body, definition, record.amendments.revision, record)) {
+                is InventoryCaptureResult.Captured -> captured.state
+                is InventoryCaptureResult.Rejected -> return@control NpcActionResult.rejected(captured.code, NpcActionCode.NOT_READY)
+            }
         } else null
         val problem = record.interrupt(definition)
         if (problem != null) return@control NpcActionResult.rejected(problem, NpcActionCode.CONFLICT)
@@ -191,6 +205,7 @@ internal object TaskService {
             is ExplorerTaskDefinition -> "anchor=${definition.anchor}; phase=${record.primary.explorer?.phase}; visited=${record.primary.explorer?.nodes?.size}/${definition.maxCells}; cursor=${record.primary.explorer?.cursor}; rejected=${record.primary.explorer?.rejectedLegs}; stop=${record.primary.explorer?.stop}; chunkFootprint=${definition.chunkFootprint()}/${definition.chunkBudget}"
             is FishingTaskDefinition -> "water=${definition.water}; standing=${definition.standing}; phase=${record.primary.fishing?.phase}; catches=${record.primary.fishing?.caught}/${definition.catches}; casts=${record.primary.fishing?.casts}"
             is MachineTaskDefinition -> "machine=${definition.output.endpoint}; phase=${record.primary.machine?.phase}; supplied=${record.primary.machine?.supplied?.toList()}; collected=${record.primary.machine?.collected}/${definition.output.quantity}; idleTicks=${record.primary.machine?.idleTicks}"
+            is PrepareFieldTaskDefinition -> "field=${definition.area}; phase=${record.primary.fieldPreparation?.phase}; confirmed=${record.primary.fieldPreparation?.confirmed?.size}/${definition.cells.size}; stop=${record.primary.fieldPreparation?.stop}"
             is PlantingTaskDefinition -> "species=${definition.work.species}; mode=${definition.work.mode}; phase=${record.primary.planting?.phase}; saplings=${record.primary.planting?.planted()}; layouts=${record.primary.planting?.completed(definition)}; stop=${record.primary.planting?.stop}"
             is FarmTaskDefinition -> "crop=${definition.work.crop}; mode=${definition.work.mode}; phase=${record.primary.farming?.phase}; harvested=${record.primary.farming?.totalHarvests()}; delivered=${record.primary.farming?.delivered(definition)}; stop=${record.primary.farming?.stop}"
             is FoodTaskDefinition -> "mode=${FoodStatus.mode(definition.work)}; phase=${record.primary.food?.phase}; delivered=${record.primary.food?.delivered(definition)}; retainedFood=${record.primary.food?.retainedFood()}; stop=${record.primary.food?.stop}"
@@ -224,7 +239,7 @@ internal object TaskService {
         val previousFrame = record.active.id
         if (world != null) FoodHunting.observe(record,world)
         if (npc != null) {
-            val resourceProblem = TaskFishing.observeInventory(record,npc) ?: TaskMachine.observeInventory(record,npc) ?: PlantingAccounting.observe(record, npc) ?: FarmAccounting.observe(record, npc) ?: FoodAccounting.observe(record, npc) ?: TaskMining.observeInventory(record, npc) ?: TaskLumberjack.observeInventory(record, npc) ?: TaskTransport.observeInventory(record, npc) ?: InventoryTaskCapture.observe(record, npc)
+            val resourceProblem = TaskPrepareField.observe(record,npc) ?: TaskFishing.observeInventory(record,npc) ?: TaskMachine.observeInventory(record,npc) ?: PlantingAccounting.observe(record, npc) ?: FarmAccounting.observe(record, npc) ?: FoodAccounting.observe(record, npc) ?: TaskMining.observeInventory(record, npc) ?: TaskLumberjack.observeInventory(record, npc) ?: TaskTransport.observeInventory(record, npc) ?: InventoryTaskCapture.observe(record, npc)
             if (resourceProblem != null) record.finish(TaskStatus.FAILED, TaskReason.STATE_MISMATCH, resourceProblem)
         }
         val existing = clocks[snapshot.npcUuid]
@@ -254,6 +269,7 @@ internal object TaskService {
             is ExplorerTaskDefinition -> EXPLORER_ACTION_ID
             is FishingTaskDefinition -> FISHING_ACTION_ID
             is MachineTaskDefinition -> MACHINE_ACTION_ID
+            is PrepareFieldTaskDefinition -> FIELD_ACTION_ID
             is PlantingTaskDefinition -> PLANTING_ACTION_ID
             is FarmTaskDefinition -> FARM_ACTION_ID
             is FoodTaskDefinition -> FOOD_ACTION_ID
@@ -278,6 +294,7 @@ internal object TaskService {
             is ExplorerTaskDefinition -> TaskExplorer.tick(record,execution,npc,world)
             is FishingTaskDefinition -> TaskFishing.tick(record,execution,npc,world)
             is MachineTaskDefinition -> TaskMachine.tick(record,execution,npc,world)
+            is PrepareFieldTaskDefinition -> TaskPrepareField.tick(record,execution,npc,world)
             is PlantingTaskDefinition -> TaskPlanting.tick(record, execution, npc, world)
             is FarmTaskDefinition -> TaskFarm.tick(record, execution, npc, world)
             is FoodTaskDefinition -> TaskFood.tick(record, execution, npc, world)
@@ -357,6 +374,7 @@ internal object TaskService {
         io.samcnpc.behavior.kernel.work.HarvestWorkClaims.kernel.release(npcUuid)
         record.primary.fishing?.resources?.mustReconcileLoad=true
         record.primary.machine?.resources?.mustReconcileLoad=true
+        record.primary.fieldPreparation?.let { it.resources.mustReconcileLoad=true; it.reconcileWorld=true; it.reconcileCursor=0 }
         record.primary.planting?.let { it.resources.mustReconcileLoad=true; it.reconcileWorld=true; it.reconcileCursor=0 }
         record.primary.farming?.let { it.resources.physical.mustReconcileLoad=true; it.reconcileWorld=true; it.reconcileCursor=0 }
         record.primary.food?.resources?.physical?.mustReconcileLoad = true

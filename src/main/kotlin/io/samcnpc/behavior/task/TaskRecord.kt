@@ -14,7 +14,7 @@ internal enum class TaskReason {
     DELIVERED, MISSING_RESOURCE, STORAGE_FULL, WORK_FAILED, SOURCE_EMPTY, SOURCE_UNAVAILABLE, INVENTORY_FULL,
     TARGET_DEFEATED, TARGET_ENDED, TARGET_UNAVAILABLE, LEASH_REACHED, PERMISSION_CHANGED,
     COMBAT_TIME_LIMIT, COMBAT_NO_PROGRESS, RECOVERY_EXHAUSTED,
-    DEFENSE_FINISHED, AREA_CLEARED, PATROL_FINISHED, SUBJECT_UNAVAILABLE, INVENTORY_FINISHED, INVENTORY_INCOMPLETE, MINING_FINISHED, FOOD_FINISHED, FARM_FINISHED, PLANTING_FINISHED, MACHINE_FINISHED, FISHING_FINISHED, EXPLORATION_FINISHED,
+    DEFENSE_FINISHED, AREA_CLEARED, PATROL_FINISHED, SUBJECT_UNAVAILABLE, INVENTORY_FINISHED, INVENTORY_INCOMPLETE, MINING_FINISHED, FOOD_FINISHED, FARM_FINISHED, PLANTING_FINISHED, MACHINE_FINISHED, FISHING_FINISHED, EXPLORATION_FINISHED, FIELD_PREPARED,
 }
 
 /** A suspended intent, not a serialized execution stack. All fields are bounded and world-free. */
@@ -37,6 +37,7 @@ internal class TaskFrame(
     var machine: MachineTaskState? = null,
     var fishing: FishingTaskState? = null,
     var explorer: ExplorerTaskState? = null,
+    var fieldPreparation: FieldPreparationState? = null,
 ) {
     init { require(stateProblem() == null) { stateProblem().orEmpty() } }
 
@@ -55,6 +56,7 @@ internal class TaskFrame(
             planting != null && intent !is PlantingTaskDefinition && !(intent is LumberjackTaskDefinition && lumberjack?.replantDefinition != null) -> "planting"
             machine != null && intent !is MachineTaskDefinition -> "machine"
             fishing != null && intent !is FishingTaskDefinition -> "fishing"
+            fieldPreparation != null && intent !is PrepareFieldTaskDefinition -> "fieldPreparation"
             explorer != null && intent !is ExplorerTaskDefinition -> "explorer"
             else -> return null
         }

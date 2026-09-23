@@ -42,7 +42,7 @@ internal object TaskPublicHarvestOrders {
             OperationTunnelDirection.WEST -> TunnelDirection.WEST
             OperationTunnelDirection.SOUTH -> TunnelDirection.SOUTH
             OperationTunnelDirection.NORTH -> TunnelDirection.NORTH
-        }, tunnel.width, tunnel.height, tunnel.length)
+        }, tunnel.width, tunnel.height, tunnel.length, tunnel.stepDown)
     })
     private fun farm(value: OperationFarmWork) = FarmWorkOrder(area(value.area), when (value.crop) {
         OperationCrop.WHEAT -> FarmCrop.WHEAT

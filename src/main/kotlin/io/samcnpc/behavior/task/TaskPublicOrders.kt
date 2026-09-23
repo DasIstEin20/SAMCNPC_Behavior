@@ -30,6 +30,7 @@ internal object TaskPublicOrders {
         val budget = TaskBudget(order.budget.ticks, order.budget.attempts, order.budget.backoffTicks)
         val version = order.type.definitionVersion
         return when (order) {
+            is OperationPrepareFieldOrder -> PrepareFieldTaskDefinition(order.dimensionId,WorkArea(WorkBox(order.area.bounds.min,order.area.bounds.max),order.area.exclusions.map { WorkBox(it.min,it.max) }),order.anchor,order.travelRadius,order.returnTo,budget,version)
             is OperationHarvestOrder -> TaskPublicHarvestOrders.definition(order, budget)
             is OperationCombatOrder -> TaskPublicCombatOrders.definition(order, budget)
             is OperationInventoryOrder -> TaskPublicInventoryOrders.definition(order, budget)

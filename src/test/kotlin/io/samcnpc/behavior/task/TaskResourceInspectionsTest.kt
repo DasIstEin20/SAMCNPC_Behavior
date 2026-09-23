@@ -14,7 +14,7 @@ class TaskResourceInspectionsTest {
     @Test fun allOperationVariantsDistinguishAbsentAccountingFromNotYetInitialized() {
         val directory = Path.of(checkNotNull(javaClass.getResource("/operation-documents")).toURI())
         val paths = Files.walk(directory).use { stream -> stream.filter { it.toString().endsWith(".json") }.toList() }
-        assertEquals(46, paths.size)
+        assertEquals(47, paths.size)
         for (path in paths) {
             val order = assertIs<OperationDocumentResult.Accepted<OperationOrder>>(OperationDocumentApi.decodeOrder(Files.readString(path))).value
             val definition = TaskPublicOrders.definition(order)

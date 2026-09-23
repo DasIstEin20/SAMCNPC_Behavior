@@ -4,11 +4,11 @@ import io.samcnpc.behavior.api.*
 
 internal object HarvestOperationShapes {
     fun values(): Map<String, OperationInput> = linkedMapOf(
-        "tunnel" to record(required("origin", ref("block")), required("direction", choice(*OperationTunnelDirection.entries.map { it.name }.toTypedArray())),
-            required("width", integer(1, 3, "blocks")), required("height", integer(2, 4, "blocks")), required("length", integer(1, 32, "blocks"))),
-        "miningWork" to record(listOf(required("area", ref("area")), required("method", choice(*OperationMiningMethod.entries.map { it.name }.toTypedArray())),
-            required("resources", ref("resources")), nullable("access", ref("resources")), nullable("tunnel", ref("tunnel"))),
-            relation("MINING_GEOMETRY", "Scan volume <=32768. TUNNEL requires exact tunnel bounds without exclusions. Other methods forbid tunnel. EXPOSED/VEIN forbid access. TUNNEL/EXCAVATION volume <=4096.", "area", "method", "access", "tunnel")),
+        "tunnelV1" to record(tunnelFields()),
+        "tunnel" to record(tunnelFields() + optional("stepDown", integer(0, 1, "blocks_per_slice"), "0"),
+            relation("TUNNEL_DESCENT", "Origin is the left floor-level air cell. stepDown=1 lowers each forward slice by one and requires height>=3; preserved support steps provide the return path.", "origin", "stepDown", "height")),
+        "miningWorkV1" to miningWork("tunnelV1"),
+        "miningWork" to miningWork("tunnel"),
         "farmWork" to record(listOf(required("area", ref("area")), required("crop", choice(*OperationCrop.entries.map { it.name }.toTypedArray())),
             required("mode", choice(*OperationFarmMode.entries.map { it.name }.toTypedArray())), optional("cycles", integer(1, 8, "cycles"), "1"),
             optional("prepareSoil", OperationInput.Flag, "false"), nullable("seedSources", ref("containers")),
@@ -32,4 +32,13 @@ internal object HarvestOperationShapes {
             "minecraft:birch_log", "minecraft:birch_wood", "minecraft:stripped_birch_log", "minecraft:stripped_birch_wood",
             "minecraft:dark_oak_log", "minecraft:dark_oak_wood", "minecraft:stripped_dark_oak_log", "minecraft:stripped_dark_oak_wood"), 1, 16),
     )
+
+    private fun tunnelFields() = listOf(required("origin", ref("block")),
+        required("direction", choice(*OperationTunnelDirection.entries.map { it.name }.toTypedArray())),
+        required("width", integer(1, 3, "blocks")), required("height", integer(2, 4, "blocks")), required("length", integer(1, 32, "blocks")))
+
+    private fun miningWork(tunnel: String) = record(listOf(required("area", ref("area")),
+        required("method", choice(*OperationMiningMethod.entries.map { it.name }.toTypedArray())),
+        required("resources", ref("resources")), nullable("access", ref("resources")), nullable("tunnel", ref(tunnel))),
+        relation("MINING_GEOMETRY", "Scan volume <=32768. TUNNEL requires exact enclosing bounds without exclusions; only its slice cells are removed. Other methods forbid tunnel. EXPOSED/VEIN forbid access. TUNNEL/EXCAVATION volume <=4096.", "area", "method", "access", "tunnel"))
 }

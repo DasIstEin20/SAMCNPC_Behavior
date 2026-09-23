@@ -1,12 +1,15 @@
 package io.samcnpc.behavior.api
 
 import io.samcnpc.core.api.NpcPosition
+import io.samcnpc.core.api.NpcBlockPosition
 
 data class OperationStockNeed(val itemId: String, val minimum: Int, val target: Int, val sourceReserve: Int = 0)
 data class OperationItemReserve(val itemId: String, val keep: Int)
 
 /** Each request owns a finite immutable list; semantic checks use the established validator. */
 sealed interface OperationInventoryWork {
+    /** Capture a finite withdrawal quota from one observable container at assignment. */
+    data class Collect(val source: NpcBlockPosition, val maxItems: Int = 2304) : OperationInventoryWork
     class Supply(needs: List<OperationStockNeed>, val sources: OperationContainers) : OperationInventoryWork {
         init { require(needs.size in 1..16) { "supply requires one to sixteen needs" } }
         val needs: List<OperationStockNeed> = java.util.List.copyOf(needs)

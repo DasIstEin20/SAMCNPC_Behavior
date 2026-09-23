@@ -13,7 +13,7 @@ enum class OperationPlantingMode { PATCH, GAPS }
 enum class OperationWorkTools { INHERIT_CORE_SETTINGS }
 
 data class OperationTunnelGeometry(val origin: NpcBlockPosition, val direction: OperationTunnelDirection,
-    val width: Int, val height: Int, val length: Int)
+    val width: Int, val height: Int, val length: Int, val stepDown: Int = 0)
 
 data class OperationMiningWork(val area: OperationWorkArea, val method: OperationMiningMethod,
     val resources: OperationResourceIds, val access: OperationResourceIds? = null,

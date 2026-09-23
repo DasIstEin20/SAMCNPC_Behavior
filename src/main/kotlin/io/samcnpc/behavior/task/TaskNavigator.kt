@@ -149,6 +149,7 @@ internal object TaskNavigator {
         is ExplorerTaskDefinition -> definition.bounds.contains(candidate)
         is FishingTaskDefinition -> definition.contains(candidate)
         is MachineTaskDefinition -> definition.contains(candidate)
+        is PrepareFieldTaskDefinition -> definition.contains(candidate)
         is PlantingTaskDefinition -> definition.contains(candidate)
         is FarmTaskDefinition -> definition.contains(candidate)
         is FoodTaskDefinition -> definition.contains(candidate)

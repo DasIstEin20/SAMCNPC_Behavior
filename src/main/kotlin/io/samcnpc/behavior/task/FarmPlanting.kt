@@ -6,7 +6,7 @@ import io.samcnpc.core.api.*
 
 /** Supplied field cells, real hoe/seed inventory and native Core soil/placement hooks. */
 internal object FarmPlanting {
-    private val tillable=setOf("minecraft:dirt","minecraft:grass_block","minecraft:dirt_path")
+    private val tillable=SoilPreparation.tillable
     fun soil(record: TaskRecord,e: TaskExecution,npc: NpcFacade,world: NpcWorldView,d: FarmTaskDefinition,s: FarmTaskState): NpcActionResult {
         val target=checkNotNull(s.target)
         if (!lease(record,npc,d,target)) return NpcActionResult.running("waiting for fair planting-cell access")
@@ -18,20 +18,20 @@ internal object FarmPlanting {
         if (below.blockId == "minecraft:farmland") { s.phase=FarmPhase.PLANT; return NpcActionResult.running("existing farmland needs no preparation") }
         if (!d.work.prepareSoil || below.blockId !in tillable || below.environment?.fluidId != null) return TaskFarm.stop(record,e,npc,s,FarmProblem.INVALID_SOIL,"soil ${below.blockId} is not authorized for preparation")
         if ((s.tilled[target] ?: 0) >= d.work.cycles+1) return TaskFarm.stop(record,e,npc,s,FarmProblem.OBSERVATION_LIMIT,"soil changed too often within this finite farm order")
-        val hoe=npc.inventoryContents().firstOrNull { !it.stack.isEmpty && it.knowledge.toolKind == NpcToolKind.HOE }
+        val hoe=SoilPreparation.carriedHoe(npc)
             ?: return TaskFarm.stop(record,e,npc,s,FarmProblem.MISSING_HOE,"no actual carried hoe")
         val approach=WorkInteractionApproach.move(record,e,npc,world,d,soil)
         if (approach != null) return if (approach.status == NpcActionStatus.FAILED) TaskFarm.stop(record,e,npc,s,FarmProblem.UNREACHABLE,approach.detail) else approach
-        val equip=npc.equipFromInventory(hoe.slot,NpcEquipmentDestination.MAIN_HAND)
-        if (equip.status != NpcActionStatus.SUCCEEDED) return TaskFarm.stop(record,e,npc,s,FarmProblem.MISSING_HOE,equip.detail)
-        val before=HarvestResources.inventoryCounts(npc)
-        val result=npc.useItemOnBlock(NpcBlockHit(soil,NpcBlockFace.UP,NpcPosition(soil.x+0.5,soil.y+0.99,soil.z+0.5)),NpcHand.MAIN)
-        val after=HarvestResources.inventoryCounts(npc)
-        val item=checkNotNull(hoe.stack.itemId)
-        val consumed=(before[item] ?: 0)-(after[item] ?: 0)
-        val problem=if (consumed == 1) s.resources.consume(item,1,after,ProducedGain.STOCK) else s.resources.observeLive(after,ProducedGain.STOCK)
+        val used=when(val result=SoilPreparation.use(npc,world,soil,hoe)) {
+            is SoilPreparation.Result.EquipRejected -> return TaskFarm.stop(record,e,npc,s,FarmProblem.MISSING_HOE,result.action.detail)
+            is SoilPreparation.Result.Used -> result
+        }
+        if(used.action.code == NpcActionCode.EFFECT_UNCERTAIN) return FarmAccounting.mismatch(record,"uncertain native soil effect; no retry: ${used.action.detail}")
+        used.consumptionProblem()?.let { return FarmAccounting.mismatch(record,it) }
+        val consumed=(used.before[used.itemId] ?: 0)-(used.after[used.itemId] ?: 0)
+        val problem=if (consumed == 1) s.resources.consume(used.itemId,1,used.after,ProducedGain.STOCK) else s.resources.observeLive(used.after,ProducedGain.STOCK)
         if (problem != null) return FarmAccounting.mismatch(record,problem)
-        if (result.status != NpcActionStatus.SUCCEEDED || world.observeBlock(soil)?.blockId != "minecraft:farmland") return TaskFarm.stop(record,e,npc,s,FarmProblem.INVALID_SOIL,"native hoe did not establish farmland: ${result.detail}")
+        if (used.action.status != NpcActionStatus.SUCCEEDED || !used.farmland) return TaskFarm.stop(record,e,npc,s,FarmProblem.INVALID_SOIL,"native hoe did not establish farmland: ${used.action.detail}")
         s.tilled[target]=(s.tilled[target] ?: 0)+1; s.phase=FarmPhase.PLANT
         TaskInventory.resetRoute(e,npc)
         return NpcActionResult.succeeded("native soil preparation confirmed")

@@ -5,6 +5,7 @@ import io.samcnpc.core.api.NpcFacade
 /** Observe a coherent live body at the explicit resume boundary, before its next passive pickup. */
 internal object TaskResumeObservation {
     fun prime(record: TaskRecord, npc: NpcFacade) {
+        record.primary.fieldPreparation?.let { it.reconcileWorld=true;it.reconcileCursor=0 }
         // A genuinely loaded body has a frozen pre-pickup snapshot; retain that stronger check.
         // A never-deserialized body has none, so an exact present match is the valid boundary.
         if (npc.inventoryLoadSnapshot() != null) return
@@ -13,7 +14,7 @@ internal object TaskResumeObservation {
             val actual = HarvestResources.inventoryCounts(npc)
             if (resources.mustReconcileLoad && !resources.uncertain && actual == resources.retained()) check(resources.reconcileLoad(null, actual) == null)
         }
-        val mining = record.primary.machine?.resources ?: record.primary.mining?.resources?.physical ?: record.primary.food?.resources?.physical ?: record.primary.farming?.resources?.physical
+        val mining = record.primary.fieldPreparation?.resources ?: record.primary.machine?.resources ?: record.primary.mining?.resources?.physical ?: record.primary.food?.resources?.physical ?: record.primary.farming?.resources?.physical
         if (mining != null && mining.mustReconcileLoad && !mining.uncertain) {
             val actual = HarvestResources.inventoryCounts(npc)
             if (actual == mining.retained()) check(mining.reconcileLoad(null, actual) == null)

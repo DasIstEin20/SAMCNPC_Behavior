@@ -14,7 +14,7 @@ class TaskDefinitionInspectionsTest {
     @Test fun allCurrentOperationFixturesPreserveTheExistingPersistenceRepresentation() {
         val directory = Path.of(checkNotNull(javaClass.getResource("/operation-documents")).toURI())
         val paths = Files.walk(directory).use { it.filter { p -> p.toString().endsWith(".json") }.sorted().toList() }
-        assertEquals(46, paths.size)
+        assertEquals(47, paths.size)
         for (path in paths) {
             val original = OperationDocumentApi.decodeOrder(Files.readString(path))
             assertIs<OperationDocumentResult.Accepted<OperationOrder>>(original, path.toString())
@@ -68,6 +68,25 @@ class TaskDefinitionInspectionsTest {
         assertFailsWith<IllegalArgumentException> { OperationValue.Sequence(List(129) { OperationValue.Absent }) }
         assertFailsWith<IllegalArgumentException> { OperationValue.Decimal(Double.NaN) }
         assertFailsWith<IllegalArgumentException> { OperationValue.Text("x".repeat(257)) }
+    }
+
+    @Test fun miningInspectionPreservesDescentAndStrictLegacyShape() {
+        for ((version,stepDown) in listOf(1 to 0,2 to 0,2 to 1)) {
+            val g=TunnelGeometry(NpcBlockPosition(4,64,0),TunnelDirection.EAST,1,3,4,stepDown)
+            val d=MiningTaskDefinition("minecraft:overworld",MiningWorkOrder(WorkArea(g.bounds()),MiningMethod.TUNNEL,
+                WorkResourceIds(listOf("minecraft:stone")),tunnel=g),WorkResourceIds(listOf("minecraft:cobblestone")),
+                ContainerChoices(listOf(NpcBlockPosition(-2,64,1))),1,MiningCounting.CLEARED_VOLUME,NpcPosition(0.5,64.0,0.5),version=version)
+            val view=TaskDefinitionInspections.capture(d)
+            val parameters=json(view.parameters).asJsonObject
+            val tunnel=parameters["work"].asJsonObject["tunnel"].asJsonObject
+            assertEquals(version>=2,tunnel.has("stepDown"))
+            if (version>=2) assertEquals(stepDown,tunnel["stepDown"].asInt)
+            val document=JsonObject()
+            document.addProperty("documentVersion",1);document.addProperty("type",view.operationId)
+            document.addProperty("definitionVersion",view.definitionVersion);document.add("parameters",parameters)
+            val decoded=assertIs<OperationDocumentResult.Accepted<OperationOrder>>(OperationDocumentApi.decodeOrder(document.toString()))
+            assertEquals(d.work,assertIs<MiningTaskDefinition>(TaskPublicOrders.definition(decoded.value)).work)
+        }
     }
 
     private fun json(value: OperationValue): JsonElement = when (value) {

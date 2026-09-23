@@ -20,7 +20,7 @@ class BehaviorCatalogApiTest {
         assertEquals(1, catalog.documentVersion)
         assertEquals(1, catalog.definitionSemanticsVersion)
         assertEquals(14, catalog.conditions.size)
-        assertEquals(23, catalog.actions.size)
+        assertEquals(24, catalog.actions.size)
         assertEquals(BehaviorDefinitions.conditions.keys.sorted(), catalog.conditions.map { it.id })
         assertEquals(BehaviorDefinitions.actions.keys.sorted(), catalog.actions.map { it.id })
         assertTrue(catalog.conditions.all { it.kind == BehaviorComponentKind.CONDITION && it.channels.isEmpty() && it.version == 1 })

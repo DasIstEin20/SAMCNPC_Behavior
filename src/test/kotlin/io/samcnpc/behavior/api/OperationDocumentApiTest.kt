@@ -171,7 +171,7 @@ class OperationDocumentApiTest {
         val schema = JsonParser.parseString(order).asJsonObject
         assertEquals("https://json-schema.org/draft/2020-12/schema", schema.get("$"+"schema").asString)
         assertNotNull(schema.getAsJsonObject("$"+"defs").get("change_QUANTITY"))
-        assertEquals(16, JsonParser.parseString(OperationDocumentApi.catalogJson()).asJsonObject.getAsJsonArray("operations").size())
+        assertEquals(17, JsonParser.parseString(OperationDocumentApi.catalogJson()).asJsonObject.getAsJsonArray("operations").size())
         assertNotNull(JsonParser.parseString(OperationDocumentApi.changeSchema()))
 
     }

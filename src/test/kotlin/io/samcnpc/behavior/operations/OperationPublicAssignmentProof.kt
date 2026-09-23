@@ -71,6 +71,7 @@ internal object OperationPublicAssignmentProof {
                 }, definition.subjectUuid, definition.supportTargetUuid, definition.filter, definition.returnTo,
                 definition.allowPlayers, tactics(definition.tactics), budget)
             is InventoryTaskDefinition -> OperationInventoryOrder(definition.dimensionId, when (val value = definition.work) {
+                is CollectContainer -> OperationInventoryWork.Collect(value.source, value.maxItems)
                 is SupplyStock -> OperationInventoryWork.Supply(value.needs.map {
                     OperationStockNeed(it.itemId, it.minimum, it.target, it.sourceReserve)
                 }, containers(value.containers))

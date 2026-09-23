@@ -4,6 +4,9 @@ import io.samcnpc.behavior.api.*
 
 internal object BasicOperationDescriptors {
     fun values(): List<OperationDescriptor> = listOf(
+        descriptor(OperationType.FIELD_PREPARATION, "Hoe an explicit soil plane using a carried hoe. No sowing, harvest, irrigation or clearing.", "FIELD_PREPARED: actual farmland verified after optional return.",
+            common()+travel(32.0)+listOf(required("area",ref("area"))),listOf("EXTEND_TIME","TACTICS","REACTION"),
+            localEndpoints,relation("SOIL_PLANE","Area denotes soil blocks: one y level, bounding footprint <=64 cells, nonempty after exclusions. Soil/anchor/return pairwise within58 blocks.","area","anchor","returnTo")),
         descriptor(OperationType.NAVIGATE, "Travel to one supplied position.", "ARRIVED after physical arrival.",
             common() + listOf(required("destination", ref("position")), optional("speed", number(0.1, 1.5, "speed_multiplier"), "1.0"),
                 optional("arrivalDistance", number(0.25, 2.0), "0.75")),
@@ -38,7 +41,7 @@ internal object BasicOperationDescriptors {
                 optional("heading", integer(0, 3, "quarter_turns"), "0")),
             listOf("EXTEND_TIME", "TACTICS", "REACTION"),
             relation("EXPLORER_ENVELOPE", "Horizontal bounds stay inside +/-29999984. chunkBudget covers the chunk footprint plus Core margin: (floor((x+r)/16)-floor((x-r)/16)+3) times the corresponding z span.", "anchor", "radius", "chunkBudget")),
-        descriptor(OperationType.INVENTORY, "Perform one finite supply, unload or pickup request and return.", "INVENTORY_FINISHED or INVENTORY_INCOMPLETE after measured item transfers.",
+        descriptor(OperationType.INVENTORY, "Perform one finite supply, unload, pickup or whole-container collection request and return.", "INVENTORY_FINISHED or INVENTORY_INCOMPLETE after measured item transfers.",
             common(optional("budget", ref("inventoryBudget"), "{}")) + listOf(required("work", ref("inventoryWork")), required("anchor", ref("position")),
                 inherited("returnTo", ref("position"), "anchor"), optional("travelRadius", number(4.0, 64.0), "16.0"),
                 optional("workTicks", integer(20, 36000, "ticks"), "600"), optional("maxSteps", integer(1, 128, "steps"), "128")),

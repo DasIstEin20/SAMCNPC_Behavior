@@ -128,13 +128,28 @@ object ResumedPillarGameTests {
                             if (grass) {
                                 val source = position.offset(1, -1, 0)
                                 helper.level.setBlockAndUpdate(source, Blocks.GRASS_BLOCK.defaultBlockState())
-                                val random = RandomSource.create(0L)
-                                repeat(128) {
-                                    if (!helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) {
-                                        helper.level.getBlockState(source).randomTick(helper.level, source, random)
+                                val previousTime = helper.level.dayTime
+                                val previousLight = helper.level.getMaxLocalRawBrightness(source.above())
+                                // GameTest keeps the daylight cycle running. Added earlier tasks
+                                // must not turn this native growth prerequisite into a night test.
+                                helper.level.setDayTime(6000)
+                                helper.level.updateSkyBrightness()
+                                try {
+                                    val light = helper.level.getMaxLocalRawBrightness(source.above())
+                                    com.mojang.logging.LogUtils.getLogger().info("PILLAR_GRASS_LIGHT prior={} controlled={} dayTime={} gameTime={}",
+                                        previousLight,light,previousTime,helper.level.gameTime)
+                                    check(light >= 9) { "grass fixture requires native light>=9, observed $light" }
+                                    val random = RandomSource.create(0L)
+                                    repeat(128) {
+                                        if (!helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) {
+                                            helper.level.getBlockState(source).randomTick(helper.level, source, random)
+                                        }
                                     }
+                                    check(helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) { "actual vanilla grass spread did not transform the placed dirt" }
+                                } finally {
+                                    helper.level.setDayTime(previousTime)
+                                    helper.level.updateSkyBrightness()
                                 }
-                                check(helper.level.getBlockState(position).`is`(Blocks.GRASS_BLOCK)) { "actual vanilla grass spread did not transform the placed dirt" }
                             } else helper.level.setBlockAndUpdate(position, replacement.defaultBlockState())
                         }
                         body = checkNotNull(type.create(helper.level)) as LivingEntity

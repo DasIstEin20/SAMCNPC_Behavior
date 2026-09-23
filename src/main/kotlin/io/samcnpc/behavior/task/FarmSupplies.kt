@@ -12,7 +12,10 @@ internal object FarmSupplies {
         val target=minOf(2304,d.work.keepSeeds+needed)
         val supply=SupplyStock(listOf(StockNeed(d.work.crop.seedId,d.work.keepSeeds+1,target,d.work.sourceKeepSeeds)),sources)
         val definition=InventoryTaskDefinition(d.dimensionId,supply,d.anchor,npc.snapshot().position,d.travelRadius,workTicks=duration-40,budget=TaskBudget(duration))
-        val inventory=InventoryTaskCapture.capture(npc,definition,record.amendments.revision,record)
+        val inventory = when (val captured = InventoryTaskCapture.capture(npc,definition,record.amendments.revision,record)) {
+            is InventoryCaptureResult.Captured -> captured.state
+            is InventoryCaptureResult.Rejected -> return TaskFarm.stop(record,e,npc,s,FarmProblem.SUPPLY_ENDED,captured.code)
+        }
         val problem=record.interrupt(definition)
         if (problem != null) return TaskFarm.stop(record,e,npc,s,FarmProblem.SUPPLY_ENDED,problem)
         record.active.inventory=inventory

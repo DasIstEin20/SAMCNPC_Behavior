@@ -12,27 +12,30 @@ import io.samcnpc.behavior.task.InventoryWorkCodec.readPosition
 internal object MiningOrderCodec {
     fun keys(hasReturn: Boolean) = setOf("work","outputs","destinations","quantity","counting","anchor","radius") + if (hasReturn) setOf("returnTo") else emptySet()
     fun writeDefinition(d: MiningTaskDefinition,t: CompoundTag) {
-        t.put("work",write(d.work)); t.put("outputs",ids(d.outputs)); t.put("destinations",LumberjackSupplyCodec.writeChoices(d.destinations))
+        t.put("work",write(d.work,d.version)); t.put("outputs",ids(d.outputs)); t.put("destinations",LumberjackSupplyCodec.writeChoices(d.destinations))
         t.putInt("quantity",d.quantity); t.putString("counting",d.counting.name); t.put("anchor",position(d.anchor)); t.putDouble("radius",d.travelRadius)
         d.returnTo?.let { t.put("returnTo",position(it)) }
     }
     fun readDefinition(t: CompoundTag,dimension: String,budget: TaskBudget,version: Int) = MiningTaskDefinition(dimension,
-        read(compound(t,"work")),readIds(t,"outputs"),requireNotNull(LumberjackSupplyCodec.readChoices(compound(t,"destinations"))),
+        read(compound(t,"work"),version),readIds(t,"outputs"),requireNotNull(LumberjackSupplyCodec.readChoices(compound(t,"destinations"))),
         int(t,"quantity"),enumValueOf(t.getString("counting")),readPosition(compound(t,"anchor")),double(t,"radius"),
         if (t.contains("returnTo")) readPosition(compound(t,"returnTo")) else null,budget,version)
-    private fun write(w: MiningWorkOrder) = CompoundTag().apply {
+    private fun write(w: MiningWorkOrder,version: Int) = CompoundTag().apply {
         putString("method",w.method.name); put("bounds",box(w.area.bounds)); put("exclusions",ListTag().apply { for (b in w.area.exclusions) add(box(b)) })
         put("resources",ids(w.resources)); w.access?.let { put("access",ids(it)) }
         w.tunnel?.let { g -> put("tunnel",CompoundTag().apply {
             put("origin",block(g.origin)); putString("direction",g.direction.name); putInt("width",g.width); putInt("height",g.height); putInt("length",g.length)
+            if (version >= 2) putInt("stepDown",g.stepDown)
         }) }
     }
-    private fun read(t: CompoundTag): MiningWorkOrder {
+    private fun read(t: CompoundTag,version: Int): MiningWorkOrder {
         require(t.allKeys == setOf("method","bounds","exclusions","resources")+listOf("access","tunnel").filter(t::contains)) { "unknown/missing mining work field" }
         val area=WorkArea(readBox(compound(t,"bounds")),list(t,"exclusions",16).map(::readBox))
         val tunnel=if (!t.contains("tunnel")) null else compound(t,"tunnel").let {
-            InventoryWorkCodec.keys(it,"origin","direction","width","height","length")
-            TunnelGeometry(readBlock(compound(it,"origin")),enumValueOf(it.getString("direction")),int(it,"width"),int(it,"height"),int(it,"length"))
+            val expected = setOf("origin","direction","width","height","length") + if (version >= 2) setOf("stepDown") else emptySet()
+            require(it.allKeys == expected) { "unknown/missing versioned tunnel field" }
+            TunnelGeometry(readBlock(compound(it,"origin")),enumValueOf(it.getString("direction")),int(it,"width"),int(it,"height"),int(it,"length"),
+                if (version >= 2) int(it,"stepDown") else 0)
         }
         val value=MiningWorkOrder(area,enumValueOf(t.getString("method")),readIds(t,"resources"),if (t.contains("access")) readIds(t,"access") else null,tunnel)
         require(value.validationProblem() == null) { value.validationProblem().orEmpty() }; return value

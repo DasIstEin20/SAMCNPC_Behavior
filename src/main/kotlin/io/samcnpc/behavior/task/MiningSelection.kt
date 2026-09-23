@@ -18,14 +18,14 @@ internal class MiningSelectionState {
     val problems=linkedMapOf<MiningProblem,Int>()
     fun problem(value: MiningProblem) { problems[value]=((problems[value] ?: 0)+1).coerceAtMost(1_000_000) }
     fun confirmed(order: MiningWorkOrder, target: NpcBlockPosition, id: String) {
-        require(order.area.contains(target) && order.canRemove(id))
+        require(order.contains(target) && order.canRemove(id))
         require(target !in removed && removed.size < MiningWorkOrder.MAX_REMOVED)
         removed[target]=id
         if (order.method == MiningMethod.TUNNEL || order.method == MiningMethod.EXCAVATION) cleared.add(target)
         if (order.method != MiningMethod.VEIN) return
         if (veinAnchor == null) veinAnchor=target
         for (next in MiningSelection.neighbors(target)) {
-            if (!order.area.contains(next) || next in examined || next in frontier || next in removed) continue
+            if (!order.contains(next) || next in examined || next in frontier || next in removed) continue
             if (frontier.size+examined.size >= MiningWorkOrder.MAX_REMOVED) limited=true
             else frontier.addLast(next)
         }
@@ -52,7 +52,7 @@ internal object MiningSelection {
             val connected=order.method == MiningMethod.VEIN && state.veinAnchor != null
             val target=if (connected) state.frontier.removeFirstOrNull() ?: return if (state.limited) MiningSelectionResult.Stop(MiningProblem.SELECTION_LIMIT,null) else MiningSelectionResult.Exhausted
                 else if (state.cursor < order.volume) order.cell(state.cursor++) else return MiningSelectionResult.Exhausted
-            if (!order.area.contains(target) || target in state.removed || connected && !state.examined.add(target)) continue
+            if (!order.contains(target) || target in state.removed || connected && !state.examined.add(target)) continue
             val block=world.observeBlockDetails(target)
             if (block == null || block.environment == null) return blocked(order,state,MiningProblem.UNOBSERVABLE,target)
             if (block.isAir) {

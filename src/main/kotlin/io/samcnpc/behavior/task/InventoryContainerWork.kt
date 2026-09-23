@@ -10,7 +10,8 @@ internal object InventoryContainerWork {
     fun tick(record: TaskRecord, execution: TaskExecution, npc: NpcFacade, world: NpcWorldView,
              definition: InventoryTaskDefinition, state: InventoryWorkState): NpcActionResult {
         val work = definition.work
-        val item = work.itemIds.firstOrNull { needed(work, state, npc, it) > 0 }
+        val items = if (work is CollectContainer) state.capturedItemIds else work.itemIds
+        val item = items.firstOrNull { needed(work, state, npc, it) > 0 }
         if (item == null) {
             val satisfied = state.satisfied(work)
             return TaskInventory.beginReturn(state, execution, npc, if (satisfied) InventoryWorkReason.SATISFIED else InventoryWorkReason.PARTIAL,
@@ -28,7 +29,7 @@ internal object InventoryContainerWork {
         }
         val selected = checkNotNull(state.selected)
         val container = observe(world, selected, state)
-        if (container == null) return defer(state, execution, npc, selected, "inventory endpoint changed or became unavailable", if (work is SupplyStock) InventoryWorkReason.SOURCE_UNAVAILABLE else InventoryWorkReason.DESTINATION_UNAVAILABLE)
+        if (container == null) return defer(state, execution, npc, selected, "inventory endpoint changed or became unavailable", if (withdrawing(work)) InventoryWorkReason.SOURCE_UNAVAILABLE else InventoryWorkReason.DESTINATION_UNAVAILABLE)
         if (!snapshot.onGround || TaskNavigator.distanceSquared(snapshot.position, TransportTaskDefinition.center(selected)) > 9.0) {
             if (execution.approach == null && !ContainerApproachKernel.admitSelection(world)) return NpcActionResult.running("inventory approach awaits planning admission")
             val approach = execution.approach ?: ContainerApproachKernel.select(world, selected, snapshot.position, allowed = {
@@ -38,7 +39,7 @@ internal object InventoryContainerWork {
             execution.approach = approach
             return TaskNavigator.move(record, execution, npc, world, NavigateTaskDefinition(definition.dimensionId, approach, budget = definition.budget))
         }
-        val withdrawing = work is SupplyStock
+        val withdrawing = withdrawing(work)
         val sourceReserve = if (work is SupplyStock) work.needs.first { it.itemId == item }.sourceReserve else 0
         val stock = if (withdrawing) (ContainerTransferKernel.count(container, item) - sourceReserve).coerceAtLeast(0) else 2304
         val requested = minOf(64, needed(work, state, npc, item), stock)
@@ -77,6 +78,7 @@ internal object InventoryContainerWork {
         val remaining = ((state.goals[item] ?: 0) - state.moved(work.kind, item)).coerceAtLeast(0)
         if (remaining == 0) return 0
         return when (work) {
+            is CollectContainer -> remaining
             is SupplyStock -> minOf(remaining, (work.needs.first { it.itemId == item }.target - (state.resources.retained()[item] ?: 0)).coerceAtLeast(0))
             is UnloadExcess -> minOf(remaining, InventoryTaskCapture.unloadable(npc, item, work.reserves.first { it.itemId == item }.keep))
             is PickupNearby -> 0
@@ -86,12 +88,13 @@ internal object InventoryContainerWork {
         val work = definition.work; val choices = checkNotNull(work.containers)
         val ordered = if (choices.preference == ContainerPreference.ORDERED) choices.positions else choices.positions.sortedWith(
             compareBy<NpcBlockPosition> { TaskNavigator.distanceSquared(npc.snapshot().position, TransportTaskDefinition.center(it)) }.thenBy { it.x }.thenBy { it.y }.thenBy { it.z })
-        var reason = state.lastProblem ?: if (work is SupplyStock) InventoryWorkReason.SOURCE_UNAVAILABLE else InventoryWorkReason.DESTINATION_UNAVAILABLE
+        var reason = state.lastProblem ?: if (withdrawing(work)) InventoryWorkReason.SOURCE_UNAVAILABLE else InventoryWorkReason.DESTINATION_UNAVAILABLE
         for (p in ordered) {
             if (p in state.deferred) continue
             val container = observe(world, p, state) ?: continue
-            if (work is SupplyStock) {
-                if (ContainerTransferKernel.count(container, item) > work.needs.first { it.itemId == item }.sourceReserve) return p to InventoryWorkReason.SATISFIED
+            if (withdrawing(work)) {
+                val reserve = if (work is SupplyStock) work.needs.first { it.itemId == item }.sourceReserve else 0
+                if (ContainerTransferKernel.count(container, item) > reserve) return p to InventoryWorkReason.SATISFIED
                 reason = InventoryWorkReason.SOURCE_EMPTY
             } else {
                 if (container.slots.any { it.stack.isEmpty || it.stack.itemId == item && it.stack.count < it.stack.maxStackSize }) return p to InventoryWorkReason.SATISFIED
@@ -108,6 +111,7 @@ internal object InventoryContainerWork {
         if (previous != null && previous != shape) return null
         state.checkpoints[p] = shape; return container
     }
+    private fun withdrawing(work: InventoryWork) = work is SupplyStock || work is CollectContainer
     private fun defer(state: InventoryWorkState, execution: TaskExecution, npc: NpcFacade, p: NpcBlockPosition, detail: String, reason: InventoryWorkReason): NpcActionResult {
         state.deferred.add(p); state.selected = null; TaskInventory.resetRoute(execution, npc)
         state.detail = detail.take(256); state.lastProblem = reason; return NpcActionResult.running("$detail; considering authorized alternatives")

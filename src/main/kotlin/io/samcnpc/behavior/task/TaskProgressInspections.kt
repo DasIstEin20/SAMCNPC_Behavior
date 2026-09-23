@@ -39,6 +39,13 @@ internal object TaskProgressInspections {
                 count("growthRemaining", s.growthRemaining, TICKS)), s.resources.physical.uncertain,
                 s.resources.physical.mustReconcileLoad || s.reconcileWorld, s.stop?.name)
         }
+        is PrepareFieldTaskDefinition -> {
+            val s=frame.fieldPreparation
+            if(s == null) OperationProgress.NotInitialized else OperationProgress.Observed(s.phase.name,listOf(
+                count("preparedCells",s.confirmed.size,CELLS),count("totalCells",d.cells.size,CELLS),
+                count("nativeUseAttempts",s.attempts.values.sum(),ATTEMPTS)),s.resources.uncertain,
+                s.resources.mustReconcileLoad || s.reconcileWorld,s.stop?.name)
+        }
         is PlantingTaskDefinition -> {
             val s = frame.planting
             if (s == null) OperationProgress.NotInitialized else OperationProgress.Observed(s.phase.name, listOf(

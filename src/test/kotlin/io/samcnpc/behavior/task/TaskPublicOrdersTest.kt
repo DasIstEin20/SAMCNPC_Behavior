@@ -27,6 +27,7 @@ class TaskPublicOrdersTest {
         OperationCombatOrder.AreaAttack(dimension, anchor, 16.0, NpcEntityTypeFilter.of(setOf("minecraft:husk")), 1),
         OperationCombatOrder.Patrol(dimension, anchor, 16.0, listOf(anchor)),
         OperationInventoryOrder(dimension, OperationInventoryWork.Pickup(listOf("minecraft:oak_log")), anchor),
+        OperationPrepareFieldOrder(dimension,OperationWorkArea(OperationWorkBox(NpcBlockPosition(4,64,0),NpcBlockPosition(6,64,2))),anchor,returnTo=anchor),
     ) + TaskPublicHarvestOrdersTest.examples()
 
     @Test fun everySupportedOrderUsesEstablishedDefinitionAndSaveRoundTrip() {

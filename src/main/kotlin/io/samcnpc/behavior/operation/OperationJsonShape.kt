@@ -18,7 +18,7 @@ internal object OperationJsonShape {
                 val discriminator = variant.fields.single { it.name in setOf("kind", "type") && it.input is OperationInput.Choice }
                 val actual = value.asJsonObject.get(discriminator.name)
                 actual != null && actual.isJsonPrimitive && actual.asJsonPrimitive.isString &&
-                    actual.asString in (discriminator.input as OperationInput.Choice).values
+                    actual.asString in (discriminator.input as OperationInput.Choice).values && matchesFixedNumbers(value.asJsonObject, variant)
             }
             require(candidates.size == 1) { "$path has an unsupported variant; expected " + input.names.joinToString() }
             normalize(value, RegisteredOperationCatalog.snapshot.shapes.getValue(candidates.single()), path)
@@ -56,6 +56,18 @@ internal object OperationJsonShape {
             require(value.isJsonPrimitive && value.asJsonPrimitive.isBoolean) { "$path requires a boolean" }
             value.deepCopy()
         }
+    }
+
+    /** Versioned variants can share a type ID; singleton numeric fields disambiguate them. */
+    private fun matchesFixedNumbers(value: JsonObject, variant: OperationInput.Record): Boolean {
+        for (field in variant.fields) {
+            val numeric = field.input as? OperationInput.Numeric ?: continue
+            if (numeric.minimum != numeric.maximum) continue
+            val actual = value[field.name] ?: return false
+            if (!actual.isJsonPrimitive || !actual.asJsonPrimitive.isNumber ||
+                actual.asBigDecimal.compareTo(BigDecimal.valueOf(numeric.minimum)) != 0) return false
+        }
+        return true
     }
 
     private fun record(value: JsonElement, input: OperationInput.Record, path: String): JsonObject {

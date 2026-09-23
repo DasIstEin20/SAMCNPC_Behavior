@@ -97,6 +97,7 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             "data/samcnpc_behavior/behaviors/task_mining.json",
             "data/samcnpc_behavior/behaviors/task_food.json",
             "data/samcnpc_behavior/behaviors/task_farming.json",
+            "data/samcnpc_behavior/behaviors/task_prepare_field.json",
             "data/samcnpc_behavior/behaviors/task_planting.json",
             "data/samcnpc_behavior/behaviors/task_machine.json",
             "data/samcnpc_behavior/behaviors/task_fishing.json",

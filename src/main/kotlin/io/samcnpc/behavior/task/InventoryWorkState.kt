@@ -28,6 +28,7 @@ internal class InventoryWorkState(
     val deliveries: MutableMap<NpcBlockPosition, Map<String, Int>> = linkedMapOf(),
 ) {
     val goals: Map<String, Int> = java.util.Map.copyOf(goals)
+    val capturedItemIds: List<String> = java.util.List.copyOf(goals.keys.sorted())
     fun returning(why: InventoryWorkReason, message: String) {
         if (phase == InventoryWorkPhase.RETURN) return
         phase = InventoryWorkPhase.RETURN; reason = why; detail = message.take(TaskRecord.MAX_DETAIL_LENGTH)
@@ -42,12 +43,13 @@ internal class InventoryWorkState(
         return null
     }
     fun satisfied(work: InventoryWork): Boolean = goals.all { (id, count) -> when (work) {
+        is CollectContainer -> moved(work.kind, id) >= count
         is SupplyStock -> moved(work.kind, id) >= count || (resources.retained()[id] ?: 0) >= work.needs.first { it.itemId == id }.target
         is UnloadExcess -> moved(work.kind, id) >= count
         is PickupNearby -> true
     } }
     fun moved(kind: InventoryWorkKind, item: String): Int = when (kind) {
-        InventoryWorkKind.SUPPLY -> resources.entries[item]?.supplied ?: 0
+        InventoryWorkKind.SUPPLY, InventoryWorkKind.COLLECT -> resources.entries[item]?.supplied ?: 0
         InventoryWorkKind.UNLOAD -> resources.entries[item]?.delivered ?: 0
         InventoryWorkKind.PICKUP -> picked[item] ?: 0
     }

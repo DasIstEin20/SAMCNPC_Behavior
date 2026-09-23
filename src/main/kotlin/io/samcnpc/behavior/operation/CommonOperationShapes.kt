@@ -48,7 +48,11 @@ internal object CommonOperationShapes {
             relation("UNLOAD_IDS", "Reserve item IDs must be distinct.", "reserves")),
         "pickup" to record(required("kind", choice("PICKUP")), required("itemIds", list(id, 1, 16, true)),
             optional("radius", number(1.0, 8.0), "4.0"), optional("maxItems", integer(1, 256, "items"), "32")),
-        "inventoryWork" to OperationInput.Alternatives(listOf("supply", "unload", "pickup")),
+        "collect" to record(listOf(required("kind", choice("COLLECT")), required("source", ref("block")),
+            optional("maxItems", integer(1, 2304, "items"), "2304")),
+            relation("COLLECT_CAPTURE", "Capture all observed source contents at assignment, at most 16 item IDs and maxItems total. Reject larger or unobservable sources before transfers; later additions never increase the quota.", "source", "maxItems")),
+        "inventoryWorkV1" to OperationInput.Alternatives(listOf("supply", "unload", "pickup")),
+        "inventoryWork" to OperationInput.Alternatives(listOf("supply", "unload", "pickup", "collect")),
     )
 
     private fun tactics(held: Boolean): OperationInput.Record {

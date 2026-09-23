@@ -13,7 +13,7 @@ import io.samcnpc.behavior.task.TaskInspectionValues.merged
 
 internal object TaskHarvestInspections {
     fun mining(d: MiningTaskDefinition) = merged(travel(d.anchor, d.travelRadius, d.returnTo), record(
-        "work" to miningWork(d.work), "outputs" to strings(d.outputs.values), "destinations" to containers(d.destinations),
+        "work" to miningWork(d.work,d.version), "outputs" to strings(d.outputs.values), "destinations" to containers(d.destinations),
         "quantity" to v(d.quantity), "counting" to v(d.counting.name)))
 
     fun farm(d: FarmTaskDefinition) = merged(travel(d.anchor, d.travelRadius, d.returnTo), record(
@@ -31,10 +31,17 @@ internal object TaskHarvestInspections {
         "supplySources" to containers(d.supplySources),
         "replant" to (d.replant?.let(TaskDefinitionInspections::parameters) ?: OperationValue.Absent))
 
-    private fun miningWork(w: MiningWorkOrder) = record("area" to area(w.area), "method" to v(w.method.name),
+    private fun miningWork(w: MiningWorkOrder,version: Int) = record("area" to area(w.area), "method" to v(w.method.name),
         "resources" to strings(w.resources.values), "access" to (w.access?.let { strings(it.values) } ?: OperationValue.Absent),
-        "tunnel" to (w.tunnel?.let { record("origin" to v(it.origin), "direction" to v(it.direction.name),
-            "width" to v(it.width), "height" to v(it.height), "length" to v(it.length)) } ?: OperationValue.Absent))
+        "tunnel" to tunnel(w.tunnel,version))
+
+    private fun tunnel(g: TunnelGeometry?,version: Int): OperationValue {
+        if (g == null) return OperationValue.Absent
+        val fields=mutableListOf("origin" to v(g.origin),"direction" to v(g.direction.name),
+            "width" to v(g.width),"height" to v(g.height),"length" to v(g.length))
+        if (version >= 2) fields.add("stepDown" to v(g.stepDown))
+        return record(*fields.toTypedArray())
+    }
 
     private fun farmWork(w: FarmWorkOrder) = record("area" to area(w.area), "crop" to v(w.crop.name), "mode" to v(w.mode.name),
         "cycles" to v(w.cycles), "prepareSoil" to v(w.prepareSoil), "seedSources" to containers(w.seedSources),

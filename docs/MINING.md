@@ -1,8 +1,7 @@
 # Mining operation
 
-Operation ID `samcnpc:mine`, definition version 1, task-store format 8. The frozen Z5
-campaign passed the full native/client/restart checks. Original and subsequent failures
-are retained in development evidence; [VALIDATION.md](VALIDATION.md) describes shared gates.
+Operation ID `samcnpc:mine`, current definition version 2. Version 1 documents and
+persisted tasks remain supported with their original horizontal tunnel semantics.
 
 ## Commands
 
@@ -38,6 +37,13 @@ advancing forward. Excavation scans top-down, then stable Z/X order. Exposed/vei
 cannot authorize unrelated access removals. A vein starts exposed and expands only from
 physically confirmed connected members. Work selections/removed journals are bounded;
 unloaded or unknown facts cannot grant removal permission.
+
+Typed operations and version 2 documents also accept `tunnel.stepDown=1`, which
+lowers each forward slice by one block and requires height3..4. The default zero
+retains a horizontal tunnel. The supplied work box must match the tunnel's enclosing
+bounds, but only exact slice cells may be removed; supporting stair blocks and
+ceiling cells outside those slices remain protected. The shorthand command above
+remains horizontal. See ADR0117 for versioning and persistence invariants.
 
 Current command defaults are6000 ticks,64-block fixed travel radius and return to the
 starting position. Work/recipient/return endpoints must remain inside the validated local

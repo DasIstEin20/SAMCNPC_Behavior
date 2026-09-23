@@ -73,6 +73,7 @@ internal object TaskChanges {
         is ExplorerTaskDefinition -> d.copy(budget=budget)
         is FishingTaskDefinition -> d.copy(budget=budget)
         is MachineTaskDefinition -> d.copy(budget=budget)
+        is PrepareFieldTaskDefinition -> d.copy(budget = budget)
         is PlantingTaskDefinition -> d.copy(budget=budget)
         is FarmTaskDefinition -> d.copy(budget = budget)
         is FoodTaskDefinition -> d.copy(budget = budget)

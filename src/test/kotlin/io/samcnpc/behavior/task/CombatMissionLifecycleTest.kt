@@ -76,7 +76,7 @@ class CombatMissionLifecycleTest {
         assertEquals(477, restored.primary.remainingTicks); assertEquals(TaskStatus.PAUSED, restored.status)
         assertEquals(CombatTactics.LEGACY, (restored.primary.definition as AttackTaskDefinition).tactics)
         assertFalse(checkNotNull(restored.primary.combat).attackSubmitted)
-        assertEquals(9, store.save(CompoundTag()).getInt("version"))
+        assertEquals(10, store.save(CompoundTag()).getInt("version"))
         val future = legacy.copy(); future.getList("frames", 10).getCompound(0).put("combat", CombatTacticsCodec.writeState(CombatTaskState()))
         val invalid = file(4, future); val rejected = TaskStore.load(invalid)
         assertNull(rejected.get(body.npcUuid)); assertEquals(invalid, rejected.save(CompoundTag()))

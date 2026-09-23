@@ -12,6 +12,7 @@ object OperationCatalogExport {
         Files.writeString(output.resolve("operation.schema.json"), OperationDocumentApi.orderSchema() + "\n")
         Files.writeString(output.resolve("operation-change.schema.json"), OperationDocumentApi.changeSchema() + "\n")
         Files.writeString(output.resolve("operation-catalog.json"), OperationDocumentApi.catalogJson() + "\n")
-        println("Exported 16 operation descriptors, 8 change descriptors and both schemas to $output")
+        val catalog=OperationCatalogApi.snapshot()
+        println("Exported ${catalog.operations.size} operation descriptors, ${catalog.changes.size} change descriptors and both schemas to $output")
     }
 }

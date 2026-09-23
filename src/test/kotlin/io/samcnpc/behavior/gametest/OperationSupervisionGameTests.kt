@@ -90,7 +90,7 @@ object OperationSupervisionGameTests {
                 check(TaskCodec.write(record) == after)
                 budget = record.primary.remainingTicks; pausedAt = npc.snapshot().position
                 val saved = TaskStore.forServer(server).save(CompoundTag())
-                check(saved.getInt("version") == 9)
+                check(saved.getInt("version") == 10)
                 server.overworld().dataStorage.set("samcnpc_behavior_tasks", TaskStore.load(saved))
                 check(TaskCodec.write(checkNotNull(TaskStore.forServer(server).get(npc.npcUuid))) == after)
                 wrongThread = CompletableFuture.supplyAsync { OperationSupervisionApi.observe(server, actor.player, npc.npcUuid) }

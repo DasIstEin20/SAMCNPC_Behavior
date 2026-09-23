@@ -9,7 +9,7 @@ internal object OperationPublicHarvestProof {
         is MiningTaskDefinition -> OperationHarvestOrder.Mining(d.dimensionId,
             OperationMiningWork(area(d.work.area), OperationMiningMethod.valueOf(d.work.method.name), ids(d.work.resources),
                 d.work.access?.let(::ids), d.work.tunnel?.let { OperationTunnelGeometry(it.origin,
-                    OperationTunnelDirection.valueOf(it.direction.name), it.width, it.height, it.length) }),
+                    OperationTunnelDirection.valueOf(it.direction.name), it.width, it.height, it.length, it.stepDown) }),
             ids(d.outputs), containers(d.destinations), d.quantity, OperationMiningCounting.valueOf(d.counting.name),
             d.anchor, d.travelRadius, d.returnTo, budget(d.budget))
         is FarmTaskDefinition -> OperationHarvestOrder.Farm(d.dimensionId,

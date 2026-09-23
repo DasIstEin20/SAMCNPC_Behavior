@@ -45,6 +45,7 @@ internal object TaskCodec {
             frame.explorer?.let { entry.put("explorer", ExplorerTaskCodec.write(it)) }
             frame.fishing?.let { entry.put("fishing", FishingTaskCodec.write(it)) }
             frame.machine?.let { entry.put("machine", MachineTaskCodec.write(it)) }
+            frame.fieldPreparation?.let { entry.put("fieldPreparation",FieldPreparationCodec.write(it)) }
             frame.planting?.let { entry.put("planting", PlantingStateCodec.write(it)) }
             frame.farming?.let { entry.put("farming", FarmStateCodec.write(it)) }
             frames.add(entry)
@@ -54,7 +55,7 @@ internal object TaskCodec {
         return tag
     }
 
-    fun read(tag: CompoundTag, sourceVersion: Int = 9): TaskRecord {
+    fun read(tag: CompoundTag, sourceVersion: Int = 10): TaskRecord {
         require(tag.hasUUID("npcUuid") && tag.hasUUID("taskId")) { "missing NPC/task UUID" }
         val controlRevision = if (tag.contains("controlRevision")) {
             require(tag.contains("controlRevision", Tag.TAG_LONG.toInt())) { "control revision must be a long" }
@@ -83,7 +84,7 @@ internal object TaskCodec {
             val wait = entry.int("waitTicks")
             require(remaining in 0..definition.budget.ticks && failures in 0..definition.budget.attempts && wait in 0..200) { "invalid task frame budget" }
             val resources = when (definition) {
-                is NavigateTaskDefinition, is LumberjackTaskDefinition, is AttackTaskDefinition, is CombatMissionDefinition, is TransportTaskDefinition, is InventoryTaskDefinition, is MiningTaskDefinition, is FoodTaskDefinition, is FarmTaskDefinition, is PlantingTaskDefinition, is MachineTaskDefinition, is FishingTaskDefinition, is ExplorerTaskDefinition -> { require(!entry.contains("resources")) { "navigation has unexpected resources" }; null }
+                is PrepareFieldTaskDefinition, is NavigateTaskDefinition, is LumberjackTaskDefinition, is AttackTaskDefinition, is CombatMissionDefinition, is TransportTaskDefinition, is InventoryTaskDefinition, is MiningTaskDefinition, is FoodTaskDefinition, is FarmTaskDefinition, is PlantingTaskDefinition, is MachineTaskDefinition, is FishingTaskDefinition, is ExplorerTaskDefinition -> { require(!entry.contains("resources")) { "navigation has unexpected resources" }; null }
                 is DeliveryTaskDefinition -> if (definition.version == 1) ResourceProgressCodec.read(compound(entry, "resources"), definition.quantity)
                     else { require(!entry.contains("resources")) { "adaptive delivery contains legacy mutable accounting" }; null }
             }
@@ -139,7 +140,11 @@ internal object TaskCodec {
                 require(sourceVersion >= 5)
                 PlantingStateCodec.read(compound(entry,"planting"),checkNotNull(lumberjack.replantDefinition))
             } else { require(!entry.contains("planting")) { "unexpected planting state" }; null }
-            TaskFrame(entry.getUUID("frameId"), definition, remaining, failures, wait, reason(entry), resources, lumberjack, combat, transport, inventory, mining, food, farming, planting, machine, fishing, explorer)
+            val fieldPreparation=if(definition is PrepareFieldTaskDefinition) {
+                require(sourceVersion >= 10) { "pre-v10 contains future field preparation" }
+                FieldPreparationCodec.read(compound(entry,"fieldPreparation"),definition)
+            } else { require(!entry.contains("fieldPreparation")) { "unexpected field preparation state" }; null }
+            TaskFrame(entry.getUUID("frameId"), definition, remaining, failures, wait, reason(entry), resources, lumberjack, combat, transport, inventory, mining, food, farming, planting, machine, fishing, explorer, fieldPreparation)
         }
         require(frames.isNotEmpty() && frames.map { it.id }.distinct().size == frames.size) { "missing/duplicate frame identity" }
         require(frames.all { it.definition.dimensionId == frames.first().definition.dimensionId }) { "mixed task dimensions" }
@@ -148,7 +153,7 @@ internal object TaskCodec {
             TaskStatus.RUNNING -> setOf(TaskReason.ASSIGNED, TaskReason.USER_RESUMED, TaskReason.INTERRUPTED, TaskReason.RESUMED, TaskReason.CHANNEL_UNAVAILABLE)
             TaskStatus.WAITING -> setOf(TaskReason.SOURCE_EMPTY, TaskReason.SOURCE_UNAVAILABLE, TaskReason.INVENTORY_FULL, TaskReason.DESTINATION_UNAVAILABLE, TaskReason.NO_PROGRESS, TaskReason.STORAGE_FULL, TaskReason.USER_RESUMED, TaskReason.RESUMED)
             TaskStatus.PAUSED -> setOf(TaskReason.USER_PAUSED)
-            TaskStatus.COMPLETED -> setOf(TaskReason.ARRIVED, TaskReason.DELIVERED, TaskReason.TARGET_DEFEATED, TaskReason.DEFENSE_FINISHED, TaskReason.AREA_CLEARED, TaskReason.PATROL_FINISHED, TaskReason.INVENTORY_FINISHED, TaskReason.MINING_FINISHED, TaskReason.FOOD_FINISHED, TaskReason.FARM_FINISHED, TaskReason.PLANTING_FINISHED, TaskReason.MACHINE_FINISHED, TaskReason.FISHING_FINISHED, TaskReason.EXPLORATION_FINISHED)
+            TaskStatus.COMPLETED -> setOf(TaskReason.ARRIVED, TaskReason.DELIVERED, TaskReason.TARGET_DEFEATED, TaskReason.DEFENSE_FINISHED, TaskReason.AREA_CLEARED, TaskReason.PATROL_FINISHED, TaskReason.INVENTORY_FINISHED, TaskReason.MINING_FINISHED, TaskReason.FOOD_FINISHED, TaskReason.FARM_FINISHED, TaskReason.PLANTING_FINISHED, TaskReason.MACHINE_FINISHED, TaskReason.FISHING_FINISHED, TaskReason.EXPLORATION_FINISHED, TaskReason.FIELD_PREPARED)
             TaskStatus.CANCELLED -> setOf(TaskReason.USER_CANCELLED, TaskReason.ASSIGNMENT_CHANGED, TaskReason.NPC_REMOVED,
                 TaskReason.TARGET_ENDED, TaskReason.TARGET_UNAVAILABLE, TaskReason.LEASH_REACHED, TaskReason.PERMISSION_CHANGED, TaskReason.COMBAT_TIME_LIMIT, TaskReason.RECOVERY_EXHAUSTED, TaskReason.SUBJECT_UNAVAILABLE)
             TaskStatus.FAILED -> setOf(TaskReason.RETRY_LIMIT, TaskReason.TIME_LIMIT, TaskReason.DIMENSION_CHANGED, TaskReason.STATE_MISMATCH, TaskReason.MISSING_RESOURCE, TaskReason.WORK_FAILED, TaskReason.COMBAT_NO_PROGRESS, TaskReason.INVENTORY_INCOMPLETE)
@@ -169,9 +174,10 @@ internal object TaskCodec {
         }
         require(reaction.activeFrame == null || frames.drop(1).any { it.id == reaction.activeFrame && it.definition is AttackTaskDefinition }) { "reaction frame is absent or not an attack interruption" }
         require(reaction.policy.subjectUuid != tag.getUUID("npcUuid")) { "NPC cannot be its own protected subject" }
-        require(status.terminal || frames.none { it.resources?.uncertain == true || it.lumberjack?.resources?.uncertain == true || it.transport?.ledger?.uncertain == true || it.inventory?.resources?.uncertain == true || it.mining?.resources?.physical?.uncertain == true || it.food?.resources?.physical?.uncertain == true || it.farming?.resources?.physical?.uncertain == true || it.planting?.resources?.uncertain == true || it.machine?.resources?.uncertain == true || it.fishing?.resources?.uncertain == true }) { "active task has uncertain resources" }
+        require(status.terminal || frames.none { it.resources?.uncertain == true || it.lumberjack?.resources?.uncertain == true || it.transport?.ledger?.uncertain == true || it.inventory?.resources?.uncertain == true || it.mining?.resources?.physical?.uncertain == true || it.food?.resources?.physical?.uncertain == true || it.farming?.resources?.physical?.uncertain == true || it.planting?.resources?.uncertain == true || it.machine?.resources?.uncertain == true || it.fishing?.resources?.uncertain == true || it.fieldPreparation?.resources?.uncertain == true }) { "active task has uncertain resources" }
         require(status.terminal || frames.none { it.fishing?.pendingReel == true }) { "unconfirmed fishing payout; saved record preserved without replay" }
         require(status.terminal || frames.none { it.explorer?.phase == ExplorerPhase.DONE }) { "active explorer claims completed return" }
+        require(status.terminal || frames.none { it.fieldPreparation?.phase == FieldPhase.DONE }) { "active field task claims completed preparation" }
         if (status == TaskStatus.COMPLETED) {
             when (val primary = frames.first().definition) {
                 is ExplorerTaskDefinition -> {
@@ -188,6 +194,11 @@ internal object TaskCodec {
                     val state=checkNotNull(frames.first().machine)
                     require(reason == TaskReason.MACHINE_FINISHED && state.phase == MachinePhase.DONE && state.goal(primary)) { "machine completion lacks actual feed/output counts" }
                     if (primary.returnTo != null) require(tag.contains("observedPosition") && TaskNavigator.distanceSquared(readPosition(compound(tag,"observedPosition")),primary.returnTo) <= 0.75*0.75) { "machine completion lacks physical return" }
+                }
+                is PrepareFieldTaskDefinition -> {
+                    val state=checkNotNull(frames.first().fieldPreparation)
+                    require(reason == TaskReason.FIELD_PREPARED && state.phase == FieldPhase.DONE && state.stop == null && !state.resources.uncertain && state.confirmed == primary.cells.toSet() && state.cursor == primary.cells.size) { "field completion lacks confirmed soil plane" }
+                    if(primary.returnTo != null) require(tag.contains("observedPosition") && TaskNavigator.distanceSquared(readPosition(compound(tag,"observedPosition")),primary.returnTo) <= 0.75*0.75) { "field completion lacks physical return" }
                 }
                 is PlantingTaskDefinition -> {
                     val state=checkNotNull(frames.first().planting)
@@ -272,6 +283,7 @@ internal object TaskCodec {
             is ExplorerTaskDefinition -> ExplorerTaskCodec.writeDefinition(definition,tag)
             is FishingTaskDefinition -> FishingTaskCodec.writeDefinition(definition,tag)
             is MachineTaskDefinition -> MachineTaskCodec.writeDefinition(definition,tag)
+            is PrepareFieldTaskDefinition -> FieldPreparationCodec.writeDefinition(definition,tag)
             is PlantingTaskDefinition -> PlantingOrderCodec.writeDefinition(definition,tag)
             is FarmTaskDefinition -> FarmOrderCodec.writeDefinition(definition, tag)
             is FoodTaskDefinition -> FoodOrderCodec.writeDefinition(definition, tag)
@@ -317,6 +329,10 @@ internal object TaskCodec {
             MachineTaskDefinition.ID -> {
                 require(tag.allKeys == common+MachineTaskCodec.definitionKeys(tag.contains("returnTo"))) { "unknown/missing machine parameter" }
                 MachineTaskCodec.readDefinition(tag,dimension,budget,version)
+            }
+            PrepareFieldTaskDefinition.ID -> {
+                require(tag.allKeys == common+FieldPreparationCodec.definitionKeys(tag.contains("returnTo"))) { "unknown/missing field parameter" }
+                FieldPreparationCodec.readDefinition(tag,dimension,budget,version)
             }
             PlantingTaskDefinition.ID -> {
                 require(tag.allKeys == common+PlantingOrderCodec.keys(tag.contains("returnTo"))) { "unknown/missing planting parameter" }

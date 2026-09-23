@@ -14,13 +14,14 @@ internal data class MiningTaskDefinition(
     override val travelRadius: Double = 64.0,
     override val returnTo: NpcPosition? = null,
     override val budget: TaskBudget = TaskBudget(),
-    override val version: Int = 1,
+    override val version: Int = 2,
 ) : ProducedTaskDefinition {
     val clearanceCells: Int = if ((work.method == MiningMethod.TUNNEL || work.method == MiningMethod.EXCAVATION) && work.validationProblem() == null)
-        (0 until work.volume).count { work.area.contains(work.cell(it)) } else 0
+        (0 until work.volume).count { work.contains(work.cell(it)) } else 0
     override val operationId: String = ID
     override fun validationProblem(): String? {
-        if (version != 1) return "unsupported mining definition version"
+        if (version !in 1..2) return "unsupported mining definition version"
+        if (version == 1 && (work.tunnel?.stepDown ?: 0) != 0) return "descending tunnel requires mining definition version2"
         if (!travelRadius.isFinite() || travelRadius !in 4.0..64.0) return "mining travel radius must be 4..64 blocks"
         if (quantity !in 1..2304) return "mining quantity must be 1..2304"
         val problem=work.validationProblem() ?: destinations.validationProblem() ?: NavigateTaskDefinition(dimensionId,anchor,budget=budget).validationProblem()

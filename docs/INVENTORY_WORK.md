@@ -1,7 +1,8 @@
 # Bounded inventory work (O2, implementation under verification)
 
-The shared `samcnpc:inventory_work` operation executes explicit supply, protected unload
-or nearby pickup and then returns to its captured starting position. It uses the same
+The shared `samcnpc:inventory_work` operation executes explicit supply, protected unload,
+nearby pickup or bounded whole-container collection and then returns to its captured
+starting position. It uses the same
 physical Core transfer calls, fair container leases and approach/navigation machinery as
 transport. Every transfer is credited from matching real inventory/container deltas.
 A return is reported only after actual arrival; exhausted time or blocked return is a
@@ -21,6 +22,22 @@ Supply entries mean `item=minimum/target[/sourceReserve]`; unload entries mean
 unique IDs; explicit source/recipient alternatives are1..8. The selected main-hand slot
 and every separately equipped store are protected from optional unloading. Reserve
 counts include all real carried/equipped stores once; main hand aliases its inventory slot.
+
+Definition version 2 additionally accepts `work: {"kind":"COLLECT","source":{"x":10,
+"y":64,"z":20},"maxItems":2304}` through the public operation document API, or
+`OperationInventoryWork.Collect(source, maxItems)` through the typed API. Its parameters
+also require the ordinary dimension and travel anchor. Version 1 documents retain
+their original supply/unload/pickup forms.
+
+COLLECT captures the observable source contents when the authorized assignment is
+accepted. It rejects unavailable/incomplete observations, more than 64 container slots,
+more than 16 distinct item IDs or a total above maxItems before any transfer or task
+replacement. An observed empty source is an empty quota. The quota measures additional
+withdrawals: already carried items do not satisfy it. Later source additions cannot
+increase it. Pause/reload preserves that quota, source checkpoint and transfer receipts.
+Source depletion or inventory exhaustion can therefore produce an explicit partial
+outcome. The operation counts item IDs and amounts, not individual stack identities.
+Automatic logistics policies continue to use their explicit item filters.
 
 To enable the same executor as interruptions of ordinary work:
 
@@ -77,4 +94,4 @@ The codec checks these rows against the physical supplied/unloaded counters.
 
 The frozen Z5 campaign j passed the full Behavior suite, physical inventory client case
 and separate-JVM checkpoints. Exact receipt credit during passive approach is covered by
-ADR 0073. See [VALIDATION.md](VALIDATION.md); the full mixed hour is a separate gate.
+ADR 0073. See PROJECT_STATE.md for current evidence; the full mixed hour is a separate gate.

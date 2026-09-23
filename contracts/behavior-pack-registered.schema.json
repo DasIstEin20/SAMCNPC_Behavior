@@ -868,6 +868,23 @@
           "additionalProperties": false,
           "properties": {
             "action": {
+              "const": "samcnpc:run_prepare_field_task"
+            },
+            "args": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {}
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action": {
               "const": "samcnpc:set_attack_target_from_recent_attacker"
             },
             "args": {

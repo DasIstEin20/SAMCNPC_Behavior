@@ -49,7 +49,7 @@ internal class TaskStore private constructor() : SavedData() {
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_tasks"
-        private const val VERSION = 9
+        private const val VERSION = 10
         private const val MAX_RECORDS = 4096
         private val LOGGER = LogUtils.getLogger()
 

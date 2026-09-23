@@ -45,7 +45,7 @@ internal object RegisteredBehaviorCatalog {
         "samcnpc:run_farm_task", "samcnpc:run_fishing_task", "samcnpc:run_food_task",
         "samcnpc:run_inventory_task", "samcnpc:run_lumberjack_demo", "samcnpc:run_lumberjack_task",
         "samcnpc:run_machine_task", "samcnpc:run_mining_task", "samcnpc:run_navigation_task",
-        "samcnpc:run_planting_task", "samcnpc:stop_movement",
+        "samcnpc:run_planting_task", "samcnpc:run_prepare_field_task", "samcnpc:stop_movement",
     )
 
     val snapshot: BehaviorComponentCatalog = create()

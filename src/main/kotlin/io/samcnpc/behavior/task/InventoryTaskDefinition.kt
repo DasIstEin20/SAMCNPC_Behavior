@@ -1,10 +1,11 @@
 package io.samcnpc.behavior.task
 
 import io.samcnpc.core.api.NpcPosition
+import io.samcnpc.core.api.NpcBlockPosition
 
 internal data class StockNeed(val itemId: String, val minimum: Int, val target: Int, val sourceReserve: Int = 0)
 internal data class ItemReserve(val itemId: String, val keep: Int)
-internal enum class InventoryWorkKind { SUPPLY, UNLOAD, PICKUP }
+internal enum class InventoryWorkKind { SUPPLY, UNLOAD, PICKUP, COLLECT }
 
 /** Data-only requests; endpoint lists and item filters cannot change after validation. */
 internal sealed interface InventoryWork {
@@ -12,6 +13,14 @@ internal sealed interface InventoryWork {
     val itemIds: List<String>
     val containers: ContainerChoices?
     fun validationProblem(): String?
+}
+internal class CollectContainer(val source: NpcBlockPosition, val maxItems: Int = 2304) : InventoryWork {
+    override val kind = InventoryWorkKind.COLLECT
+    // Item IDs belong to the captured runtime quota, never to a guessed caller list.
+    override val itemIds: List<String> = emptyList()
+    override val containers = ContainerChoices(listOf(source))
+    override fun validationProblem(): String? = containers.validationProblem() ?:
+        if (maxItems !in 1..2304) "collection limit must be 1..2304 items" else null
 }
 internal class SupplyStock(needs: List<StockNeed>, override val containers: ContainerChoices) : InventoryWork {
     val needs: List<StockNeed> = java.util.List.copyOf(needs)
@@ -55,12 +64,12 @@ internal data class InventoryTaskDefinition(
     val workTicks: Int = 600,
     val maxSteps: Int = 128,
     override val budget: TaskBudget = TaskBudget(ticks = 1200),
-    override val version: Int = 1,
+    override val version: Int = 2,
 ) : TaskDefinition {
     override val operationId = ID
     fun contains(position: NpcPosition): Boolean = TaskNavigator.distanceSquared(anchor, position) <= travelRadius * travelRadius
     override fun validationProblem(): String? = when {
-        version != 1 -> "unsupported inventory operation version"
+        version !in 1..2 || version == 1 && work is CollectContainer -> "unsupported inventory operation version"
         !travelRadius.isFinite() || travelRadius !in 4.0..64.0 -> "inventory travel radius must be 4..64"
         workTicks !in 20..36000 || workTicks > budget.ticks - 20 -> "inventory work must leave at least 20 ticks for its physical return"
         maxSteps !in 1..128 -> "inventory action step limit must be 1..128"

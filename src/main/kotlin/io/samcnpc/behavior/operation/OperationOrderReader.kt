@@ -10,6 +10,8 @@ internal object OperationOrderReader {
         val dimension = p.text("dimensionId")
         val budget = OperationValueReader.budget(p.obj("budget"))
         return when (type) {
+            OperationType.FIELD_PREPARATION -> OperationPrepareFieldOrder(dimension,OperationValueReader.area(p.obj("area")),
+                OperationValueReader.position(p.obj("anchor")),p.number("travelRadius"),p.maybe("returnTo")?.let(OperationValueReader::position),budget)
             OperationType.NAVIGATE -> OperationOrder.Navigate(dimension, OperationValueReader.position(p.obj("destination")),
                 p.number("speed").toFloat(), p.number("arrivalDistance"), budget)
             OperationType.DELIVER -> OperationOrder.Deliver(dimension, OperationValueReader.block(p.obj("destination")),

@@ -46,6 +46,8 @@ internal object TaskInventoryCommands {
                 InventoryWorkKind.SUPPLY -> SupplyStock(parseNeeds(items), ContainerChoices(TaskTransportCommands.parsePositions(StringArgumentType.getString(context, "containers"))))
                 InventoryWorkKind.UNLOAD -> UnloadExcess(parseReserves(items), ContainerChoices(TaskTransportCommands.parsePositions(StringArgumentType.getString(context, "containers"))))
                 InventoryWorkKind.PICKUP -> PickupNearby(parts(items), DoubleArgumentType.getDouble(context, "radius"), integer(context, "count"))
+                // This legacy grammar requires an explicit item list; collection uses the versioned operation API.
+                InventoryWorkKind.COLLECT -> return@withNpc NpcActionResult.rejected("COLLECT requires an operation document with one source")
             }
             if (policy) {
                 val record = TaskStore.forServer(player.server).get(npc.npcUuid) ?: return@withNpc NpcActionResult.rejected("no assigned task")

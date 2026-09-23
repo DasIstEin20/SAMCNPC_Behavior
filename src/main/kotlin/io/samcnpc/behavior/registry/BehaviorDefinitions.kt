@@ -143,6 +143,14 @@ object BehaviorDefinitions {
                 ?: return@action NpcActionResult.rejected("behavior server is not ready")
             io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.MACHINE_ACTION_ID)
         },
+        action(io.samcnpc.behavior.task.TaskService.FIELD_ACTION_ID, setOf(
+            BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
+            BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
+        )) { npc, world, _ ->
+            val server = BehaviorRuntimeService.serverOrNull()
+                ?: return@action NpcActionResult.rejected("behavior server is not ready")
+            io.samcnpc.behavior.task.TaskService.executeSelected(server, npc, world, io.samcnpc.behavior.task.TaskService.FIELD_ACTION_ID)
+        },
         action(io.samcnpc.behavior.task.TaskService.PLANTING_ACTION_ID, setOf(
             BehaviorChannel.MOVEMENT, BehaviorChannel.LOOK, BehaviorChannel.MAIN_HAND,
             BehaviorChannel.BLOCK_ACTION, BehaviorChannel.INVENTORY, BehaviorChannel.INTERACTION,
