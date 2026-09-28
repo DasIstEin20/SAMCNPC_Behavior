@@ -3,3 +3,8 @@
 *.png binary
 *.zip binary
 *.jar binary
+
+# Keep command launchers portable across Git checkout settings.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
