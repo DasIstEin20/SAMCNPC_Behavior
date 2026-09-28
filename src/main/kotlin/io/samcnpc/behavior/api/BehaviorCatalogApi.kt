@@ -44,6 +44,12 @@ sealed interface BehaviorParameter {
     val required: Boolean
     val description: String
 
+    data class Text internal constructor(
+        override val name: String, override val required: Boolean, override val description: String,
+        val minimumLength: Int, val maximumLength: Int, val pattern: String, val example: String,
+        val format: String = "item-query",
+    ) : BehaviorParameter
+
     data class Numeric internal constructor(
         override val name: String,
         override val required: Boolean,

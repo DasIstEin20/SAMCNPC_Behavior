@@ -66,7 +66,8 @@ internal object OperationSchemaExport {
             }
             is OperationInput.Text -> {
                 result.addProperty("type", "string"); result.addProperty("maxLength", input.maxLength)
-                if (input.format == OperationTextFormat.RESOURCE_ID) result.addProperty("pattern", "^[a-z0-9_.-]+:[a-z0-9_./-]+$")
+                if (input.format == OperationTextFormat.ITEM_QUERY) result.addProperty("pattern", ItemQuery.PATTERN)
+                else if (input.format == OperationTextFormat.RESOURCE_ID) result.addProperty("pattern", "^[a-z0-9_.-]+:[a-z0-9_./-]+$")
                 else { result.addProperty("format", "uuid"); result.addProperty("pattern", "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$") }
             }
             is OperationInput.Choice -> { result.addProperty("type", "string"); result.add("enum", strings(input.values)) }

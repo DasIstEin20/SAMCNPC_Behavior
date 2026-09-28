@@ -64,6 +64,8 @@ internal object TaskCommands {
             .then(TaskInventoryCommands.supply())
             .then(TaskInventoryCommands.unload())
             .then(TaskInventoryCommands.pickup())
+            .then(TaskPreparationCommands.ensure(false))
+            .then(TaskPreparationCommands.freeSlots(false))
             .then(TaskTransportCommands.branch())
             .then(TaskTransportCommands.alternativesBranch())
             .then(TaskCombatCommands.attackBranch())

@@ -8,6 +8,12 @@ internal object InventoryWorkCodec {
     fun write(work: InventoryWork) = CompoundTag().apply {
         putString("kind", work.kind.name)
         when (work) {
+            is EnsureItems -> {
+                putString("query", work.query.encode()); putInt("count", work.count); putDouble("minimumDurability", work.minimumDurability)
+                putInt("sourceReserve", work.sourceReserve)
+                work.destination?.let { putString("destination", it.name) }
+                work.containers?.let { put("containers", LumberjackSupplyCodec.writeChoices(it)) }
+            }
             is CollectContainer -> {
                 put("source", LumberjackTaskCodec.position(work.source)); putInt("maxItems", work.maxItems)
             }
@@ -18,6 +24,7 @@ internal object InventoryWorkCodec {
                 }) })
             }
             is UnloadExcess -> {
+                if (work.minimumFreeSlots > 0) putInt("minimumFreeSlots", work.minimumFreeSlots)
                 put("containers", LumberjackSupplyCodec.writeChoices(work.containers))
                 put("items", ListTag().apply { for (reserve in work.reserves) add(CompoundTag().apply {
                     putString("item", reserve.itemId); putInt("reserve", reserve.keep)
@@ -30,8 +37,15 @@ internal object InventoryWorkCodec {
         }
     }
     fun read(tag: CompoundTag): InventoryWork {
-        val items = if (tag.getString("kind") == "COLLECT") emptyList() else list(tag, "items", 16)
+        val items = if (tag.getString("kind") in setOf("COLLECT", "ENSURE")) emptyList() else list(tag, "items", 16)
         val work = when (tag.getString("kind")) {
+            "ENSURE" -> {
+                require(tag.allKeys == setOf("kind", "query", "count", "minimumDurability", "sourceReserve") + setOf("destination", "containers").filter { tag.contains(it) })
+                require(tag.contains("query", Tag.TAG_STRING.toInt()))
+                EnsureItems(io.samcnpc.behavior.api.ItemQuery.parse(tag.getString("query")), int(tag, "count"),
+                    if (tag.contains("containers")) choices(tag) else null, double(tag, "minimumDurability"),
+                    if (tag.contains("destination")) io.samcnpc.core.api.NpcEquipmentDestination.valueOf(tag.getString("destination")) else null, int(tag, "sourceReserve"))
+            }
             "COLLECT" -> {
                 keys(tag, "kind", "source", "maxItems")
                 CollectContainer(LumberjackTaskCodec.readPosition(compound(tag, "source")), int(tag, "maxItems"))
@@ -41,8 +55,8 @@ internal object InventoryWorkCodec {
                 SupplyStock(items.map { keys(it, "item", "minimum", "target", "reserve"); StockNeed(it.getString("item"), int(it, "minimum"), int(it, "target"), int(it, "reserve")) }, choices(tag))
             }
             "UNLOAD" -> {
-                keys(tag, "kind", "containers", "items")
-                UnloadExcess(items.map { keys(it, "item", "reserve"); ItemReserve(it.getString("item"), int(it, "reserve")) }, choices(tag))
+                require(tag.allKeys == setOf("kind", "containers", "items") + if (tag.contains("minimumFreeSlots")) setOf("minimumFreeSlots") else emptySet())
+                UnloadExcess(items.map { keys(it, "item", "reserve"); ItemReserve(it.getString("item"), int(it, "reserve")) }, choices(tag), if (tag.contains("minimumFreeSlots")) int(tag, "minimumFreeSlots") else 0)
             }
             "PICKUP" -> {
                 keys(tag, "kind", "items", "radius", "maxItems")
@@ -63,18 +77,21 @@ internal object InventoryWorkCodec {
     fun writePolicy(value: TaskLogisticsPolicy) = CompoundTag().apply {
         value.anchor?.let { put("anchor", position(it)) }
         value.supply?.let { put("supply", write(it)) }; value.unload?.let { put("unload", write(it)) }; value.pickup?.let { put("pickup", write(it)) }
+        value.preparation?.let { put("preparation", write(it)) }
         putDouble("travelRadius", value.travelRadius); putInt("workTicks", value.workTicks); putInt("durationTicks", value.durationTicks)
         putInt("cooldownTicks", value.cooldownTicks); putInt("maxSteps", value.maxSteps)
     }
     fun readPolicy(tag: CompoundTag): TaskLogisticsPolicy {
-        require(tag.allKeys == setOf("travelRadius", "workTicks", "durationTicks", "cooldownTicks", "maxSteps") + setOf("anchor", "supply", "unload", "pickup").filter { tag.contains(it) }) { "unknown/missing logistics policy" }
+        require(tag.allKeys == setOf("travelRadius", "workTicks", "durationTicks", "cooldownTicks", "maxSteps") + setOf("anchor", "supply", "unload", "pickup", "preparation").filter { tag.contains(it) }) { "unknown/missing logistics policy" }
         val supply = if (tag.contains("supply")) read(compound(tag, "supply")) else null
         val unload = if (tag.contains("unload")) read(compound(tag, "unload")) else null
         val pickup = if (tag.contains("pickup")) read(compound(tag, "pickup")) else null
+        val preparation = if (tag.contains("preparation")) read(compound(tag, "preparation")) else null
+        require(preparation == null || preparation is EnsureItems) { "preparation policy must be ENSURE" }
         require((supply == null || supply is SupplyStock) && (unload == null || unload is UnloadExcess) && (pickup == null || pickup is PickupNearby)) { "logistics policy kind differs from its slot" }
         val value = TaskLogisticsPolicy(if (tag.contains("anchor")) readPosition(compound(tag, "anchor")) else null,
             supply as? SupplyStock, unload as? UnloadExcess, pickup as? PickupNearby, double(tag, "travelRadius"),
-            int(tag, "workTicks"), int(tag, "durationTicks"), int(tag, "cooldownTicks"), int(tag, "maxSteps"))
+            int(tag, "workTicks"), int(tag, "durationTicks"), int(tag, "cooldownTicks"), int(tag, "maxSteps"), preparation as? EnsureItems)
         require(value.validationProblem() == null) { "invalid logistics policy" }; return value
     }
     private fun choices(tag: CompoundTag) = LumberjackSupplyCodec.readChoices(compound(tag, "containers")) ?: throw IllegalArgumentException("inventory work needs authorized containers")

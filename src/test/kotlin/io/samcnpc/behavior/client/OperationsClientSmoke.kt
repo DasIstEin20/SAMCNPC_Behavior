@@ -38,7 +38,7 @@ private data class OperationRenderView(val index: Int,val entityId: Int,val labe
 object OperationsClientSmoke {
     private val enabled=java.lang.Boolean.getBoolean("samcnpc.operationsClient")
     private val kinds=listOf(OperationKind.MINING,OperationKind.FARM,OperationKind.PLANTING,OperationKind.WOOD_REPLANT,
-        OperationKind.TRANSPORT,OperationKind.INVENTORY,OperationKind.FOOD,OperationKind.PATROL,OperationKind.DEFEND)
+        OperationKind.TRANSPORT,OperationKind.INVENTORY,OperationKind.PREPARATION,OperationKind.FOOD,OperationKind.PATROL,OperationKind.DEFEND)
     private val total=kinds.size+TacticalProbe.entries.size
     @Volatile private var worldId: String?=null
     @Volatile private var view: OperationRenderView?=null

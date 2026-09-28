@@ -16,22 +16,26 @@ internal object InventoryStateCodec {
         state.selectedItem?.let { putString("selectedItem", it) }
         state.lastProblem?.let { putString("lastProblem", it.name) }
         put("deferred", ListTag().apply { for (p in state.deferred) add(LumberjackTaskCodec.position(p)) })
+        state.readiness?.let { observation -> put("readiness", CompoundTag().apply {
+            putInt("matchingCount", observation.matchingCount); putBoolean("equipmentMatches", observation.equipmentMatches); putInt("freeSlots", observation.freeSlots)
+        }) }
     }
     fun read(tag: CompoundTag, definition: InventoryTaskDefinition): InventoryWorkState {
         require(tag.allKeys == setOf("resources", "goals", "revision", "workRemaining", "phase", "steps", "detail", "picked", "checkpoints", "deferred", "withdrawals", "deliveries") +
-            setOf("reason", "selected", "selectedItem", "lastProblem").filter { tag.contains(it) }) { "unknown/missing inventory state" }
+            setOf("reason", "selected", "selectedItem", "lastProblem", "readiness").filter { tag.contains(it) }) { "unknown/missing inventory state" }
         val resources = InventoryLedgerCodec.read(InventoryWorkCodec.compound(tag, "resources"))
         val goals = counts(tag, "goals"); val picked = counts(tag, "picked")
         val work = definition.work
-        require((work is CollectContainer || goals.keys.all { it in work.itemIds }) &&
+        require((work is CollectContainer || work is EnsureItems || goals.keys.all { it in work.itemIds }) &&
             goals.values.sumOf { it.toLong() } <= if (work is CollectContainer) work.maxItems else 2304) { "inventory goals exceed the captured work" }
         require(work is PickupNearby || picked.isEmpty()) { "container work contains deliberate pickup credit" }
         require(picked.keys.all { it in work.itemIds } && (work !is PickupNearby || picked.values.sum() <= work.maxItems)) { "pickup credit exceeds the explicit limit" }
         require(resources.entries.all { (id, value) ->
-            (value.supplied == 0 || (work is SupplyStock || work is CollectContainer) && id in goals) && (value.delivered == 0 || work is UnloadExcess && id in goals) &&
+            (value.supplied == 0 || (work is SupplyStock || work is CollectContainer || work is EnsureItems) && id in goals) && (value.delivered == 0 || work is UnloadExcess && id in goals) &&
             value.consumed == 0 && (picked[id] ?: 0) <= value.gathered
         }) { "inventory ledger has effects outside the authorized work kind" }
         require(goals.all { (id, count) -> when (work) {
+            is EnsureItems -> count == work.count && (resources.entries[id]?.supplied ?: 0) <= count
             is CollectContainer -> (resources.entries[id]?.supplied ?: 0) <= count
             is SupplyStock -> count <= work.needs.first { it.itemId == id }.target && (resources.entries[id]?.supplied ?: 0) <= count
             is UnloadExcess -> count <= (resources.entries[id]?.initial ?: 0) && (resources.entries[id]?.delivered ?: 0) <= count
@@ -44,6 +48,14 @@ internal object InventoryStateCodec {
         require(revision in 0..32 && remaining in 0..definition.workTicks && steps in 0..definition.maxSteps && detail.length <= 256) { "invalid inventory limits/report" }
         require((phase == InventoryWorkPhase.RETURN) == (reason != null)) { "inventory return lacks a bounded work outcome" }
         val state = InventoryWorkState(resources, goals, revision, remaining, phase, steps, reason, detail, picked.toMutableMap())
+        if (tag.contains("readiness")) {
+            require(definition.version >= 3 && phase == InventoryWorkPhase.RETURN && (work is EnsureItems || work is UnloadExcess && work.minimumFreeSlots > 0)) { "readiness outside supported physical return" }
+            val value = InventoryWorkCodec.compound(tag, "readiness")
+            InventoryWorkCodec.keys(value, "matchingCount", "equipmentMatches", "freeSlots")
+            val matching = InventoryWorkCodec.int(value, "matchingCount"); val free = InventoryWorkCodec.int(value, "freeSlots")
+            require(matching in 0..4096 && free in 0..36 && value.contains("equipmentMatches", Tag.TAG_BYTE.toInt())) { "invalid readiness observation" }
+            state.readiness = InventoryReadiness(matching, value.getBoolean("equipmentMatches"), free)
+        }
         state.withdrawals.putAll(InventoryTransferRows.read(tag,"withdrawals")); state.deliveries.putAll(InventoryTransferRows.read(tag,"deliveries"))
         require((state.withdrawals.keys + state.deliveries.keys).all { it in work.containers?.positions.orEmpty() }) { "inventory receipt names an unauthorized container" }
         InventoryTransferRows.validate(state.withdrawals,resources.entries.filterValues { it.supplied > 0 }.mapValues { it.value.supplied })

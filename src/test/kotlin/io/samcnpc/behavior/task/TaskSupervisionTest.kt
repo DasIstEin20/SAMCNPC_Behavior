@@ -70,7 +70,7 @@ class TaskSupervisionTest {
             assertEquals(5877, loaded.primary.remainingTicks)
             assertEquals(r.id, loaded.id); assertEquals(r.primary.id, loaded.primary.id)
             val saved = store.save(CompoundTag())
-            assertEquals(10, saved.getInt("version"))
+            assertEquals(11, saved.getInt("version"))
             assertEquals(0L, assertNotNull(TaskStore.load(saved).get(r.npcUuid)).controlRevision)
         }
         val explicit = task(); explicit.pause(); explicit.resume()

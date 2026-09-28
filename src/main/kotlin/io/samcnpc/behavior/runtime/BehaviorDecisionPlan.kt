@@ -31,6 +31,9 @@ class BehaviorDecisionPlan(packs: List<CompiledPack>) {
     private data class Candidate(val ruleIndex: Int, val intent: ActionIntent)
     private val rules: List<PreparedRule>
     private val candidates: List<Candidate>
+    val needsInventoryFacts: Boolean
+    val needsTaskFacts: Boolean
+    val containerRequests: List<io.samcnpc.behavior.inventory.ContainerFactRequest>
 
     init {
         val prepared = ArrayList<PreparedRule>()
@@ -50,6 +53,21 @@ class BehaviorDecisionPlan(packs: List<CompiledPack>) {
         candidates = java.util.List.copyOf(actions.sortedWith { left, right ->
             ActionIntent.WINNER_FIRST.compare(left.intent, right.intent)
         })
+        val requests = ArrayList<io.samcnpc.behavior.inventory.LocalFactCondition>()
+        for (preparedRule in prepared) collectFacts(preparedRule.rule.whenExpression, requests)
+        needsInventoryFacts = requests.any { it.needsInventory }
+        needsTaskFacts = requests.any { it.needsTask }
+        containerRequests = java.util.List.copyOf(requests.mapNotNull { it.container }.distinct())
+    }
+
+    private fun collectFacts(expression: io.samcnpc.behavior.model.ConditionExpression,
+                             result: MutableList<io.samcnpc.behavior.inventory.LocalFactCondition>) {
+        when (expression) {
+            is io.samcnpc.behavior.model.ConditionExpression.Test -> (expression.handler as? io.samcnpc.behavior.inventory.LocalFactCondition)?.let(result::add)
+            is io.samcnpc.behavior.model.ConditionExpression.All -> expression.children.forEach { collectFacts(it, result) }
+            is io.samcnpc.behavior.model.ConditionExpression.Any -> expression.children.forEach { collectFacts(it, result) }
+            is io.samcnpc.behavior.model.ConditionExpression.Not -> collectFacts(expression.child, result)
+        }
     }
 
     fun tick(

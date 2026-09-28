@@ -21,6 +21,9 @@ internal object RegisteredBehaviorSchema {
         schema.addProperty("\$comment", "Runtime additionally checks action channels, duplicate rule IDs, condition depth, related arguments, input byte/tree limits and reload/world context. Schema acceptance is not activation.")
         schema.addProperty("x-samcnpc-catalog-version", catalog.catalogVersion)
         schema.addProperty("x-samcnpc-definition-semantics-version", catalog.definitionSemanticsVersion)
+        val builtins = JsonArray()
+        BehaviorPackLoader.builtinPackIds.forEach(builtins::add)
+        schema.add("x-samcnpc-builtins", builtins)
         val definitions = schema.getAsJsonObject("\$defs")
         definitions.add("test", variants(catalog.conditions, "condition"))
         definitions.add("action", variants(catalog.actions, "action"))
@@ -31,6 +34,11 @@ internal object RegisteredBehaviorSchema {
         val alternatives = JsonArray()
         for (entry in entries) {
             val objectSchema = JsonObject()
+            objectSchema.addProperty("title", entry.id.substringAfter(':').replace('_', ' '))
+            objectSchema.addProperty("x-samcnpc-component-version", entry.version)
+            val channels = JsonArray()
+            entry.channels.forEach(channels::add)
+            objectSchema.add("x-samcnpc-required-channels", channels)
             objectSchema.addProperty("type", "object")
             objectSchema.addProperty("additionalProperties", false)
             val required = JsonArray()
@@ -67,6 +75,14 @@ internal object RegisteredBehaviorSchema {
         val result = JsonObject()
         result.addProperty("description", parameter.description)
         when (parameter) {
+            is BehaviorParameter.Text -> {
+                result.addProperty("type", "string")
+                result.addProperty("minLength", parameter.minimumLength)
+                result.addProperty("maxLength", parameter.maximumLength)
+                result.addProperty("pattern", parameter.pattern)
+                result.addProperty("x-samcnpc-example", parameter.example)
+                result.addProperty("x-samcnpc-text-format", parameter.format)
+            }
             is BehaviorParameter.Numeric -> {
                 result.addProperty("type", if (parameter.kind == BehaviorNumericKind.INTEGER) "integer" else "number")
                 result.addProperty("minimum", parameter.minimum)

@@ -41,7 +41,7 @@ internal object BasicOperationDescriptors {
                 optional("heading", integer(0, 3, "quarter_turns"), "0")),
             listOf("EXTEND_TIME", "TACTICS", "REACTION"),
             relation("EXPLORER_ENVELOPE", "Horizontal bounds stay inside +/-29999984. chunkBudget covers the chunk footprint plus Core margin: (floor((x+r)/16)-floor((x-r)/16)+3) times the corresponding z span.", "anchor", "radius", "chunkBudget")),
-        descriptor(OperationType.INVENTORY, "Perform one finite supply, unload, pickup or whole-container collection request and return.", "INVENTORY_FINISHED or INVENTORY_INCOMPLETE after measured item transfers.",
+        descriptor(OperationType.INVENTORY, "Ensure queried inventory/equipment from permitted sources, free slots by reserved unloading, or perform finite supply/pickup/collection and return.", "INVENTORY_FINISHED only after fresh observed requirements, measured transfers and return; otherwise INVENTORY_INCOMPLETE.",
             common(optional("budget", ref("inventoryBudget"), "{}")) + listOf(required("work", ref("inventoryWork")), required("anchor", ref("position")),
                 inherited("returnTo", ref("position"), "anchor"), optional("travelRadius", number(4.0, 64.0), "16.0"),
                 optional("workTicks", integer(20, 36000, "ticks"), "600"), optional("maxSteps", integer(1, 128, "steps"), "128")),

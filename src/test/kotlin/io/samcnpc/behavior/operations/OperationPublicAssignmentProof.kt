@@ -17,7 +17,8 @@ internal object OperationPublicAssignmentProof {
         val request = OperationAssignmentRequest(view.task?.taskId, view.observedTick, view.observedTick + 1200, order)
         val reply = OperationSupervisionApi.assign(scene.server, actor, scene.npcId, request)
         check(reply.result.status == NpcActionStatus.SUCCEEDED) { reply.result.detail }
-        check(TaskCodec.writeDefinition(scene.record.primary.definition) == TaskCodec.writeDefinition(definition))
+        val expected = if (definition is InventoryTaskDefinition) definition.copy(version=order.type.definitionVersion) else definition
+        check(TaskCodec.writeDefinition(scene.record.primary.definition) == TaskCodec.writeDefinition(expected))
         scene.initialPublicAssignment = request
         rejectReplay(scene, actor)
         val before = TaskCodec.write(scene.record)
@@ -71,13 +72,14 @@ internal object OperationPublicAssignmentProof {
                 }, definition.subjectUuid, definition.supportTargetUuid, definition.filter, definition.returnTo,
                 definition.allowPlayers, tactics(definition.tactics), budget)
             is InventoryTaskDefinition -> OperationInventoryOrder(definition.dimensionId, when (val value = definition.work) {
+                is EnsureItems -> OperationInventoryWork.Ensure(value.query, value.count, value.containers?.let(::containers), value.minimumDurability, value.destination, value.sourceReserve)
                 is CollectContainer -> OperationInventoryWork.Collect(value.source, value.maxItems)
                 is SupplyStock -> OperationInventoryWork.Supply(value.needs.map {
                     OperationStockNeed(it.itemId, it.minimum, it.target, it.sourceReserve)
                 }, containers(value.containers))
                 is UnloadExcess -> OperationInventoryWork.Unload(value.reserves.map {
                     OperationItemReserve(it.itemId, it.keep)
-                }, containers(value.containers))
+                }, containers(value.containers), value.minimumFreeSlots)
                 is PickupNearby -> OperationInventoryWork.Pickup(value.itemIds, value.radius, value.maxItems)
             }, definition.anchor, definition.returnTo, definition.travelRadius, definition.workTicks, definition.maxSteps, budget)
             else -> OperationPublicHarvestProof.order(definition)

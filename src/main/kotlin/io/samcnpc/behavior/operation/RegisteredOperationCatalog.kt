@@ -29,11 +29,15 @@ internal object RegisteredOperationCatalog {
             shapes["order_${type.name}_V1"] = record(required("documentVersion", integer(1, 1, "version")),
                 required("type", choice(type.operationId)), required("definitionVersion", integer(1, 1, "version")), required("parameters", parameters))
         }
-        shapes["orderDocument"] = OperationInput.Alternatives(operations.map { "order_" + it.type.name } + legacyWork.keys.map { "order_${it.name}_V1" })
+        val inventory = operations.single { it.type == OperationType.INVENTORY }.parameters
+        shapes["order_INVENTORY_V2"] = record(required("documentVersion", integer(1, 1, "version")),
+            required("type", choice(OperationType.INVENTORY.operationId)), required("definitionVersion", integer(2, 2, "version")),
+            required("parameters", OperationInput.Record(inventory.fields.map { if (it.name == "work") required("work", ref("inventoryWorkV2")) else it }, inventory.relations)))
+        shapes["orderDocument"] = OperationInput.Alternatives(operations.map { "order_" + it.type.name } + legacyWork.keys.map { "order_${it.name}_V1" } + "order_INVENTORY_V2")
         val changes = OperationChangeShapes.changes()
         for ((name, type) in changes) shapes["change_" + name] = OperationSchemaExport.changeEnvelope(name, type)
         shapes["changeDocument"] = OperationInput.Alternatives(changes.keys.map { "change_" + it })
-        OperationCatalog(4, 1, operations, shapes, changes,
+        OperationCatalog(5, 1, operations, shapes, changes,
             OperationTaskState.entries.map { it.name }, TaskReason.entries.map { it.name })
     }
 }

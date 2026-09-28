@@ -26,6 +26,9 @@ data class BehaviorReadContext(
     val taskReactionReady: Boolean = false,
     val taskInventoryReady: Boolean = false,
     val taskInventoryRequested: Boolean = false,
+    val inventoryFacts: io.samcnpc.behavior.inventory.InventoryFacts? = null,
+    val localTaskFacts: io.samcnpc.behavior.inventory.LocalTaskFacts? = null,
+    val containerFacts: Map<io.samcnpc.behavior.inventory.ContainerFactRequest, io.samcnpc.core.api.NpcBlockContainerObservation> = emptyMap(),
 )
 
 sealed interface ConditionExpression {

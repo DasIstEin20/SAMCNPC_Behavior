@@ -31,7 +31,7 @@ internal object TaskLogisticsCodec {
         require(revision in 0..32 && steps in 0..128 && detail.length <= 256) { "invalid inventory outcome limits" }
         val goals = InventoryStateCodec.counts(tag, "goals"); val supplied = InventoryStateCodec.counts(tag, "supplied")
         val unloaded = InventoryStateCodec.counts(tag, "unloaded"); val picked = InventoryStateCodec.counts(tag, "picked")
-        require((supplied.isEmpty() || kind in setOf(InventoryWorkKind.SUPPLY, InventoryWorkKind.COLLECT)) && (unloaded.isEmpty() || kind == InventoryWorkKind.UNLOAD) &&
+        require((supplied.isEmpty() || kind in setOf(InventoryWorkKind.SUPPLY, InventoryWorkKind.COLLECT, InventoryWorkKind.ENSURE)) && (unloaded.isEmpty() || kind == InventoryWorkKind.UNLOAD) &&
             (picked.isEmpty() || kind == InventoryWorkKind.PICKUP) && picked.values.sum() <= 256) { "inventory outcome kind/credit differs" }
         require((supplied.keys + unloaded.keys).all { (supplied[it] ?: unloaded[it] ?: 0) <= (goals[it] ?: 0) }) { "inventory outcome exceeds its captured quota" }
         val sources = InventoryTransferRows.read(tag,"sources"); val recipients = InventoryTransferRows.read(tag,"recipients")

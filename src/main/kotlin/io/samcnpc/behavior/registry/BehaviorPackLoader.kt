@@ -7,9 +7,11 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 
-class BehaviorRegistrySnapshot(
+class BehaviorRegistrySnapshot internal constructor(
     packs: Map<String, CompiledPack>,
     diagnostics: List<String>,
+    internal val fingerprints: Map<String, String> = emptyMap(),
+    internal val missions: Map<String, io.samcnpc.behavior.mission.MissionDefinition> = emptyMap(),
 ) {
     val packs: Map<String, CompiledPack> = java.util.Map.copyOf(packs)
     val diagnostics: List<String> = java.util.List.copyOf(diagnostics)
@@ -29,6 +31,7 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
     fun loadCandidate(): BehaviorReloadResult {
         val messages = mutableListOf<String>()
         val candidates = mutableListOf<Pair<String, String>>()
+        var missionDocuments = emptyList<Pair<String, String>>()
         for (resource in BUILTIN_RESOURCES) {
             val source = "builtin:$resource"
             val body = try {
@@ -43,8 +46,15 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
         }
         try {
             candidates.addAll(BehaviorPackFiles.readExternal(FMLPaths.CONFIGDIR.get()))
+            val bundle = BehaviorZipFiles.readBundleDocuments(FMLPaths.GAMEDIR.get())
+            candidates.addAll(bundle.filter { it.first.substringAfter("!/").startsWith("behaviors/") })
+            missionDocuments = bundle.filter { it.first.substringAfter("!/").startsWith("missions/") }
+            if (missionDocuments.size > 32) throw java.io.IOException("more than 32 external missions")
+            if (candidates.size - BUILTIN_RESOURCES.size > BehaviorPackFiles.MAX_PACKS) {
+                throw java.io.IOException("combined loose JSON and ZIP documents exceed ${BehaviorPackFiles.MAX_PACKS} packs")
+            }
         } catch (error: java.io.IOException) {
-            return failed(messages + "external directory ${externalDirectory()}: ${error.message}")
+            return failed(messages + "external directories ${externalDirectory()} and ${externalZipDirectory()}: ${error.message}")
         }
 
 
@@ -60,11 +70,23 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             return failed(messages + "duplicate pack IDs are rejected transactionally: ${duplicate.joinToString(", ")}")
         }
         val packs = compiled.sortedBy { it.id }.associateBy { it.id }
-        val snapshot = BehaviorRegistrySnapshot(packs, messages.toList())
+        val missions = try {
+            missionDocuments.map { (source, body) ->
+                try { io.samcnpc.behavior.mission.MissionDocuments.read(body) }
+                catch (error: IllegalArgumentException) { throw IllegalArgumentException("$source: ${error.message}",error) }
+            }
+        } catch (error: com.google.gson.JsonParseException) { return failed(messages + "invalid mission JSON: ${error.message}") }
+        catch (error: IllegalArgumentException) { return failed(messages + "invalid mission: ${error.message}") }
+        if (missions.map { it.id }.distinct().size != missions.size) return failed(messages + "duplicate mission IDs")
+        for (mission in missions) if ((mission.stages.map { it.pack } + mission.guards).any { it !in packs })
+            return failed(messages + "mission ${mission.id} references a missing pack")
+        val fingerprints = compiled.zip(candidates).associate { (pack, source) -> pack.id to io.samcnpc.behavior.mission.MissionDocuments.hash(source.second) }
+        val snapshot = BehaviorRegistrySnapshot(packs, messages.toList(), java.util.Map.copyOf(fingerprints), java.util.Map.copyOf(missions.associateBy { it.id }))
         return BehaviorReloadResult(true, ValidationReport(true, messages), snapshot)
     }
 
     fun externalDirectory(): Path = FMLPaths.CONFIGDIR.get().resolve("samcnpc").resolve("behaviors")
+    fun externalZipDirectory(): Path = FMLPaths.GAMEDIR.get().resolve("resources/samcnpc/behaviors")
 
     private fun resourceText(path: String): String? {
         val classpathStream: InputStream? = javaClass.classLoader.getResourceAsStream(path)
@@ -105,5 +127,6 @@ class BehaviorPackLoader(private val compiler: BehaviorPackCompiler) {
             "data/samcnpc_behavior/behaviors/task_combat.json",
             "data/samcnpc_behavior/behaviors/task_inventory.json",
         )
+        internal val builtinPackIds: List<String> = java.util.List.copyOf(BUILTIN_RESOURCES.map { "samcnpc:" + it.substringAfterLast('/').removeSuffix(".json") })
     }
 }

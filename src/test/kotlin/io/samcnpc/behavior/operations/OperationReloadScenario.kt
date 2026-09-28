@@ -13,6 +13,8 @@ import java.util.UUID
 internal class OperationReloadScenario(server: MinecraftServer) {
     val scene = OperationScene.create(server.overworld(), OperationKind.NAVIGATE, BlockPos(1000, 80, 1000))
     private val file = BehaviorRuntimeService.externalDirectory().resolve("o4_reload.json")
+    private val zipFile = BehaviorRuntimeService.externalZipDirectory().resolve("o4_zip_reload.zip")
+    private val zipPackId = "samcnpc:o4_zip_reload"
     private val packId = "samcnpc:o4_reload"
     private val originalIds = BehaviorRuntimeService.activePackIds()
     private var stage = 0
@@ -38,10 +40,13 @@ internal class OperationReloadScenario(server: MinecraftServer) {
         when (stage) {
             0 -> {
                 check(!Files.exists(file)) { "Use a fresh operationsSmokeId; reload fixture already exists" }
+                check(!Files.exists(zipFile)) { "Use a fresh operationsSmokeId; ZIP reload fixture already exists" }
                 Files.createDirectories(file.parent)
+                Files.createDirectories(zipFile.parent)
+                writeZip(document(-200).replace(packId, zipPackId))
                 Files.writeString(file, document(-100))
                 check(BehaviorRuntimeService.reload().accepted)
-                check(BehaviorRuntimeService.activePackIds() == (originalIds + packId).sorted())
+                check(BehaviorRuntimeService.activePackIds() == (originalIds + packId + zipPackId).sorted())
                 scene.assign(NavigateTaskDefinition(scene.npc.snapshot().dimensionId, scene.point(26, 0), budget = TaskBudget(1200)))
                 taskId = scene.record.id
                 check(BehaviorRuntimeService.assignPacks(scene.server, scene.npcId,
@@ -76,6 +81,19 @@ internal class OperationReloadScenario(server: MinecraftServer) {
                     check(TaskCodec.write(scene.record) == before) { "$label changed the task" }
                 }
                 Files.writeString(file, document(-101))
+                for ((label, body) in listOf("malformed" to "{", "unknown action" to document(-200).replace("samcnpc:look_at_summoner", "test:unknown"),
+                    "duplicate built-in" to document(-200).replace(packId, "samcnpc:idle_look"), "duplicate loose" to document(-200))) {
+                    writeZip(body)
+                    val rejected = BehaviorRuntimeService.reload()
+                    check(!rejected.accepted && rejected.messages.any { "o4_zip_reload.zip" in it }) { "$label: ${rejected.messages}" }
+                    check(BehaviorRuntimeService.activePackIds() == ids)
+                    check(scene.npc.snapshot().navigation?.actionId == oldAction)
+                    check(TaskCodec.write(scene.record) == before)
+                }
+                Files.writeString(zipFile, "invalid ZIP")
+                check(!BehaviorRuntimeService.reload().accepted)
+                check(BehaviorRuntimeService.activePackIds() == ids && TaskCodec.write(scene.record) == before)
+                writeZip(document(-200).replace(packId, zipPackId))
                 advance()
             }
             2 -> {
@@ -117,6 +135,7 @@ internal class OperationReloadScenario(server: MinecraftServer) {
                 check(scene.record.id == taskId)
                 check(TaskNavigator.distanceSquared(scene.npc.snapshot().position, scene.point(26, 0)) <= 0.75 * 0.75)
                 Files.delete(file)
+                Files.delete(zipFile)
                 check(BehaviorRuntimeService.reload().accepted)
                 check(BehaviorRuntimeService.activePackIds() == originalIds)
                 scene.close()
@@ -126,6 +145,14 @@ internal class OperationReloadScenario(server: MinecraftServer) {
     }
 
     private fun advance() { stage++; age = 0 }
+
+    private fun writeZip(body: String) {
+        java.util.zip.ZipOutputStream(Files.newOutputStream(zipFile)).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("behaviors/live.json"))
+            zip.write(body.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+    }
 
     private fun document(priority: Int) = """
         {

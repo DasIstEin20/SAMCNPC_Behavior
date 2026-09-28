@@ -49,7 +49,7 @@ internal class TaskStore private constructor() : SavedData() {
 
     companion object {
         private const val DATA_NAME = "samcnpc_behavior_tasks"
-        private const val VERSION = 10
+        private const val VERSION = 11
         private const val MAX_RECORDS = 4096
         private val LOGGER = LogUtils.getLogger()
 
@@ -77,6 +77,9 @@ internal class TaskStore private constructor() : SavedData() {
                     require(npcUuid != null) { "missing NPC UUID" }
                     require(seen.add(npcUuid)) { "duplicate task for NPC" }
                     val record = TaskCodec.read(entry, tag.getInt("version"))
+                    require(tag.getInt("version") >= 11 || record.frames.none { it.definition is InventoryTaskDefinition && it.definition.version >= 3 } &&
+                        record.logistics.policy.preparation == null && (record.logistics.policy.unload?.minimumFreeSlots ?: 0) == 0 &&
+                        record.logistics.outcomes.none { it.kind == InventoryWorkKind.ENSURE }) { "pre-v11 did not contain preparation/space work" }
                     require(tag.getInt("version") >= 2 || record.frames.all { it.definition is NavigateTaskDefinition }) { "v1 did not contain resource tasks" }
                     require(tag.getInt("version") >= 3 || record.frames.none { it.definition is LumberjackTaskDefinition }) { "pre-v3 did not contain lumberjack tasks" }
                     require(tag.getInt("version") >= 4 || (record.frames.none { it.definition is AttackTaskDefinition } &&

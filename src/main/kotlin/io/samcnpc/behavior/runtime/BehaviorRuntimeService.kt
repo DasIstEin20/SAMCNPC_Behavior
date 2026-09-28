@@ -43,6 +43,7 @@ private data class RuntimeState(
     val metrics: BehaviorWorkMetrics,
     val cooldownUntil: MutableMap<String, Long> = mutableMapOf(),
     val actions: BehaviorActionScope = BehaviorActionScope(),
+    val containerFacts: io.samcnpc.behavior.inventory.ContainerFactsCapture = io.samcnpc.behavior.inventory.ContainerFactsCapture(),
     var registry: BehaviorRegistrySnapshot? = null,
     var assignedIds: List<String> = emptyList(),
     var plan: BehaviorDecisionPlan? = null,
@@ -91,7 +92,12 @@ object BehaviorRuntimeService {
 
     fun activePackIds(): List<String> = activeRegistry.get().packs.keys.sorted()
 
+    internal fun mission(id: String) = activeRegistry.get().missions[id]
+    internal fun missionIds(): List<String> = activeRegistry.get().missions.keys.sorted()
+    internal fun packFingerprint(id: String): String? = activeRegistry.get().fingerprints[id]
+
     fun externalDirectory() = loader.externalDirectory()
+    fun externalZipDirectory() = loader.externalZipDirectory()
 
     /** The active authoritative server is needed by built-in actions with durable Behavior state. */
     internal fun serverOrNull(): net.minecraft.server.MinecraftServer? = activeServer
@@ -157,6 +163,25 @@ object BehaviorRuntimeService {
     @SubscribeEvent
     fun tick(event: NpcServerTickEvent) {
         val server = activeServer ?: return
+        val missionProblem = io.samcnpc.behavior.mission.MissionStore.forServer(server).problem
+        if (missionProblem != null) {
+            // Corrupt global mission storage cannot identify which task lost its binding.
+            // Hold all autonomous execution until an operator repairs the preserved file.
+            val runtime = runtimes.getOrPut(event.runtime.npcUuid) { RuntimeState(BehaviorWorkMetrics(measureDecisions)) }
+            val task = io.samcnpc.behavior.task.TaskStore.forServer(server).get(event.runtime.npcUuid)
+            if (task != null && !task.status.terminal && task.status != io.samcnpc.behavior.task.TaskStatus.PAUSED) {
+                val paused = TaskService.pause(server, event.runtime.npcUuid)
+                if (paused.status != NpcActionStatus.SUCCEEDED && runtime.missingProblem != missionProblem) {
+                    com.mojang.logging.LogUtils.getLogger().warn("Mission storage safety pause failed for {}: {}", event.runtime.npcUuid, paused.detail)
+                }
+            }
+            release(runtime, event.runtime)
+            runtime.missingProblem = missionProblem
+            runtime.decision = null
+            runtime.lastGameTime = event.snapshot.gameTime
+            return
+        }
+        io.samcnpc.behavior.mission.MissionService.tick(server, event.runtime)
         val runtime = runtimes.getOrPut(event.runtime.npcUuid) { RuntimeState(BehaviorWorkMetrics(measureDecisions)) }
         val started = runtime.metrics.begin()
         val planningTick = server.tickCount.toLong().and(0xffffffffL)
@@ -205,7 +230,11 @@ object BehaviorRuntimeService {
         val context = BehaviorReadContext(snapshot, summoner, target, TaskService.isReady(server, npc.npcUuid),
             BehaviorTargetMemory.hasUnhandledDamage(snapshot), TaskService.isCombatReady(server, npc.npcUuid),
             TaskService.reactionRequested(server, snapshot, world), TaskService.isInventoryReady(server, npc.npcUuid),
-            io.samcnpc.behavior.task.TaskLogistics.requested(server, npc, world))
+            io.samcnpc.behavior.task.TaskLogistics.requested(server, npc, world),
+            if (plan.needsInventoryFacts) io.samcnpc.behavior.inventory.InventoryFacts.capture(npc) else null,
+            if (plan.needsTaskFacts) io.samcnpc.behavior.task.TaskLocalFacts.capture(server, npc.npcUuid) else null,
+            if (plan.containerRequests.isEmpty()) emptyMap() else runtime.containerFacts.capture(
+                io.samcnpc.behavior.task.TaskLocalFacts.containerQueries(server, npc.npcUuid, plan.containerRequests), world, snapshot.gameTime))
         val decision = plan.tick(context, runtime.cooldownUntil, beforeExecution = { selected ->
             runtime.actions.prepare(selected, npc) { released(npc.npcUuid, it) }
         }) { intent ->

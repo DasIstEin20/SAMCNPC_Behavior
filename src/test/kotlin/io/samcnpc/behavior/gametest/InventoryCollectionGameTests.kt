@@ -66,7 +66,7 @@ object InventoryCollectionGameTests {
                 return@observe
             }
             if (record.status == TaskStatus.COMPLETED) {
-                check(reloaded && record.primary.definition.version == 2)
+                check(reloaded && record.primary.definition.version == 3)
                 for ((item, quantity) in gear) {
                     val original = if (item == Items.DIRT) 3 else 0
                     check(TaskDelivery.inventoryCount(npc, id(item)) == quantity + original) { "wrong carried count for ${id(item)}" }

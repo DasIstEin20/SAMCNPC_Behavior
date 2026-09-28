@@ -37,7 +37,7 @@ internal object TaskService {
     const val INVENTORY_BEGIN_ACTION_ID = "samcnpc:begin_task_inventory"
     const val REACTION_ACTION_ID = "samcnpc:begin_task_reaction"
     fun isTaskAction(id: String): Boolean = id == FIELD_ACTION_ID || id == EXPLORER_ACTION_ID || id == FISHING_ACTION_ID || id == MACHINE_ACTION_ID || id == PLANTING_ACTION_ID || id == FARM_ACTION_ID || id == FOOD_ACTION_ID || id == MINING_ACTION_ID || id == ACTION_ID || id == DELIVERY_ACTION_ID || id == LUMBERJACK_ACTION_ID || id == COMBAT_ACTION_ID || id == REACTION_ACTION_ID || id == INVENTORY_ACTION_ID || id == INVENTORY_BEGIN_ACTION_ID
-    private fun packFor(definition: TaskDefinition): String = when (definition) {
+    internal fun packFor(definition: TaskDefinition): String = when (definition) {
         is AttackTaskDefinition, is CombatMissionDefinition -> COMBAT_PACK_ID
         is InventoryTaskDefinition -> INVENTORY_PACK_ID
         is NavigateTaskDefinition -> PACK_ID
@@ -279,6 +279,10 @@ internal object TaskService {
         if (actionId != expectedAction) return NpcActionResult.rejected("task action does not declare the required operation channels", NpcActionCode.CONFLICT)
         if (record.status.terminal) return NpcActionResult.rejected("task has a final report: ${record.status}", NpcActionCode.NOT_READY)
         if (record.status != TaskStatus.RUNNING) return NpcActionResult.running("task ${record.status}: ${record.reason}")
+        if (TaskLogistics.waitsForPreparation(record, npc)) {
+            npc.stopControl()
+            return NpcActionResult.running("waiting for required preparation cooldown; original task deadline continues")
+        }
         val old = executions[npc.npcUuid]
         val execution = if (old == null || old.taskId != record.id || old.frameId != record.active.id) {
             TaskExecution(record.id, record.active.id).also { executions[npc.npcUuid] = it }

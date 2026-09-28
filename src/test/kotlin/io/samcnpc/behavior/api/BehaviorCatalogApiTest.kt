@@ -16,11 +16,11 @@ class BehaviorCatalogApiTest {
     fun catalogMatchesRegistryAndIsImmutable() {
         val catalog = BehaviorCatalogApi.snapshot()
         assertSame(catalog, BehaviorCatalogApi.snapshot())
-        assertEquals(1, catalog.catalogVersion)
+        assertEquals(2, catalog.catalogVersion)
         assertEquals(1, catalog.documentVersion)
         assertEquals(1, catalog.definitionSemanticsVersion)
-        assertEquals(14, catalog.conditions.size)
-        assertEquals(24, catalog.actions.size)
+        assertEquals(25, catalog.conditions.size)
+        assertEquals(25, catalog.actions.size)
         assertEquals(BehaviorDefinitions.conditions.keys.sorted(), catalog.conditions.map { it.id })
         assertEquals(BehaviorDefinitions.actions.keys.sorted(), catalog.actions.map { it.id })
         assertTrue(catalog.conditions.all { it.kind == BehaviorComponentKind.CONDITION && it.channels.isEmpty() && it.version == 1 })
@@ -59,6 +59,14 @@ class BehaviorCatalogApiTest {
                 wrong.add(parameter.name, JsonObject())
                 assertNotNull(validate(wrong), entry.id + " accepted an object for " + parameter.name)
                 when (parameter) {
+                    is BehaviorParameter.Text -> {
+                        val validText = args.deepCopy(); validText.addProperty(parameter.name, parameter.example)
+                        assertNull(validate(validText), entry.id)
+                        for (text in listOf("", "x".repeat(parameter.maximumLength + 1), "@invented", "minecraft:coal|minecraft:coal")) {
+                            val badText = args.deepCopy(); badText.addProperty(parameter.name, text)
+                            assertNotNull(validate(badText), entry.id)
+                        }
+                    }
                     is BehaviorParameter.Numeric -> {
                         for (value in listOf(parameter.minimum, parameter.maximum)) {
                             val boundary = args.deepCopy()
@@ -121,6 +129,7 @@ class BehaviorCatalogApiTest {
         val explicit = JsonObject()
         for (parameter in reaction.parameters) {
             when (parameter) {
+                is BehaviorParameter.Text -> args.addProperty(parameter.name, parameter.example)
                 is BehaviorParameter.Numeric -> explicit.addProperty(parameter.name, (parameter.defaultValue as BehaviorNumberDefault.Fixed).value)
                 is BehaviorParameter.Flag -> explicit.addProperty(parameter.name, parameter.defaultValue)
                 is BehaviorParameter.Choice -> error("No choice default in this operation")
@@ -133,6 +142,7 @@ class BehaviorCatalogApiTest {
         val args = JsonObject()
         for (parameter in entry.parameters.filter { it.required }) {
             when (parameter) {
+                is BehaviorParameter.Text -> args.addProperty(parameter.name, parameter.example)
                 is BehaviorParameter.Numeric -> args.addProperty(parameter.name, parameter.minimum)
                 is BehaviorParameter.Choice -> args.addProperty(parameter.name, parameter.values.first())
                 is BehaviorParameter.Flag -> args.addProperty(parameter.name, parameter.defaultValue ?: false)

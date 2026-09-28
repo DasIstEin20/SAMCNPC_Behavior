@@ -55,7 +55,7 @@ internal object TaskCodec {
         return tag
     }
 
-    fun read(tag: CompoundTag, sourceVersion: Int = 10): TaskRecord {
+    fun read(tag: CompoundTag, sourceVersion: Int = 11): TaskRecord {
         require(tag.hasUUID("npcUuid") && tag.hasUUID("taskId")) { "missing NPC/task UUID" }
         val controlRevision = if (tag.contains("controlRevision")) {
             require(tag.contains("controlRevision", Tag.TAG_LONG.toInt())) { "control revision must be a long" }

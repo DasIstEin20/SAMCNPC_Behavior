@@ -6,6 +6,7 @@ import io.samcnpc.behavior.api.*
 internal object TaskPublicInventoryOrders {
     fun definition(order: OperationInventoryOrder, budget: TaskBudget): InventoryTaskDefinition {
         val work = when (val value = order.work) {
+            is OperationInventoryWork.Ensure -> ensure(value)
             is OperationInventoryWork.Collect -> CollectContainer(value.source, value.maxItems)
             is OperationInventoryWork.Supply -> supply(value)
             is OperationInventoryWork.Unload -> unload(value)
@@ -20,7 +21,10 @@ internal object TaskPublicInventoryOrders {
 
     internal fun unload(value: OperationInventoryWork.Unload) = UnloadExcess(value.reserves.map {
         ItemReserve(it.itemId, it.keep)
-    }, TaskPublicOrders.containers(value.destinations))
+    }, TaskPublicOrders.containers(value.destinations), value.minimumFreeSlots)
+
+    internal fun ensure(value: OperationInventoryWork.Ensure) = EnsureItems(value.query, value.count,
+        value.sources?.let(TaskPublicOrders::containers), value.minimumDurability, value.destination, value.sourceReserve)
 
     internal fun pickup(value: OperationInventoryWork.Pickup) = PickupNearby(value.itemIds, value.radius, value.maxItems)
 }

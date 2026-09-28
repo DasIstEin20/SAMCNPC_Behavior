@@ -30,4 +30,5 @@ data class OperationLogisticsPolicy(
     val durationTicks: Int = 1200,
     val cooldownTicks: Int = 200,
     val maxSteps: Int = 128,
+    val preparation: OperationInventoryWork.Ensure? = null,
 )

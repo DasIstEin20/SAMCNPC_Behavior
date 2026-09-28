@@ -43,6 +43,7 @@ internal object OperationJsonShape {
             val text = value.asString
             require(text.length <= input.maxLength) { "$path string exceeds ${input.maxLength}" }
             when (input.format) {
+                OperationTextFormat.ITEM_QUERY -> ItemQuery.parse(text)
                 OperationTextFormat.RESOURCE_ID -> require(resourceId.matches(text)) { "$path requires a namespaced resource ID" }
                 OperationTextFormat.UUID -> require(text.length == 36 && UUID.fromString(text).toString().equals(text, true)) { "$path requires a canonical UUID" }
             }

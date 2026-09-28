@@ -1,5 +1,5 @@
-* text=auto eol=lf
-gradlew text eol=lf
-*.bat text eol=crlf
+# Generated distributions are binary, even when their first kilobytes are ASCII.
+*.pdf binary
 *.png binary
+*.zip binary
 *.jar binary

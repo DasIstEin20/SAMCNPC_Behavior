@@ -17,7 +17,7 @@ enum class OperationType(val operationId: String, val definitionVersion: Int) {
     DEFEND("samcnpc:defend", 1),
     ATTACK_AREA("samcnpc:attack_area", 1),
     PATROL("samcnpc:patrol", 1),
-    INVENTORY("samcnpc:inventory_work", 2),
+    INVENTORY("samcnpc:inventory_work", 3),
     MINING("samcnpc:mine", 2),
     FARM("samcnpc:farm", 1),
     PLANTING("samcnpc:plant_trees", 1),

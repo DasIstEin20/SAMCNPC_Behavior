@@ -15,6 +15,7 @@ internal object InventoryTaskCapture {
         var available = 2304
         var checkpoint: ContainerCheckpoint? = null
         when (val work = definition.work) {
+            is EnsureItems -> Unit // Candidates are admitted only after physical access and authoritative observation.
             is CollectContainer -> {
                 val world = npc.worldView()
                 val block = world.observeBlock(work.source) ?: return InventoryCaptureResult.Rejected("COLLECTION_SOURCE_UNAVAILABLE")
@@ -46,7 +47,7 @@ internal object InventoryTaskCapture {
                 if (count < need.minimum) { val goal = minOf(need.target - count, available); if (goal > 0) goals[need.itemId] = goal; available -= goal }
             }
             is UnloadExcess -> for (reserve in work.reserves) {
-                if (protected(parent, reserve.itemId)) continue
+                if (protected(parent, reserve.itemId, npc)) continue
                 val goal = minOf(unloadable(npc, reserve.itemId, reserve.keep), available)
                 if (goal > 0) goals[reserve.itemId] = goal
                 available -= goal
@@ -57,7 +58,14 @@ internal object InventoryTaskCapture {
         if (checkpoint != null) state.checkpoints[(definition.work as CollectContainer).source] = checkpoint
         return InventoryCaptureResult.Captured(state)
     }
-    fun protected(record: TaskRecord?, item: String): Boolean = when (val parent = record?.primary?.definition) {
+    fun protected(record: TaskRecord?, item: String, npc: NpcFacade? = null): Boolean {
+        val query = record?.logistics?.policy?.preparation?.query
+        if (query != null && npc != null) {
+            val known = npc.equipmentKnowledge()
+            val facts = npc.inventoryContents().map { it.knowledge } + listOf(known.mainHand, known.offHand, known.head, known.chest, known.legs, known.feet, known.ammunition, known.totem)
+            if (facts.any { it.itemId == item && query.matches(NpcItemStackSnapshot(item, 1, 64, 0, 0), it) }) return true
+        }
+        return when (val parent = record?.primary?.definition) {
         is DeliveryTaskDefinition -> parent.itemId == item
         is TransportTaskDefinition -> parent.itemId == item
         is PlantingTaskDefinition -> item == parent.work.species.blockId
@@ -66,6 +74,7 @@ internal object InventoryTaskCapture {
         is MiningTaskDefinition -> parent.outputs.matches(item)
         is LumberjackTaskDefinition -> parent.wood.matches(item) || item == parent.replant?.work?.species?.blockId
         else -> false
+    }
     }
     /** The selected hand aliases one inventory slot; all separately equipped stores stay untouched. */
     fun unloadable(npc: NpcFacade, item: String, reserve: Int): Int {

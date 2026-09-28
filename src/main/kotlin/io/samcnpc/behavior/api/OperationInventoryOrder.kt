@@ -8,13 +8,17 @@ data class OperationItemReserve(val itemId: String, val keep: Int)
 
 /** Each request owns a finite immutable list; semantic checks use the established validator. */
 sealed interface OperationInventoryWork {
+    /** Resolve current authoritative item facts, known permitted sources and optional equipment. */
+    data class Ensure(val query: ItemQuery, val count: Int = 1, val sources: OperationContainers? = null,
+                      val minimumDurability: Double = 0.0, val destination: io.samcnpc.core.api.NpcEquipmentDestination? = null,
+                      val sourceReserve: Int = 0) : OperationInventoryWork
     /** Capture a finite withdrawal quota from one observable container at assignment. */
     data class Collect(val source: NpcBlockPosition, val maxItems: Int = 2304) : OperationInventoryWork
     class Supply(needs: List<OperationStockNeed>, val sources: OperationContainers) : OperationInventoryWork {
         init { require(needs.size in 1..16) { "supply requires one to sixteen needs" } }
         val needs: List<OperationStockNeed> = java.util.List.copyOf(needs)
     }
-    class Unload(reserves: List<OperationItemReserve>, val destinations: OperationContainers) : OperationInventoryWork {
+    class Unload(reserves: List<OperationItemReserve>, val destinations: OperationContainers, val minimumFreeSlots: Int = 0) : OperationInventoryWork {
         init { require(reserves.size in 1..16) { "unload requires one to sixteen reserves" } }
         val reserves: List<OperationItemReserve> = java.util.List.copyOf(reserves)
     }

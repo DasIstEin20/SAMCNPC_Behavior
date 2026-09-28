@@ -27,6 +27,12 @@ internal object OperationCargoCases {
                 s.assign(InventoryTaskDefinition(dim,SupplyStock(listOf(StockNeed("minecraft:diamond",10,10,13)),s.choices(18,3)),
                     s.start,s.start,travelRadius=64.0,workTicks=1200,budget=budget))
             }
+            OperationKind.PREPARATION -> {
+                val chest=s.makeChest(18,3)
+                chest.setItem(0,ItemStack(Items.IRON_PICKAXE));chest.setItem(1,ItemStack(Items.IRON_AXE));chest.setItem(2,ItemStack(Items.IRON_AXE))
+                s.assign(InventoryTaskDefinition(dim,EnsureItems(io.samcnpc.behavior.api.ItemQuery.parse("@axe"),1,s.choices(18,3),0.2,
+                    io.samcnpc.core.api.NpcEquipmentDestination.MAIN_HAND,1),s.start,s.start,travelRadius=64.0,workTicks=1200,budget=budget,version=3))
+            }
             OperationKind.FOOD -> {
                 s.makeChest(12,3).setItem(0,ItemStack(Items.BREAD,20)); s.makeChest(24,-3); s.give(Items.BREAD,2)
                 s.assign(FoodTaskDefinition(dim,FoodWorkOrder.Stored(s.choices(12,3),8),WorkResourceIds(listOf("minecraft:bread")),
@@ -40,6 +46,7 @@ internal object OperationCargoCases {
         OperationKind.DELIVERY, OperationKind.AMEND_QUANTITY, OperationKind.AMEND_RECIPIENT -> s.record.primary.resources?.delivered == 64
         OperationKind.TRANSPORT -> s.record.primary.transport?.ledger?.withdrawn == 12
         OperationKind.INVENTORY -> s.record.primary.inventory?.phase == InventoryWorkPhase.RETURN
+        OperationKind.PREPARATION -> s.record.primary.inventory?.resources?.entries?.get("minecraft:iron_axe")?.supplied == 1
         OperationKind.FOOD -> s.record.primary.food?.withdrawals?.isNotEmpty() == true
         else -> false
     }
@@ -65,6 +72,13 @@ internal object OperationCargoCases {
             OperationKind.INVENTORY -> {
                 check(s.count(18,3,Items.DIAMOND) == 13 && s.carried("minecraft:diamond") == 10)
                 check(s.record.primary.inventory?.resources?.entries?.get("minecraft:diamond")?.supplied == 7)
+                s.requireReturned()
+            }
+            OperationKind.PREPARATION -> {
+                check(s.count(18,3,Items.IRON_AXE)==1 && s.count(18,3,Items.IRON_PICKAXE)==1 && s.carried("minecraft:iron_axe")==1)
+                check(s.npc.equipmentContents().mainHand.itemId=="minecraft:iron_axe")
+                check(s.record.primary.inventory?.resources?.entries?.get("minecraft:iron_axe")?.supplied==1)
+                check(s.record.logistics.outcomes.single().reason==InventoryWorkReason.SATISFIED)
                 s.requireReturned()
             }
             OperationKind.FOOD -> {

@@ -16,6 +16,8 @@ internal object TaskInventoryCommands {
         .then(branch("supply", true, InventoryWorkKind.SUPPLY))
         .then(branch("unload", true, InventoryWorkKind.UNLOAD))
         .then(branch("pickup", true, InventoryWorkKind.PICKUP))
+        .then(TaskPreparationCommands.ensure(true))
+        .then(TaskPreparationCommands.freeSlots(true))
         .then(Commands.literal("off").executes { context -> TaskCommands.withNpc(context) { player, npc ->
             TaskAmendments.automatic(player.server, npc, player, TaskChange.Logistics(TaskLogisticsPolicy()))
         } })
@@ -47,7 +49,7 @@ internal object TaskInventoryCommands {
                 InventoryWorkKind.UNLOAD -> UnloadExcess(parseReserves(items), ContainerChoices(TaskTransportCommands.parsePositions(StringArgumentType.getString(context, "containers"))))
                 InventoryWorkKind.PICKUP -> PickupNearby(parts(items), DoubleArgumentType.getDouble(context, "radius"), integer(context, "count"))
                 // This legacy grammar requires an explicit item list; collection uses the versioned operation API.
-                InventoryWorkKind.COLLECT -> return@withNpc NpcActionResult.rejected("COLLECT requires an operation document with one source")
+                InventoryWorkKind.COLLECT, InventoryWorkKind.ENSURE -> return@withNpc NpcActionResult.rejected("COLLECT/ENSURE requires a versioned operation document")
             }
             if (policy) {
                 val record = TaskStore.forServer(player.server).get(npc.npcUuid) ?: return@withNpc NpcActionResult.rejected("no assigned task")

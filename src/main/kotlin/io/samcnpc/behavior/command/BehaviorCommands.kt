@@ -27,11 +27,12 @@ object BehaviorCommands {
                 1
             })
             .then(TaskCommands.branch())
+            .then(MissionCommands.branch())
             .then(Commands.literal("reload").requires { it.hasPermission(2) }.executes { context ->
                 val report = BehaviorRuntimeService.reload()
                 if (report.accepted) {
                     context.source.sendSuccess(
-                        { Component.literal("SAMCNPC behavior reload activated ${BehaviorRuntimeService.activePackIds().size} pack(s) from ${BehaviorRuntimeService.externalDirectory()}.") },
+                        { Component.literal("SAMCNPC behavior reload activated ${BehaviorRuntimeService.activePackIds().size} pack(s); loose JSON: ${BehaviorRuntimeService.externalDirectory()}; ZIP: ${BehaviorRuntimeService.externalZipDirectory()}.") },
                         true,
                     )
                     Command.SINGLE_SUCCESS

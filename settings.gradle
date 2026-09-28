@@ -1,15 +1,8 @@
 pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        maven { url = 'https://maven.minecraftforge.net/' }
-    }
+    repositories { gradlePluginPortal(); maven { url = 'https://maven.minecraftforge.net/' } }
 }
-
 rootProject.name = 'samcnpc-behavior'
-
-// Core is a pinned Git dependency, not a second copy of its sources in Behavior history.
-if (!file('core/build.gradle').isFile()) {
-    throw new GradleException('Core submodule is missing. Run: git submodule update --init --recursive')
-}
+def coreDirectory = file(providers.gradleProperty('samcnpcCoreDir').getOrElse('../samcnpc-core'))
+if (!new File(coreDirectory, 'build.gradle').isFile()) throw new GradleException('Provide the sibling core source directory with -PsamcnpcCoreDir=<path>, or build from the umbrella checkout.')
 include 'samcnpc-core'
-project(':samcnpc-core').projectDir = file('core')
+project(':samcnpc-core').projectDir = coreDirectory

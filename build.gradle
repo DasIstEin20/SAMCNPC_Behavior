@@ -3,43 +3,19 @@ plugins {
     id 'net.minecraftforge.gradle' version '6.0.54'
     id 'org.jetbrains.kotlin.jvm' version '2.2.21'
 }
-
 group = providers.gradleProperty('mod_group').get()
 version = providers.gradleProperty('mod_version').get()
-
 repositories {
     mavenCentral()
-    maven {
-        name = 'KotlinForForge'
-        url = 'https://thedarkcolour.github.io/KotlinForForge/'
-        content { includeGroup 'thedarkcolour' }
-    }
+    maven { name = 'KotlinForForge'; url = 'https://thedarkcolour.github.io/KotlinForForge/'; content { includeGroup 'thedarkcolour' } }
 }
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.release = 17
-    options.encoding = 'UTF-8'
-}
-
+java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
+tasks.withType(JavaCompile).configureEach { options.release = 17; options.encoding = 'UTF-8' }
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile).configureEach {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-        freeCompilerArgs.add('-Xjvm-default=all')
-    }
+    compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17; freeCompilerArgs.add('-Xjvm-default=all') }
 }
-
-tasks.withType(Test).configureEach {
-    useJUnitPlatform()
-}
-
-// The published Core build supplies the source set used by ForgeGradle's dev remapping.
-ext.fullVerificationId = null
+tasks.withType(Test).configureEach { useJUnitPlatform() }
+if (!rootProject.ext.has('fullVerificationId')) rootProject.ext.fullVerificationId = null
 evaluationDependsOn(':samcnpc-core')
 
 def forestSmokeWorld = "forest-repair-${System.currentTimeMillis()}"
@@ -47,9 +23,14 @@ def operationsSmokeId = providers.gradleProperty('operationsSmokeId').orElse(roo
 if (!(operationsSmokeId ==~ /[A-Za-z0-9_-]+/)) throw new GradleException('operationsSmokeId must contain only letters, digits, underscores or hyphens')
 
 def pickupRecoveryOnly = providers.gradleProperty('pickupRecoveryOnly').orElse('false').get().toBoolean()
+def campaignId = providers.gradleProperty('campaignId').orElse('manual').get()
+def campaignMode = providers.gradleProperty('campaignMode').orElse('baseline').get()
+def externalWorkModes = ['machine','machine_cancel','couriers','couriers_partial','guard','guard_pause']
+def boundaryModes = ['boundary_save','boundary_load','receipt_save','receipt_load','physical_save','physical_load','pause_save','pause_load','cancel_save','cancel_load','pack_changed','pack_removed','corrupt','full_soak','full_boundary_save','full_boundary_load']
+if (!(campaignId ==~ /[A-Za-z0-9_-]+/) || !(campaignMode in ['baseline','pause','cancel','save','load','pack_only','loader','full','full_save','full_load','full_no_coal','full_cancel','full_stock_loss'] + externalWorkModes + boundaryModes)) throw new GradleException('Invalid external campaign parameters')
 def machineCompatibility = providers.gradleProperty('machineCompatibility').orElse('false').get().toBoolean()
-def gameTestNamespace = providers.gradleProperty('gameTestNamespace').orElse(pickupRecoveryOnly ? 'samcnpc_pickup_zoo' : 'samcnpc_behavior,samcnpc_pickup_zoo,samcnpc_machine_zoo,samcnpc_fishing_zoo,samcnpc_explorer_zoo,samcnpc_mining_zoo,samcnpc_shared_site_zoo,samcnpc_field_zoo').get()
-if (!gameTestNamespace.split(',').every { it in ['samcnpc_behavior', 'samcnpc_pickup_zoo', 'samcnpc_machine_zoo', 'samcnpc_fishing_zoo', 'samcnpc_explorer_zoo', 'samcnpc_mining_zoo', 'samcnpc_shared_site_zoo', 'samcnpc_field_zoo'] }) throw new GradleException('Unknown GameTest namespace')
+def gameTestNamespace = providers.gradleProperty('gameTestNamespace').orElse(pickupRecoveryOnly ? 'samcnpc_pickup_zoo' : 'samcnpc_behavior,samcnpc_pickup_zoo,samcnpc_machine_zoo,samcnpc_fishing_zoo,samcnpc_explorer_zoo,samcnpc_mining_zoo,samcnpc_shared_site_zoo,samcnpc_field_zoo,samcnpc_local_autonomy').get()
+if (!gameTestNamespace.split(',').every { it in ['samcnpc_behavior', 'samcnpc_pickup_zoo', 'samcnpc_machine_zoo', 'samcnpc_fishing_zoo', 'samcnpc_explorer_zoo', 'samcnpc_mining_zoo', 'samcnpc_shared_site_zoo', 'samcnpc_field_zoo', 'samcnpc_local_autonomy'] }) throw new GradleException('Unknown GameTest namespace')
 
 minecraft {
     mappings channel: 'official', version: minecraft_version
@@ -74,6 +55,12 @@ minecraft {
             }
         }
         client {}
+        clientExternalMission {
+            parent runs.client
+            workingDirectory project.file("run-external-client-${campaignId}")
+            property 'samcnpc.externalMissionClient', 'true'
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
         clientConfigSmoke {
             parent runs.client
             workingDirectory project.file('run-config-smoke')
@@ -145,6 +132,13 @@ minecraft {
             mods { samcnpc_behavior { source sourceSets.test } }
         }
         server { args '--nogui' }
+        serverExternalMission {
+            taskName 'runExternalMission'
+            parent runs.server
+            workingDirectory project.file("run-external-mission-${campaignId}")
+            property (campaignMode in externalWorkModes ? 'samcnpc.externalWork' : 'samcnpc.externalMission'), campaignMode
+            mods { samcnpc_behavior { source sourceSets.test } }
+        }
         serverOperationsSmokeSave {
             taskName 'runOperationsSmokeSave'
             parent runs.server
@@ -265,17 +259,13 @@ minecraft {
     }
 }
 
-def forestSnapshot = providers.gradleProperty('forestSnapshot')
 def prepareForestRepairSmoke = tasks.register('prepareForestRepairSmoke', Copy) {
+    def snapshot = rootProject.file(providers.gradleProperty('forestSnapshot').orElse('autonomy/manual-debug-20260908-2047/world-snapshot').get())
     from layout.projectDirectory.dir('src/main/resources')
     into layout.projectDirectory.dir('run-forest-repair')
-    into("saves/${forestSmokeWorld}") {
-        from { forestSnapshot.isPresent() ? project.file(forestSnapshot.get()) : project.files() }
-    }
+    into("saves/${forestSmokeWorld}") { from snapshot }
     doFirst {
-        if (!forestSnapshot.isPresent() || !new File(project.file(forestSnapshot.get()), 'level.dat').isFile()) {
-            throw new GradleException('Supply -PforestSnapshot=<paused regression world copy> containing level.dat')
-        }
+        if (!new File(snapshot, 'level.dat').isFile()) throw new GradleException("Supply -PforestSnapshot=<paused world copy>; missing level.dat: ${snapshot}")
     }
 }
 
@@ -340,17 +330,6 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
-    archiveBaseName = 'samcnpc-behavior'
-    manifest {
-        attributes([
-            'Specification-Title': project.name,
-            'Specification-Vendor': 'SAMCNPC',
-            'Specification-Version': '1',
-            'Implementation-Title': project.name,
-            'Implementation-Version': project.version,
-            'Implementation-Vendor': 'SAMCNPC'
-        ])
-    }
     finalizedBy 'reobfJar'
 }
 
@@ -376,7 +355,7 @@ def prepareGameTestResources = tasks.register('prepareGameTestResources', Copy) 
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn prepareGameTestResources
     doLast {
-        def focusedCount = ['samcnpc_pickup_zoo': 3, 'samcnpc_machine_zoo': 7, 'samcnpc_fishing_zoo': 10, 'samcnpc_explorer_zoo': 10, 'samcnpc_field_zoo': 6, 'samcnpc_mining_zoo': 10, 'samcnpc_shared_site_zoo': 9][gameTestNamespace]
+        def focusedCount = ['samcnpc_local_autonomy': 10, 'samcnpc_pickup_zoo': 3, 'samcnpc_machine_zoo': 7, 'samcnpc_fishing_zoo': 10, 'samcnpc_explorer_zoo': 10, 'samcnpc_field_zoo': 6, 'samcnpc_mining_zoo': 10, 'samcnpc_shared_site_zoo': 9][gameTestNamespace]
         if (focusedCount == null) return
         def log = new File(workingDir, 'logs/latest.log').text
         if (!log.contains("All ${focusedCount} required tests passed") || log.readLines().any { it.contains('LogTestReporter') && it.contains(' failed!') }) {
@@ -582,34 +561,6 @@ tasks.matching { it.name in ['runExplorerLifecycleDrop', 'runExplorerLifecycleKe
     dependsOn ':samcnpc-core:testClasses'
 }
 
-tasks.register('verifyProductionKotlin') {
-    group = 'verification'
-    doLast {
-        def javaSources = fileTree('src/main') { include '**/*.java' }.files
-        if (!javaSources.empty) {
-            throw new GradleException("Production source must be Kotlin: ${javaSources.join(', ')}")
-        }
-    }
-}
-
-tasks.named('check').configure {
-    dependsOn tasks.named('verifyProductionKotlin')
-}
-
-// A flaky retry can fail after vanilla's original batch tracker has already advanced. Its final
-// aggregate/exit may still be green; an explicit required failure in this run always fails the gate.
-tasks.matching { it.name == 'runGameTestServer' }.configureEach {
-    doLast {
-        def report = new File(workingDir, 'logs/latest.log')
-        if (!report.isFile()) throw new GradleException("GameTest result log is missing: ${report}")
-        def failures = []
-        report.eachLine('UTF-8') { line ->
-            if (line.contains('/ERROR]') && line.contains('LogTestReporter') && line.contains(' failed!')) failures.add(line)
-        }
-        if (!failures.isEmpty()) throw new GradleException("${failures.size()} required GameTest failure(s) despite runner exit: ${failures.first()}. See ${report}")
-    }
-}
-
 // Generate author contracts from the same immutable descriptors as the runtime decoder.
 tasks.register('exportOperationCatalog', JavaExec) {
     group = 'documentation'
@@ -619,3 +570,79 @@ tasks.register('exportOperationCatalog', JavaExec) {
     javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
     args layout.buildDirectory.dir('operation-contracts').get().asFile.absolutePath
 }
+
+tasks.register('exportBehaviorCatalog', JavaExec) {
+    group = 'documentation'
+    dependsOn 'testClasses'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.samcnpc.behavior.api.BehaviorCatalogExport'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(17) }
+    args rootProject.file('contracts/behavior-pack-registered.schema.json').absolutePath
+}
+tasks.named('test') { mustRunAfter 'exportBehaviorCatalog' }
+
+// One disposable localhost world per campaign; save/load explicitly reuse its ID.
+tasks.matching { it.name == 'runClientExternalMission' }.configureEach {
+    dependsOn 'testClasses'
+    def directory=project.file("run-external-client-${campaignId}")
+    doFirst {
+        directory.mkdirs()
+        copy { from layout.projectDirectory.dir('src/main/resources'); into directory }
+        copy { from project.file('src/test/resources/external-missions/tutorial.zip'); into new File(directory,'resources/samcnpc/behaviors') }
+        new File(directory,'external-mission-client.txt').text='RUNNING\n'
+    }
+    doLast {
+        def report=new File(directory,'external-mission-client.txt')
+        if (!report.text.startsWith('PASS ')) throw new GradleException("Actual external mission client failed: ${report}")
+    }
+}
+
+tasks.matching { it.name == 'runExternalMission' }.configureEach {
+    dependsOn 'testClasses'
+    def directory = project.file("run-external-mission-${campaignId}")
+    doFirst {
+        directory.mkdirs()
+        copy { from layout.projectDirectory.dir('src/main/resources'); into directory }
+        def bundles = new File(directory, 'resources/samcnpc/behaviors'); bundles.mkdirs()
+        copy { from project.file('src/test/resources/external-missions/' + (campaignMode.startsWith('full') || campaignMode in externalWorkModes ? 'full.zip' : 'tutorial.zip')); into bundles }
+        new File(directory, 'eula.txt').text = 'eula=true\n'
+        def settings = new File(directory, 'server.properties')
+        if (!settings.exists()) settings.text = """server-ip=127.0.0.1
+server-port=25589
+online-mode=true
+level-name=world
+level-type=minecraft:flat
+generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}
+level-seed=20260928
+generate-structures=false
+view-distance=4
+simulation-distance=4
+max-players=1
+spawn-protection=0
+"""
+        new File(directory,'external-mission-result.txt').text='RUNNING\n'
+    }
+    doLast {
+        def report=new File(directory,'external-mission-result.txt')
+        if (!report.text.startsWith('PASS_')) throw new GradleException("External mission proof failed: ${report}")
+    }
+}
+
+tasks.register('verifyProductionKotlin') {
+    group = 'verification'
+    doLast {
+        def sources = fileTree('src/main') { include '**/*.java' }.files
+        if (!sources.empty) throw new GradleException("Production source must be Kotlin: ${sources}")
+    }
+}
+tasks.named('check').configure { dependsOn tasks.named('verifyProductionKotlin') }
+tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    doLast {
+        def report = new File(workingDir, 'logs/latest.log')
+        if (!report.isFile()) throw new GradleException('Missing native test report')
+        def failures=report.readLines('UTF-8').findAll { it.contains('/ERROR]') && it.contains('LogTestReporter') && it.contains(' failed!') }
+        if (!failures.empty) throw new GradleException("Required native test failure: ${failures.first()}")
+    }
+}
+
+tasks.withType(Jar).configureEach { archiveBaseName = 'samcnpc-behavior' }

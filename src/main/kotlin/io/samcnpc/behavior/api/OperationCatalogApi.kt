@@ -56,7 +56,7 @@ class OperationRelation internal constructor(val code: String, paths: List<Strin
     val paths: List<String> = java.util.List.copyOf(paths)
 }
 
-enum class OperationTextFormat { RESOURCE_ID, UUID }
+enum class OperationTextFormat { RESOURCE_ID, UUID, ITEM_QUERY }
 
 sealed interface OperationInput {
     data object Flag : OperationInput

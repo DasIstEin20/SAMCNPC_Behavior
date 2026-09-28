@@ -8,6 +8,9 @@ internal enum class ContainerPreference { ORDERED, NEAREST }
 /** The immutable allow-list is the permission; preference only ranks those supplied endpoints. */
 internal class ContainerChoices(positions: List<NpcBlockPosition>, val preference: ContainerPreference = ContainerPreference.ORDERED) {
     val positions: List<NpcBlockPosition> = java.util.List.copyOf(positions)
+    val accessProbes: Map<NpcBlockPosition, io.samcnpc.core.api.NpcStockQuery> =
+        if (positions.size in 1..8 && positions.all { it.x in -29999984..29999984 && it.z in -29999984..29999984 })
+            java.util.Map.copyOf(positions.associateWith { io.samcnpc.core.api.NpcStockQuery(it, "minecraft:air") }) else emptyMap()
     fun validationProblem(): String? = if (positions.size !in 1..8 || positions.distinct().size != positions.size) "container choices require 1..8 distinct positions" else null
     override fun equals(other: Any?): Boolean = other is ContainerChoices && positions == other.positions && preference == other.preference
     override fun hashCode(): Int = 31 * positions.hashCode() + preference.hashCode()

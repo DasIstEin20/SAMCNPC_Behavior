@@ -12,11 +12,11 @@ internal object OperationChangeShapes {
             optional("filter", ref("filter"), "{}")),
             relation("REACTION_SUBJECT", "Subject exactly for PROTECT_SUMMONER/PROTECT_UNIT; anchor exactly for protection/AREA; nonempty filter exactly for AREA.", "mode", "anchor", "subjectUuid", "filter")),
         "logistics" to record(listOf(nullable("anchor", ref("position")), nullable("supply", ref("supply")),
-            nullable("unload", ref("unload")), nullable("pickup", ref("pickup")),
+            nullable("unload", ref("unload")), nullable("pickup", ref("pickup")), nullable("preparation", ref("ensure")),
             optional("travelRadius", number(4.0, 64.0), "16.0"), optional("workTicks", integer(20, 36000, "ticks"), "600"),
             optional("durationTicks", integer(40, 72000, "ticks"), "1200"), optional("cooldownTicks", integer(20, 6000, "ticks"), "200"),
             optional("maxSteps", integer(1, 128, "steps"), "128")),
-            relation("LOGISTICS_ENABLED", "Anchor present exactly when some side work is supplied. Each work validates as inventory work. workTicks <= durationTicks - 20. For a shared item, unload keep >= supply target.", "anchor", "supply", "unload", "pickup", "workTicks", "durationTicks")),
+            relation("LOGISTICS_ENABLED", "Anchor present exactly when some side work is supplied. Each work validates as inventory work. workTicks <= durationTicks - 20. For a shared item, unload keep >= supply target. Preparation query matches are protected against auxiliary unload.", "anchor", "supply", "unload", "pickup", "preparation", "workTicks", "durationTicks")),
     )
     fun changes(): Map<String, OperationInput> = linkedMapOf(
         "QUANTITY" to record(required("amount", integer(1, 2304, "operation_counting_basis")), optional("mode", choice("TOTAL", "ADD"), "\"TOTAL\"")),

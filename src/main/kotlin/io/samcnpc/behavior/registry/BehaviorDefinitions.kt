@@ -50,7 +50,7 @@ object BehaviorDefinitions {
             val value = args.get("value").asDouble
             ConditionHandler { context -> operator.test(context.snapshot.healthFraction, value) }
         },
-    ).associateBy { it.id })
+    ).plus(LocalInventoryComponents.conditions).plus(LocalContainerComponents.conditions).associateBy { it.id })
 
     val actions: Map<String, ActionDefinition> = java.util.Map.copyOf(listOf(
         action("samcnpc:look_at_summoner", setOf(BehaviorChannel.LOOK)) { npc, _, context ->
@@ -183,7 +183,7 @@ object BehaviorDefinitions {
                 ?: return@action NpcActionResult.rejected("behavior server is not ready")
             LumberjackService.tick(server, npc, world)
         },
-    ).associateBy { it.id })
+    ).plus(LocalInventoryComponents.actions).associateBy { it.id })
 
     val compiler = BehaviorPackCompiler(conditions, actions)
 

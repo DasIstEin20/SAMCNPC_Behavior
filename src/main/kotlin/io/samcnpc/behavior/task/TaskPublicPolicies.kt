@@ -16,5 +16,5 @@ internal object TaskPublicPolicies {
     fun logistics(value: OperationLogisticsPolicy) = TaskLogisticsPolicy(value.anchor,
         value.supply?.let(TaskPublicInventoryOrders::supply), value.unload?.let(TaskPublicInventoryOrders::unload),
         value.pickup?.let(TaskPublicInventoryOrders::pickup), value.travelRadius, value.workTicks,
-        value.durationTicks, value.cooldownTicks, value.maxSteps)
+        value.durationTicks, value.cooldownTicks, value.maxSteps, value.preparation?.let(TaskPublicInventoryOrders::ensure))
 }

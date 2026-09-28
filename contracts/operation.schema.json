@@ -1,0 +1,4847 @@
+{
+  "$ref": "#/$defs/orderDocument",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -2.9999984E7,
+          "maximum": 2.9999984E7,
+          "x-unit": "blocks",
+          "description": "x"
+        },
+        "y": {
+          "type": "number",
+          "minimum": -2048.0,
+          "maximum": 2048.0,
+          "x-unit": "blocks",
+          "description": "y"
+        },
+        "z": {
+          "type": "number",
+          "minimum": -2.9999984E7,
+          "maximum": 2.9999984E7,
+          "x-unit": "blocks",
+          "description": "z"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "block": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": -2.9999984E7,
+          "maximum": 2.9999984E7,
+          "x-unit": "blocks",
+          "description": "x"
+        },
+        "y": {
+          "type": "integer",
+          "minimum": -2048.0,
+          "maximum": 2048.0,
+          "x-unit": "blocks",
+          "description": "y"
+        },
+        "z": {
+          "type": "integer",
+          "minimum": -2.9999984E7,
+          "maximum": 2.9999984E7,
+          "x-unit": "blocks",
+          "description": "z"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ]
+    },
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "$ref": "#/$defs/block",
+          "description": "min"
+        },
+        "max": {
+          "$ref": "#/$defs/block",
+          "description": "max"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "BOX_EXTENT",
+          "paths": [
+            "min",
+            "max"
+          ],
+          "description": "Inclusive ordered corners: width/depth 1..50, height 1..64 blocks."
+        }
+      ]
+    },
+    "area": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/box",
+          "description": "bounds"
+        },
+        "exclusions": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/box"
+          },
+          "description": "exclusions",
+          "default": []
+        }
+      },
+      "required": [
+        "bounds"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "EXCLUSIONS_INSIDE",
+          "paths": [
+            "bounds",
+            "exclusions"
+          ],
+          "description": "Every excluded box must lie wholly inside bounds."
+        }
+      ]
+    },
+    "containers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "positions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/block"
+          },
+          "description": "positions"
+        },
+        "preference": {
+          "type": "string",
+          "enum": [
+            "ORDERED",
+            "NEAREST"
+          ],
+          "description": "preference",
+          "default": "ORDERED"
+        }
+      },
+      "required": [
+        "positions"
+      ]
+    },
+    "resources": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "typeIds": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+          },
+          "description": "typeIds",
+          "default": []
+        },
+        "tagIds": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+          },
+          "description": "tagIds",
+          "default": []
+        }
+      },
+      "required": [],
+      "x-semanticRelations": [
+        {
+          "code": "FILTER_SIZE",
+          "paths": [
+            "typeIds",
+            "tagIds"
+          ],
+          "description": "At most 32 type IDs and tag IDs combined; both empty means ANY."
+        }
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimensionId": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+          "description": "dimensionId"
+        },
+        "position": {
+          "$ref": "#/$defs/block",
+          "description": "position"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "DOWN",
+                "UP",
+                "NORTH",
+                "SOUTH",
+                "WEST",
+                "EAST"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "side"
+        }
+      },
+      "required": [
+        "dimensionId",
+        "position"
+      ]
+    },
+    "port": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "$ref": "#/$defs/endpoint",
+          "description": "endpoint"
+        },
+        "slot": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 63.0,
+          "x-unit": "slot",
+          "description": "slot"
+        },
+        "itemId": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+          "description": "itemId"
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "quantity"
+        }
+      },
+      "required": [
+        "endpoint",
+        "slot",
+        "itemId",
+        "quantity"
+      ]
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 6000
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "attackBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 2400.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 600
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "defendBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 1600
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "areaBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 2400
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "inventoryBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 1200
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "farmBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "ticks",
+          "default": 12000
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "attempts",
+          "description": "attempts",
+          "default": 3
+        },
+        "backoffTicks": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "backoffTicks",
+          "default": 20
+        }
+      },
+      "required": []
+    },
+    "tactics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preference": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "MELEE",
+            "RANGED",
+            "AUTO"
+          ],
+          "description": "preference",
+          "default": "AUTO"
+        },
+        "allowed": {
+          "type": "string",
+          "enum": [
+            "MELEE",
+            "RANGED",
+            "BOTH"
+          ],
+          "description": "allowed",
+          "default": "BOTH"
+        },
+        "equipArmor": {
+          "type": "boolean",
+          "description": "equipArmor",
+          "default": true
+        },
+        "useShield": {
+          "type": "boolean",
+          "description": "useShield",
+          "default": true
+        },
+        "heal": {
+          "type": "boolean",
+          "description": "heal",
+          "default": true
+        },
+        "retreatAt": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 0.9,
+          "x-unit": "health_fraction",
+          "description": "retreatAt",
+          "default": 0.3
+        },
+        "returnAt": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "x-unit": "health_fraction",
+          "description": "returnAt",
+          "default": 0.65
+        },
+        "rangedMinDistance": {
+          "type": "number",
+          "minimum": 2.5,
+          "maximum": 12.0,
+          "x-unit": "blocks",
+          "description": "rangedMinDistance",
+          "default": 4.0
+        },
+        "rangedMaxDistance": {
+          "type": "number",
+          "minimum": 4.0,
+          "maximum": 24.0,
+          "x-unit": "blocks",
+          "description": "rangedMaxDistance",
+          "default": 14.0
+        }
+      },
+      "required": [],
+      "x-semanticRelations": [
+        {
+          "code": "TACTICAL_THRESHOLDS",
+          "paths": [
+            "retreatAt",
+            "returnAt",
+            "rangedMinDistance",
+            "rangedMaxDistance"
+          ],
+          "description": "returnAt > retreatAt; rangedMaxDistance > rangedMinDistance."
+        },
+        {
+          "code": "WEAPON_CONSTRAINT",
+          "paths": [
+            "preference",
+            "allowed"
+          ],
+          "description": "MELEE preference cannot select RANGED-only allowance; RANGED preference cannot select MELEE-only."
+        }
+      ]
+    },
+    "heldTactics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preference": {
+          "type": "string",
+          "enum": [
+            "CURRENT",
+            "MELEE",
+            "RANGED",
+            "AUTO"
+          ],
+          "description": "preference",
+          "default": "CURRENT"
+        },
+        "allowed": {
+          "type": "string",
+          "enum": [
+            "MELEE",
+            "RANGED",
+            "BOTH"
+          ],
+          "description": "allowed",
+          "default": "MELEE"
+        },
+        "equipArmor": {
+          "type": "boolean",
+          "description": "equipArmor",
+          "default": false
+        },
+        "useShield": {
+          "type": "boolean",
+          "description": "useShield",
+          "default": false
+        },
+        "heal": {
+          "type": "boolean",
+          "description": "heal",
+          "default": false
+        },
+        "retreatAt": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 0.9,
+          "x-unit": "health_fraction",
+          "description": "retreatAt",
+          "default": 0.0
+        },
+        "returnAt": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "x-unit": "health_fraction",
+          "description": "returnAt",
+          "default": 0.65
+        },
+        "rangedMinDistance": {
+          "type": "number",
+          "minimum": 2.5,
+          "maximum": 12.0,
+          "x-unit": "blocks",
+          "description": "rangedMinDistance",
+          "default": 4.0
+        },
+        "rangedMaxDistance": {
+          "type": "number",
+          "minimum": 4.0,
+          "maximum": 24.0,
+          "x-unit": "blocks",
+          "description": "rangedMaxDistance",
+          "default": 14.0
+        }
+      },
+      "required": [],
+      "x-semanticRelations": [
+        {
+          "code": "TACTICAL_THRESHOLDS",
+          "paths": [
+            "retreatAt",
+            "returnAt",
+            "rangedMinDistance",
+            "rangedMaxDistance"
+          ],
+          "description": "returnAt > retreatAt; rangedMaxDistance > rangedMinDistance."
+        },
+        {
+          "code": "WEAPON_CONSTRAINT",
+          "paths": [
+            "preference",
+            "allowed"
+          ],
+          "description": "MELEE preference cannot select RANGED-only allowance; RANGED preference cannot select MELEE-only."
+        }
+      ]
+    },
+    "need": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+          "description": "itemId"
+        },
+        "minimum": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "minimum"
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "target"
+        },
+        "sourceReserve": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "sourceReserve",
+          "default": 0
+        }
+      },
+      "required": [
+        "itemId",
+        "minimum",
+        "target"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "SUPPLY_MINIMUM",
+          "paths": [
+            "minimum",
+            "target"
+          ],
+          "description": "target >= minimum."
+        }
+      ]
+    },
+    "reserve": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "itemId": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+          "description": "itemId"
+        },
+        "keep": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "keep"
+        }
+      },
+      "required": [
+        "itemId",
+        "keep"
+      ]
+    },
+    "supply": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "SUPPLY"
+          ],
+          "description": "kind"
+        },
+        "needs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": false,
+          "items": {
+            "$ref": "#/$defs/need"
+          },
+          "description": "needs"
+        },
+        "sources": {
+          "$ref": "#/$defs/containers",
+          "description": "sources"
+        }
+      },
+      "required": [
+        "kind",
+        "needs",
+        "sources"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "SUPPLY_TOTAL",
+          "paths": [
+            "needs"
+          ],
+          "description": "Distinct item IDs; sum of target counts <= 2304."
+        }
+      ]
+    },
+    "unload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "UNLOAD"
+          ],
+          "description": "kind"
+        },
+        "reserves": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": false,
+          "items": {
+            "$ref": "#/$defs/reserve"
+          },
+          "description": "reserves"
+        },
+        "destinations": {
+          "$ref": "#/$defs/containers",
+          "description": "destinations"
+        },
+        "minimumFreeSlots": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 36.0,
+          "x-unit": "slots",
+          "description": "minimumFreeSlots",
+          "default": 0
+        }
+      },
+      "required": [
+        "kind",
+        "reserves",
+        "destinations"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "UNLOAD_IDS",
+          "paths": [
+            "reserves"
+          ],
+          "description": "Reserve item IDs must be distinct."
+        }
+      ]
+    },
+    "pickup": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "PICKUP"
+          ],
+          "description": "kind"
+        },
+        "itemIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$"
+          },
+          "description": "itemIds"
+        },
+        "radius": {
+          "type": "number",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "blocks",
+          "description": "radius",
+          "default": 4.0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 256.0,
+          "x-unit": "items",
+          "description": "maxItems",
+          "default": 32
+        }
+      },
+      "required": [
+        "kind",
+        "itemIds"
+      ]
+    },
+    "collect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "COLLECT"
+          ],
+          "description": "kind"
+        },
+        "source": {
+          "$ref": "#/$defs/block",
+          "description": "source"
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "maxItems",
+          "default": 2304
+        }
+      },
+      "required": [
+        "kind",
+        "source"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "COLLECT_CAPTURE",
+          "paths": [
+            "source",
+            "maxItems"
+          ],
+          "description": "Capture all observed source contents at assignment, at most 16 item IDs and maxItems total. Reject larger or unobservable sources before transfers; later additions never increase the quota."
+        }
+      ]
+    },
+    "ensure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ENSURE"
+          ],
+          "description": "kind"
+        },
+        "query": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^(?:(?:[a-z0-9_.-]+:[a-z0-9_./-]+|@(axe|pickaxe|shovel|hoe|food|placeable_block|tool|shield|armor|(?:melee|ranged)_weapon|ammunition))(?:[|](?!$)|$)){1,8}$",
+          "description": "query"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 64.0,
+          "x-unit": "items",
+          "description": "count",
+          "default": 1
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/containers"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "sources"
+        },
+        "minimumDurability": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "x-unit": "remaining_fraction",
+          "description": "minimumDurability",
+          "default": 0.0
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "MAIN_HAND",
+                "OFF_HAND",
+                "HEAD",
+                "CHEST",
+                "LEGS",
+                "FEET"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "destination"
+        },
+        "sourceReserve": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "matching_items",
+          "description": "sourceReserve",
+          "default": 0
+        }
+      },
+      "required": [
+        "kind",
+        "query"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "ENSURE_EQUIPMENT",
+          "paths": [
+            "query",
+            "count",
+            "destination",
+            "sources"
+          ],
+          "description": "Equipment destination requires count=1. Observe carried stock first, then physically approach explicit sources. Unknown stock is not zero; exact IDs never imply substitutions."
+        }
+      ]
+    },
+    "unloadLegacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "UNLOAD"
+          ],
+          "description": "kind"
+        },
+        "reserves": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": false,
+          "items": {
+            "$ref": "#/$defs/reserve"
+          },
+          "description": "reserves"
+        },
+        "destinations": {
+          "$ref": "#/$defs/containers",
+          "description": "destinations"
+        }
+      },
+      "required": [
+        "kind",
+        "reserves",
+        "destinations"
+      ]
+    },
+    "inventoryWorkV1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/supply"
+        },
+        {
+          "$ref": "#/$defs/unloadLegacy"
+        },
+        {
+          "$ref": "#/$defs/pickup"
+        }
+      ]
+    },
+    "inventoryWorkV2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/supply"
+        },
+        {
+          "$ref": "#/$defs/unloadLegacy"
+        },
+        {
+          "$ref": "#/$defs/pickup"
+        },
+        {
+          "$ref": "#/$defs/collect"
+        }
+      ]
+    },
+    "inventoryWork": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/supply"
+        },
+        {
+          "$ref": "#/$defs/unload"
+        },
+        {
+          "$ref": "#/$defs/pickup"
+        },
+        {
+          "$ref": "#/$defs/collect"
+        },
+        {
+          "$ref": "#/$defs/ensure"
+        }
+      ]
+    },
+    "tunnelV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/block",
+          "description": "origin"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "EAST",
+            "WEST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "description": "direction"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 3.0,
+          "x-unit": "blocks",
+          "description": "width"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 4.0,
+          "x-unit": "blocks",
+          "description": "height"
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 32.0,
+          "x-unit": "blocks",
+          "description": "length"
+        }
+      },
+      "required": [
+        "origin",
+        "direction",
+        "width",
+        "height",
+        "length"
+      ]
+    },
+    "tunnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "$ref": "#/$defs/block",
+          "description": "origin"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "EAST",
+            "WEST",
+            "SOUTH",
+            "NORTH"
+          ],
+          "description": "direction"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 3.0,
+          "x-unit": "blocks",
+          "description": "width"
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 4.0,
+          "x-unit": "blocks",
+          "description": "height"
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 32.0,
+          "x-unit": "blocks",
+          "description": "length"
+        },
+        "stepDown": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "x-unit": "blocks_per_slice",
+          "description": "stepDown",
+          "default": 0
+        }
+      },
+      "required": [
+        "origin",
+        "direction",
+        "width",
+        "height",
+        "length"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "TUNNEL_DESCENT",
+          "paths": [
+            "origin",
+            "stepDown",
+            "height"
+          ],
+          "description": "Origin is the left floor-level air cell. stepDown=1 lowers each forward slice by one and requires height>=3; preserved support steps provide the return path."
+        }
+      ]
+    },
+    "miningWorkV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "EXPOSED",
+            "VEIN",
+            "TUNNEL",
+            "EXCAVATION"
+          ],
+          "description": "method"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources",
+          "description": "resources"
+        },
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/resources"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "access"
+        },
+        "tunnel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tunnelV1"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "tunnel"
+        }
+      },
+      "required": [
+        "area",
+        "method",
+        "resources"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "MINING_GEOMETRY",
+          "paths": [
+            "area",
+            "method",
+            "access",
+            "tunnel"
+          ],
+          "description": "Scan volume <=32768. TUNNEL requires exact enclosing bounds without exclusions; only its slice cells are removed. Other methods forbid tunnel. EXPOSED/VEIN forbid access. TUNNEL/EXCAVATION volume <=4096."
+        }
+      ]
+    },
+    "miningWork": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "EXPOSED",
+            "VEIN",
+            "TUNNEL",
+            "EXCAVATION"
+          ],
+          "description": "method"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources",
+          "description": "resources"
+        },
+        "access": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/resources"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "access"
+        },
+        "tunnel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/tunnel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "tunnel"
+        }
+      },
+      "required": [
+        "area",
+        "method",
+        "resources"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "MINING_GEOMETRY",
+          "paths": [
+            "area",
+            "method",
+            "access",
+            "tunnel"
+          ],
+          "description": "Scan volume <=32768. TUNNEL requires exact enclosing bounds without exclusions; only its slice cells are removed. Other methods forbid tunnel. EXPOSED/VEIN forbid access. TUNNEL/EXCAVATION volume <=4096."
+        }
+      ]
+    },
+    "farmWork": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        },
+        "crop": {
+          "type": "string",
+          "enum": [
+            "WHEAT",
+            "CARROT",
+            "POTATO"
+          ],
+          "description": "crop"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "HARVEST",
+            "REPLANT",
+            "CULTIVATE"
+          ],
+          "description": "mode"
+        },
+        "cycles": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 8.0,
+          "x-unit": "cycles",
+          "description": "cycles",
+          "default": 1
+        },
+        "prepareSoil": {
+          "type": "boolean",
+          "description": "prepareSoil",
+          "default": false
+        },
+        "seedSources": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/containers"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "seedSources"
+        },
+        "keepSeeds": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 512.0,
+          "x-unit": "items",
+          "description": "keepSeeds",
+          "default": 0
+        },
+        "sourceKeepSeeds": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "sourceKeepSeeds",
+          "default": 0
+        },
+        "growthWaitTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 36000.0,
+          "x-unit": "ticks",
+          "description": "growthWaitTicks",
+          "default": 2400
+        },
+        "growthCheckTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "growthCheckTicks",
+          "default": 100
+        }
+      },
+      "required": [
+        "area",
+        "crop",
+        "mode"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "FARM_FIELD",
+          "paths": [
+            "area",
+            "seedSources"
+          ],
+          "description": "One crop-height plane with 1..512 cells and at least one permitted cell. Sources cannot occupy the field."
+        },
+        {
+          "code": "FARM_MODE",
+          "paths": [
+            "mode",
+            "cycles",
+            "prepareSoil",
+            "seedSources",
+            "keepSeeds",
+            "growthCheckTicks",
+            "growthWaitTicks"
+          ],
+          "description": "HARVEST requires cycles=1, prepareSoil=false, seedSources=null and keepSeeds=0. growthCheckTicks <= growthWaitTicks."
+        }
+      ]
+    },
+    "plantingWork": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        },
+        "species": {
+          "type": "string",
+          "enum": [
+            "OAK",
+            "BIRCH",
+            "DARK_OAK"
+          ],
+          "description": "species"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "PATCH",
+            "GAPS"
+          ],
+          "description": "mode"
+        },
+        "spacing": {
+          "type": "integer",
+          "minimum": 3.0,
+          "maximum": 16.0,
+          "x-unit": "blocks",
+          "description": "spacing",
+          "default": 6
+        },
+        "positions": {
+          "anyOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/block"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "positions"
+        },
+        "sources": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/containers"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "sources"
+        },
+        "keepSaplings": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 512.0,
+          "x-unit": "items",
+          "description": "keepSaplings",
+          "default": 0
+        },
+        "sourceKeep": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "sourceKeep",
+          "default": 0
+        }
+      },
+      "required": [
+        "area",
+        "species",
+        "mode"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "PLANTING_LAYOUT",
+          "paths": [
+            "area",
+            "species",
+            "spacing",
+            "positions",
+            "sources"
+          ],
+          "description": "One-height plane; spacing >= layout size+2 (DARK_OAK=2, others=1). Explicit bases are separated in Chebyshev x/z distance by spacing; every footprint is permitted. Sources cannot occupy the plane. Resolved sites 1..128."
+        }
+      ]
+    },
+    "foodDrops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "DROPS"
+          ],
+          "description": "kind"
+        },
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        }
+      },
+      "required": [
+        "kind",
+        "area"
+      ]
+    },
+    "foodBerries": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "BERRIES"
+          ],
+          "description": "kind"
+        },
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        }
+      },
+      "required": [
+        "kind",
+        "area"
+      ]
+    },
+    "foodStored": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "STORED"
+          ],
+          "description": "kind"
+        },
+        "sources": {
+          "$ref": "#/$defs/containers",
+          "description": "sources"
+        },
+        "sourceKeep": {
+          "type": "integer",
+          "minimum": 0.0,
+          "maximum": 2304.0,
+          "x-unit": "items",
+          "description": "sourceKeep",
+          "default": 0
+        }
+      },
+      "required": [
+        "kind",
+        "sources"
+      ]
+    },
+    "foodHunt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "HUNT"
+          ],
+          "description": "kind"
+        },
+        "area": {
+          "$ref": "#/$defs/area",
+          "description": "area"
+        },
+        "targets": {
+          "$ref": "#/$defs/filter",
+          "description": "targets"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 16.0,
+          "x-unit": "attempts",
+          "description": "limit",
+          "default": 8
+        }
+      },
+      "required": [
+        "kind",
+        "area",
+        "targets"
+      ]
+    },
+    "foodWork": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/foodDrops"
+        },
+        {
+          "$ref": "#/$defs/foodBerries"
+        },
+        {
+          "$ref": "#/$defs/foodStored"
+        },
+        {
+          "$ref": "#/$defs/foodHunt"
+        }
+      ]
+    },
+    "wood": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": false,
+      "items": {
+        "type": "string",
+        "enum": [
+          "samcnpc:oak",
+          "samcnpc:birch",
+          "samcnpc:dark_oak",
+          "samcnpc:oak_and_birch",
+          "minecraft:oak_log",
+          "minecraft:oak_wood",
+          "minecraft:stripped_oak_log",
+          "minecraft:stripped_oak_wood",
+          "minecraft:birch_log",
+          "minecraft:birch_wood",
+          "minecraft:stripped_birch_log",
+          "minecraft:stripped_birch_wood",
+          "minecraft:dark_oak_log",
+          "minecraft:dark_oak_wood",
+          "minecraft:stripped_dark_oak_log",
+          "minecraft:stripped_dark_oak_wood"
+        ]
+      }
+    },
+    "reaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "PASSIVE",
+            "RETALIATE",
+            "PROTECT_SUMMONER",
+            "PROTECT_UNIT",
+            "AREA"
+          ],
+          "description": "mode",
+          "default": "PASSIVE"
+        },
+        "leash": {
+          "type": "number",
+          "minimum": 1.0,
+          "maximum": 32.0,
+          "x-unit": "blocks",
+          "description": "leash",
+          "default": 24.0
+        },
+        "durationTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 2400.0,
+          "x-unit": "ticks",
+          "description": "durationTicks",
+          "default": 600
+        },
+        "cooldownTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 200.0,
+          "x-unit": "ticks",
+          "description": "cooldownTicks",
+          "default": 40
+        },
+        "allowPlayers": {
+          "type": "boolean",
+          "description": "allowPlayers",
+          "default": false
+        },
+        "tactics": {
+          "$ref": "#/$defs/heldTactics",
+          "description": "tactics",
+          "default": {}
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "anchor"
+        },
+        "subjectUuid": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "subjectUuid"
+        },
+        "filter": {
+          "$ref": "#/$defs/filter",
+          "description": "filter",
+          "default": {}
+        }
+      },
+      "required": [],
+      "x-semanticRelations": [
+        {
+          "code": "REACTION_SUBJECT",
+          "paths": [
+            "mode",
+            "anchor",
+            "subjectUuid",
+            "filter"
+          ],
+          "description": "Subject exactly for PROTECT_SUMMONER/PROTECT_UNIT; anchor exactly for protection/AREA; nonempty filter exactly for AREA."
+        }
+      ]
+    },
+    "logistics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "anchor"
+        },
+        "supply": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/supply"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "supply"
+        },
+        "unload": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/unload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "unload"
+        },
+        "pickup": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/pickup"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "pickup"
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ensure"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "preparation"
+        },
+        "travelRadius": {
+          "type": "number",
+          "minimum": 4.0,
+          "maximum": 64.0,
+          "x-unit": "blocks",
+          "description": "travelRadius",
+          "default": 16.0
+        },
+        "workTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 36000.0,
+          "x-unit": "ticks",
+          "description": "workTicks",
+          "default": 600
+        },
+        "durationTicks": {
+          "type": "integer",
+          "minimum": 40.0,
+          "maximum": 72000.0,
+          "x-unit": "ticks",
+          "description": "durationTicks",
+          "default": 1200
+        },
+        "cooldownTicks": {
+          "type": "integer",
+          "minimum": 20.0,
+          "maximum": 6000.0,
+          "x-unit": "ticks",
+          "description": "cooldownTicks",
+          "default": 200
+        },
+        "maxSteps": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 128.0,
+          "x-unit": "steps",
+          "description": "maxSteps",
+          "default": 128
+        }
+      },
+      "required": [],
+      "x-semanticRelations": [
+        {
+          "code": "LOGISTICS_ENABLED",
+          "paths": [
+            "anchor",
+            "supply",
+            "unload",
+            "pickup",
+            "preparation",
+            "workTicks",
+            "durationTicks"
+          ],
+          "description": "Anchor present exactly when some side work is supplied. Each work validates as inventory work. workTicks <= durationTicks - 20. For a shared item, unload keep >= supply target. Preparation query matches are protected against auxiliary unload."
+        }
+      ]
+    },
+    "plantingParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dimensionId": {
+          "type": "string",
+          "maxLength": 256,
+          "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+          "description": "dimensionId"
+        },
+        "budget": {
+          "$ref": "#/$defs/budget",
+          "description": "budget",
+          "default": {}
+        },
+        "anchor": {
+          "$ref": "#/$defs/position",
+          "description": "anchor"
+        },
+        "travelRadius": {
+          "type": "number",
+          "minimum": 4.0,
+          "maximum": 64.0,
+          "x-unit": "blocks",
+          "description": "travelRadius",
+          "default": 64.0
+        },
+        "returnTo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "returnTo"
+        },
+        "work": {
+          "$ref": "#/$defs/plantingWork",
+          "description": "work"
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 128.0,
+          "x-unit": "layouts",
+          "description": "quantity"
+        }
+      },
+      "required": [
+        "dimensionId",
+        "anchor",
+        "work",
+        "quantity"
+      ],
+      "x-semanticRelations": [
+        {
+          "code": "HARVEST_DIAMETER",
+          "paths": [
+            "work",
+            "destinations",
+            "anchor",
+            "returnTo",
+            "travelRadius"
+          ],
+          "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+        }
+      ]
+    },
+    "order_NAVIGATE": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:navigate"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "destination": {
+              "$ref": "#/$defs/position",
+              "description": "destination"
+            },
+            "speed": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 1.5,
+              "x-unit": "speed_multiplier",
+              "description": "speed",
+              "default": 1.0
+            },
+            "arrivalDistance": {
+              "type": "number",
+              "minimum": 0.25,
+              "maximum": 2.0,
+              "x-unit": "blocks",
+              "description": "arrivalDistance",
+              "default": 0.75
+            }
+          },
+          "required": [
+            "dimensionId",
+            "destination"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_DELIVER": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:deliver"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 2.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "destination": {
+              "$ref": "#/$defs/block",
+              "description": "destination"
+            },
+            "itemId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "itemId"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "quantity"
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "keepAtLeast": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "keepAtLeast",
+              "default": 0
+            }
+          },
+          "required": [
+            "dimensionId",
+            "destination",
+            "itemId",
+            "quantity",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "DELIVERY_ANCHOR",
+              "paths": [
+                "anchor",
+                "destination"
+              ],
+              "description": "Recipient center must be within 60 blocks of anchor."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_TRANSPORT": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:transport"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "sources": {
+              "$ref": "#/$defs/containers",
+              "description": "sources"
+            },
+            "destinations": {
+              "$ref": "#/$defs/containers",
+              "description": "destinations"
+            },
+            "itemId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "itemId"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "quantity"
+            },
+            "keepAtLeast": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "keepAtLeast",
+              "default": 0
+            },
+            "sourceKeepAtLeast": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "sourceKeepAtLeast",
+              "default": 0
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "sources",
+            "destinations",
+            "itemId",
+            "quantity"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "TRANSPORT_ENDPOINTS",
+              "paths": [
+                "sources",
+                "destinations",
+                "anchor",
+                "returnTo"
+              ],
+              "description": "Source and destination lists are disjoint; all endpoints/anchor/return pairwise within 60 blocks."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_MACHINE": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:machine"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 32.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "feeds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": false,
+              "items": {
+                "$ref": "#/$defs/port"
+              },
+              "description": "feeds"
+            },
+            "output": {
+              "$ref": "#/$defs/port",
+              "description": "output"
+            },
+            "pollTicks": {
+              "type": "integer",
+              "minimum": 5.0,
+              "maximum": 200.0,
+              "x-unit": "ticks",
+              "description": "pollTicks",
+              "default": 20
+            },
+            "noProgressTicks": {
+              "type": "integer",
+              "minimum": 5.0,
+              "maximum": 72000.0,
+              "x-unit": "ticks",
+              "description": "noProgressTicks",
+              "default": 1200
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "feeds",
+            "output"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "MACHINE_PORTS",
+              "paths": [
+                "feeds",
+                "output",
+                "dimensionId"
+              ],
+              "description": "All ports address the output block in dimensionId. Feed endpoint/slot pairs are unique and differ from output; input item IDs differ from output; total feed <= 2304."
+            },
+            {
+              "code": "MACHINE_TIME",
+              "paths": [
+                "pollTicks",
+                "noProgressTicks",
+                "budget.ticks"
+              ],
+              "description": "pollTicks <= noProgressTicks <= budget.ticks."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_FISH": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:fish"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "water": {
+              "$ref": "#/$defs/block",
+              "description": "water"
+            },
+            "standing": {
+              "$ref": "#/$defs/position",
+              "description": "standing"
+            },
+            "catches": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 64.0,
+              "x-unit": "catches",
+              "description": "catches"
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 32.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "pickupWaitTicks": {
+              "type": "integer",
+              "minimum": 40.0,
+              "maximum": 1200.0,
+              "x-unit": "ticks",
+              "description": "pickupWaitTicks",
+              "default": 240
+            }
+          },
+          "required": [
+            "dimensionId",
+            "water",
+            "standing",
+            "catches",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "FISHING_REACH",
+              "paths": [
+                "standing",
+                "water",
+                "pickupWaitTicks",
+                "budget.ticks",
+                "catches"
+              ],
+              "description": "Standing point is within 9 blocks of water center; pickupWaitTicks <= budget.ticks. Maximum casts is max(8,catches*4)."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_EXPLORE": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:explore"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "radius": {
+              "type": "integer",
+              "minimum": 8.0,
+              "maximum": 96.0,
+              "x-unit": "blocks",
+              "description": "radius",
+              "default": 32
+            },
+            "cellStep": {
+              "type": "integer",
+              "minimum": 4.0,
+              "maximum": 8.0,
+              "x-unit": "blocks",
+              "description": "cellStep",
+              "default": 4
+            },
+            "maxCells": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 64.0,
+              "x-unit": "cells",
+              "description": "maxCells",
+              "default": 32
+            },
+            "verticalRange": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 16.0,
+              "x-unit": "blocks",
+              "description": "verticalRange",
+              "default": 12
+            },
+            "chunkBudget": {
+              "type": "integer",
+              "minimum": 9.0,
+              "maximum": 256.0,
+              "x-unit": "chunks",
+              "description": "chunkBudget",
+              "default": 64
+            },
+            "heading": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 3.0,
+              "x-unit": "quarter_turns",
+              "description": "heading",
+              "default": 0
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "EXPLORER_ENVELOPE",
+              "paths": [
+                "anchor",
+                "radius",
+                "chunkBudget"
+              ],
+              "description": "Horizontal bounds stay inside +/-29999984. chunkBudget covers the chunk footprint plus Core margin: (floor((x+r)/16)-floor((x-r)/16)+3) times the corresponding z span."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_ATTACK": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:attack"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 2.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/attackBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "leash": {
+              "type": "number",
+              "minimum": 1.0,
+              "maximum": 32.0,
+              "x-unit": "blocks",
+              "description": "leash",
+              "default": 24.0
+            },
+            "allowPlayers": {
+              "type": "boolean",
+              "description": "allowPlayers",
+              "default": false
+            },
+            "tactics": {
+              "$ref": "#/$defs/heldTactics",
+              "description": "tactics",
+              "default": {}
+            },
+            "targetUuid": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "description": "targetUuid"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "targetUuid"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "ATTACK_REPLACEMENT",
+              "paths": [
+                "targetUuid"
+              ],
+              "description": "Replacement cannot change targetUuid or start NEW_OBJECTIVE; assign a separate task for another enemy."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_DEFEND": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:defend"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/defendBudget",
+              "description": "Default derives from dutyTicks",
+              "x-defaultFrom": {
+                "field": "dutyTicks",
+                "offset": 400,
+                "target": "ticks"
+              }
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "leash": {
+              "type": "number",
+              "minimum": 1.0,
+              "maximum": 32.0,
+              "x-unit": "blocks",
+              "description": "leash"
+            },
+            "allowPlayers": {
+              "type": "boolean",
+              "description": "allowPlayers",
+              "default": false
+            },
+            "tactics": {
+              "$ref": "#/$defs/tactics",
+              "description": "tactics",
+              "default": {}
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "subjectUuid": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36,
+                  "format": "uuid",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "subjectUuid"
+            },
+            "filter": {
+              "$ref": "#/$defs/filter",
+              "description": "filter",
+              "default": {}
+            },
+            "dutyTicks": {
+              "type": "integer",
+              "minimum": 20.0,
+              "maximum": 71600.0,
+              "x-unit": "ticks",
+              "description": "dutyTicks",
+              "default": 1200
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "leash"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "MISSION_BOUNDARY",
+              "paths": [
+                "anchor",
+                "leash",
+                "returnTo",
+                "route"
+              ],
+              "description": "Return and every waypoint must be inside the fixed anchor/leash sphere."
+            },
+            {
+              "code": "DEFENSE_SUBJECT",
+              "paths": [
+                "subjectUuid",
+                "filter",
+                "dutyTicks",
+                "budget.ticks"
+              ],
+              "description": "A null subjectUuid requires a nonempty filter. budget.ticks >= dutyTicks + 20."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_ATTACK_AREA": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:attack_area"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/areaBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "leash": {
+              "type": "number",
+              "minimum": 1.0,
+              "maximum": 32.0,
+              "x-unit": "blocks",
+              "description": "leash"
+            },
+            "allowPlayers": {
+              "type": "boolean",
+              "description": "allowPlayers",
+              "default": false
+            },
+            "tactics": {
+              "$ref": "#/$defs/tactics",
+              "description": "tactics",
+              "default": {}
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "filter": {
+              "$ref": "#/$defs/filter",
+              "description": "filter"
+            },
+            "quota": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 64.0,
+              "x-unit": "defeats",
+              "description": "quota"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "leash",
+            "filter",
+            "quota"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "MISSION_BOUNDARY",
+              "paths": [
+                "anchor",
+                "leash",
+                "returnTo",
+                "route"
+              ],
+              "description": "Return and every waypoint must be inside the fixed anchor/leash sphere."
+            },
+            {
+              "code": "AREA_FILTER",
+              "paths": [
+                "filter"
+              ],
+              "description": "Explicit nonempty type/tag filter required."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_PATROL": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:patrol"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "leash": {
+              "type": "number",
+              "minimum": 1.0,
+              "maximum": 32.0,
+              "x-unit": "blocks",
+              "description": "leash"
+            },
+            "allowPlayers": {
+              "type": "boolean",
+              "description": "allowPlayers",
+              "default": false
+            },
+            "tactics": {
+              "$ref": "#/$defs/tactics",
+              "description": "tactics",
+              "default": {}
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "route": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": false,
+              "items": {
+                "$ref": "#/$defs/position"
+              },
+              "description": "route"
+            },
+            "rounds": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 64.0,
+              "x-unit": "rounds",
+              "description": "rounds",
+              "default": 1
+            },
+            "dwellTicks": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 1200.0,
+              "x-unit": "ticks",
+              "description": "dwellTicks",
+              "default": 20
+            },
+            "reaction": {
+              "type": "string",
+              "enum": [
+                "PASSIVE",
+                "RETALIATE",
+                "PROTECT_SUMMONER",
+                "SUPPORT",
+                "AREA"
+              ],
+              "description": "reaction",
+              "default": "RETALIATE"
+            },
+            "subjectUuid": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36,
+                  "format": "uuid",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "subjectUuid"
+            },
+            "supportTargetUuid": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36,
+                  "format": "uuid",
+                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "supportTargetUuid"
+            },
+            "filter": {
+              "$ref": "#/$defs/filter",
+              "description": "filter",
+              "default": {}
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "leash",
+            "route"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "MISSION_BOUNDARY",
+              "paths": [
+                "anchor",
+                "leash",
+                "returnTo",
+                "route"
+              ],
+              "description": "Return and every waypoint must be inside the fixed anchor/leash sphere."
+            },
+            {
+              "code": "PATROL_SUBJECT",
+              "paths": [
+                "reaction",
+                "subjectUuid",
+                "supportTargetUuid",
+                "filter"
+              ],
+              "description": "subjectUuid is present exactly for PROTECT_SUMMONER; supportTargetUuid exactly for SUPPORT; AREA requires a nonempty filter."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_INVENTORY": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:inventory_work"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 3.0,
+          "maximum": 3.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/inventoryBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "work": {
+              "$ref": "#/$defs/inventoryWork",
+              "description": "work"
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 16.0
+            },
+            "workTicks": {
+              "type": "integer",
+              "minimum": 20.0,
+              "maximum": 36000.0,
+              "x-unit": "ticks",
+              "description": "workTicks",
+              "default": 600
+            },
+            "maxSteps": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 128.0,
+              "x-unit": "steps",
+              "description": "maxSteps",
+              "default": 128
+            }
+          },
+          "required": [
+            "dimensionId",
+            "work",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "INVENTORY_RETURN_TIME",
+              "paths": [
+                "workTicks",
+                "budget.ticks",
+                "work",
+                "returnTo"
+              ],
+              "description": "workTicks <= budget.ticks - 20; containers and return are within travelRadius."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_MINING": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:mine"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 2.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "work": {
+              "$ref": "#/$defs/miningWork",
+              "description": "work"
+            },
+            "outputs": {
+              "$ref": "#/$defs/resources",
+              "description": "outputs"
+            },
+            "destinations": {
+              "$ref": "#/$defs/containers",
+              "description": "destinations"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "counting_basis",
+              "description": "quantity"
+            },
+            "counting": {
+              "type": "string",
+              "enum": [
+                "DELIVERED_ITEMS",
+                "REMOVED_RESOURCE_BLOCKS",
+                "CLEARED_VOLUME"
+              ],
+              "description": "counting"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "work",
+            "outputs",
+            "destinations",
+            "quantity",
+            "counting"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "HARVEST_DIAMETER",
+              "paths": [
+                "work",
+                "destinations",
+                "anchor",
+                "returnTo",
+                "travelRadius"
+              ],
+              "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+            },
+            {
+              "code": "MINING_COUNTING",
+              "paths": [
+                "counting",
+                "quantity",
+                "work",
+                "outputs",
+                "destinations"
+              ],
+              "description": "CLEARED_VOLUME requires TUNNEL/EXCAVATION and quantity=1. Recipients cannot occupy the permitted removal area. Ore blocks, their drops and ingots are distinct resources."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_FARM": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:farm"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/farmBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "work": {
+              "$ref": "#/$defs/farmWork",
+              "description": "work"
+            },
+            "destinations": {
+              "$ref": "#/$defs/containers",
+              "description": "destinations"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "quantity"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "work",
+            "destinations",
+            "quantity"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "HARVEST_DIAMETER",
+              "paths": [
+                "work",
+                "destinations",
+                "anchor",
+                "returnTo",
+                "travelRadius"
+              ],
+              "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+            },
+            {
+              "code": "FARM_RECIPIENT",
+              "paths": [
+                "destinations",
+                "work.area"
+              ],
+              "description": "Recipients cannot occupy the permitted field."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_PLANTING": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:plant_trees"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "work": {
+              "$ref": "#/$defs/plantingWork",
+              "description": "work"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 128.0,
+              "x-unit": "layouts",
+              "description": "quantity"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "work",
+            "quantity"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "HARVEST_DIAMETER",
+              "paths": [
+                "work",
+                "destinations",
+                "anchor",
+                "returnTo",
+                "travelRadius"
+              ],
+              "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_FOOD": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:food"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "work": {
+              "$ref": "#/$defs/foodWork",
+              "description": "work"
+            },
+            "outputs": {
+              "$ref": "#/$defs/resources",
+              "description": "outputs"
+            },
+            "destinations": {
+              "$ref": "#/$defs/containers",
+              "description": "destinations"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "quantity"
+            },
+            "keepFood": {
+              "type": "integer",
+              "minimum": 0.0,
+              "maximum": 64.0,
+              "x-unit": "items",
+              "description": "keepFood"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "work",
+            "outputs",
+            "destinations",
+            "quantity",
+            "keepFood"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "HARVEST_DIAMETER",
+              "paths": [
+                "work",
+                "destinations",
+                "anchor",
+                "returnTo",
+                "travelRadius"
+              ],
+              "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+            },
+            {
+              "code": "FOOD_METHOD",
+              "paths": [
+                "work",
+                "outputs",
+                "destinations"
+              ],
+              "description": "Scan volume <=32768. BERRIES outputs include minecraft:sweet_berries. HUNT requires nonempty nonplayer targets (literal minecraft:player forbidden). STORED sources and recipients are disjoint. SOURCES amendment only supports STORED."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_LUMBERJACK": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:lumberjack"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 2.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "area": {
+              "$ref": "#/$defs/area",
+              "description": "area"
+            },
+            "wood": {
+              "$ref": "#/$defs/wood",
+              "description": "wood"
+            },
+            "destination": {
+              "$ref": "#/$defs/block",
+              "description": "destination"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "items",
+              "description": "quantity"
+            },
+            "tools": {
+              "type": "string",
+              "enum": [
+                "INHERIT_CORE_SETTINGS"
+              ],
+              "description": "tools",
+              "default": "INHERIT_CORE_SETTINGS"
+            },
+            "supplySources": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/containers"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "supplySources"
+            },
+            "replant": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/plantingParameters"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "replant"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "area",
+            "wood",
+            "destination",
+            "quantity"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "WOOD_SUPPLIES",
+              "paths": [
+                "supplySources",
+                "destination"
+              ],
+              "description": "Every supplied source is within 60 blocks of output. No implicit withdrawals from output in v2."
+            },
+            {
+              "code": "WOOD_REPLANT",
+              "paths": [
+                "replant",
+                "dimensionId",
+                "area",
+                "destination"
+              ],
+              "description": "Replant is same-dimension GAPS; plane and every footprint lie inside permitted wood cells, and output fits replant travel bounds."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_FIELD_PREPARATION": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:prepare_field"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 32.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "area": {
+              "$ref": "#/$defs/area",
+              "description": "area"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "area"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "SOIL_PLANE",
+              "paths": [
+                "area",
+                "anchor",
+                "returnTo"
+              ],
+              "description": "Area denotes soil blocks: one y level, bounding footprint <=64 cells, nonempty after exclusions. Soil/anchor/return pairwise within58 blocks."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_INVENTORY_V1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:inventory_work"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/inventoryBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "work": {
+              "$ref": "#/$defs/inventoryWorkV1",
+              "description": "work"
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 16.0
+            },
+            "workTicks": {
+              "type": "integer",
+              "minimum": 20.0,
+              "maximum": 36000.0,
+              "x-unit": "ticks",
+              "description": "workTicks",
+              "default": 600
+            },
+            "maxSteps": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 128.0,
+              "x-unit": "steps",
+              "description": "maxSteps",
+              "default": 128
+            }
+          },
+          "required": [
+            "dimensionId",
+            "work",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "INVENTORY_RETURN_TIME",
+              "paths": [
+                "workTicks",
+                "budget.ticks",
+                "work",
+                "returnTo"
+              ],
+              "description": "workTicks <= budget.ticks - 20; containers and return are within travelRadius."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_MINING_V1": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:mine"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/budget",
+              "description": "budget",
+              "default": {}
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 64.0
+            },
+            "returnTo": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/position"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "returnTo"
+            },
+            "work": {
+              "$ref": "#/$defs/miningWorkV1",
+              "description": "work"
+            },
+            "outputs": {
+              "$ref": "#/$defs/resources",
+              "description": "outputs"
+            },
+            "destinations": {
+              "$ref": "#/$defs/containers",
+              "description": "destinations"
+            },
+            "quantity": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "counting_basis",
+              "description": "quantity"
+            },
+            "counting": {
+              "type": "string",
+              "enum": [
+                "DELIVERED_ITEMS",
+                "REMOVED_RESOURCE_BLOCKS",
+                "CLEARED_VOLUME"
+              ],
+              "description": "counting"
+            }
+          },
+          "required": [
+            "dimensionId",
+            "anchor",
+            "work",
+            "outputs",
+            "destinations",
+            "quantity",
+            "counting"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "HARVEST_DIAMETER",
+              "paths": [
+                "work",
+                "destinations",
+                "anchor",
+                "returnTo",
+                "travelRadius"
+              ],
+              "description": "All considered work, supply, recipient and return points fit the travel boundary and are pairwise within 58 blocks."
+            },
+            {
+              "code": "MINING_COUNTING",
+              "paths": [
+                "counting",
+                "quantity",
+                "work",
+                "outputs",
+                "destinations"
+              ],
+              "description": "CLEARED_VOLUME requires TUNNEL/EXCAVATION and quantity=1. Recipients cannot occupy the permitted removal area. Ore blocks, their drops and ingots are distinct resources."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "order_INVENTORY_V2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "samcnpc:inventory_work"
+          ],
+          "description": "type"
+        },
+        "definitionVersion": {
+          "type": "integer",
+          "minimum": 2.0,
+          "maximum": 2.0,
+          "x-unit": "version",
+          "description": "definitionVersion"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dimensionId": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[a-z0-9_.-]+:[a-z0-9_./-]+$",
+              "description": "dimensionId"
+            },
+            "budget": {
+              "$ref": "#/$defs/inventoryBudget",
+              "description": "budget",
+              "default": {}
+            },
+            "work": {
+              "$ref": "#/$defs/inventoryWorkV2",
+              "description": "work"
+            },
+            "anchor": {
+              "$ref": "#/$defs/position",
+              "description": "anchor"
+            },
+            "returnTo": {
+              "$ref": "#/$defs/position",
+              "description": "Default derives from anchor",
+              "x-defaultFrom": {
+                "field": "anchor",
+                "offset": 0
+              }
+            },
+            "travelRadius": {
+              "type": "number",
+              "minimum": 4.0,
+              "maximum": 64.0,
+              "x-unit": "blocks",
+              "description": "travelRadius",
+              "default": 16.0
+            },
+            "workTicks": {
+              "type": "integer",
+              "minimum": 20.0,
+              "maximum": 36000.0,
+              "x-unit": "ticks",
+              "description": "workTicks",
+              "default": 600
+            },
+            "maxSteps": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 128.0,
+              "x-unit": "steps",
+              "description": "maxSteps",
+              "default": 128
+            }
+          },
+          "required": [
+            "dimensionId",
+            "work",
+            "anchor"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "LOCAL_ENDPOINTS",
+              "paths": [
+                "anchor",
+                "travelRadius",
+                "returnTo",
+                "work",
+                "destinations"
+              ],
+              "description": "Every work/recipient/source/return point must be within travelRadius of anchor and the family-specific local observation diameter."
+            },
+            {
+              "code": "INVENTORY_RETURN_TIME",
+              "paths": [
+                "workTicks",
+                "budget.ticks",
+                "work",
+                "returnTo"
+              ],
+              "description": "workTicks <= budget.ticks - 20; containers and return are within travelRadius."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "definitionVersion",
+        "parameters"
+      ]
+    },
+    "orderDocument": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/order_NAVIGATE"
+        },
+        {
+          "$ref": "#/$defs/order_DELIVER"
+        },
+        {
+          "$ref": "#/$defs/order_TRANSPORT"
+        },
+        {
+          "$ref": "#/$defs/order_MACHINE"
+        },
+        {
+          "$ref": "#/$defs/order_FISH"
+        },
+        {
+          "$ref": "#/$defs/order_EXPLORE"
+        },
+        {
+          "$ref": "#/$defs/order_ATTACK"
+        },
+        {
+          "$ref": "#/$defs/order_DEFEND"
+        },
+        {
+          "$ref": "#/$defs/order_ATTACK_AREA"
+        },
+        {
+          "$ref": "#/$defs/order_PATROL"
+        },
+        {
+          "$ref": "#/$defs/order_INVENTORY"
+        },
+        {
+          "$ref": "#/$defs/order_MINING"
+        },
+        {
+          "$ref": "#/$defs/order_FARM"
+        },
+        {
+          "$ref": "#/$defs/order_PLANTING"
+        },
+        {
+          "$ref": "#/$defs/order_FOOD"
+        },
+        {
+          "$ref": "#/$defs/order_LUMBERJACK"
+        },
+        {
+          "$ref": "#/$defs/order_FIELD_PREPARATION"
+        },
+        {
+          "$ref": "#/$defs/order_INVENTORY_V1"
+        },
+        {
+          "$ref": "#/$defs/order_MINING_V1"
+        },
+        {
+          "$ref": "#/$defs/order_INVENTORY_V2"
+        }
+      ]
+    },
+    "change_QUANTITY": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "QUANTITY"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "amount": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 2304.0,
+              "x-unit": "operation_counting_basis",
+              "description": "amount"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "TOTAL",
+                "ADD"
+              ],
+              "description": "mode",
+              "default": "TOTAL"
+            }
+          },
+          "required": [
+            "amount"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_RECIPIENTS": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "RECIPIENTS"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "containers": {
+              "$ref": "#/$defs/containers",
+              "description": "containers"
+            }
+          },
+          "required": [
+            "containers"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_SOURCES": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "SOURCES"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "containers": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/containers"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "containers"
+            }
+          },
+          "required": [],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_EXTEND_TIME": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "EXTEND_TIME"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ticks": {
+              "type": "integer",
+              "minimum": 1.0,
+              "maximum": 72000.0,
+              "x-unit": "ticks",
+              "description": "ticks"
+            }
+          },
+          "required": [
+            "ticks"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_REPLACE": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "REPLACE"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "order": {
+              "$ref": "#/$defs/orderDocument",
+              "description": "order"
+            },
+            "objective": {
+              "type": "string",
+              "enum": [
+                "PRESERVE",
+                "NEW_OBJECTIVE"
+              ],
+              "description": "objective",
+              "default": "PRESERVE"
+            }
+          },
+          "required": [
+            "order"
+          ],
+          "x-semanticRelations": [
+            {
+              "code": "REPLACE_INVARIANTS",
+              "paths": [
+                "order",
+                "objective"
+              ],
+              "description": "Same operation/dimension; budget unchanged. Resource/work/counting changes require NEW_OBJECTIVE where supported. Existing effects remain accounted. Task-specific restrictions and at most 8 archived objectives apply."
+            }
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_TACTICS": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "TACTICS"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tactics": {
+              "$ref": "#/$defs/tactics",
+              "description": "tactics"
+            }
+          },
+          "required": [
+            "tactics"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_REACTION": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "REACTION"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": {
+              "$ref": "#/$defs/reaction",
+              "description": "policy"
+            }
+          },
+          "required": [
+            "policy"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "change_LOGISTICS": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "x-unit": "version",
+          "description": "documentVersion"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "LOGISTICS"
+          ],
+          "description": "type"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": {
+              "$ref": "#/$defs/logistics",
+              "description": "policy"
+            }
+          },
+          "required": [
+            "policy"
+          ],
+          "description": "parameters"
+        }
+      },
+      "required": [
+        "documentVersion",
+        "type",
+        "parameters"
+      ]
+    },
+    "changeDocument": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/change_QUANTITY"
+        },
+        {
+          "$ref": "#/$defs/change_RECIPIENTS"
+        },
+        {
+          "$ref": "#/$defs/change_SOURCES"
+        },
+        {
+          "$ref": "#/$defs/change_EXTEND_TIME"
+        },
+        {
+          "$ref": "#/$defs/change_REPLACE"
+        },
+        {
+          "$ref": "#/$defs/change_TACTICS"
+        },
+        {
+          "$ref": "#/$defs/change_REACTION"
+        },
+        {
+          "$ref": "#/$defs/change_LOGISTICS"
+        }
+      ]
+    }
+  }
+}

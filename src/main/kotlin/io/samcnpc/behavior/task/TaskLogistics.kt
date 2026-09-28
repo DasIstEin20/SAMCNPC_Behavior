@@ -23,16 +23,26 @@ internal object TaskLogistics {
         if (!snapshot.onGround || snapshot.dimensionId != record.primary.definition.dimensionId ||
             TaskNavigator.distanceSquared(anchor, snapshot.position) > policy.travelRadius * policy.travelRadius) return null
         val counts = HarvestResources.inventoryCounts(npc)
-        val unload = policy.unload?.takeIf { work -> work.reserves.any { !InventoryTaskCapture.protected(record, it.itemId) && InventoryTaskCapture.unloadable(npc, it.itemId, it.keep) > 0 } }
+        val unload = policy.unload?.takeIf { work -> (work.minimumFreeSlots == 0 || npc.inventoryContents().count { it.stack.isEmpty } < work.minimumFreeSlots) &&
+            work.reserves.any { !InventoryTaskCapture.protected(record, it.itemId, npc) && InventoryTaskCapture.unloadable(npc, it.itemId, it.keep) > 0 } }
         val supply = policy.supply?.takeIf { work -> work.needs.any { (counts[it.itemId] ?: 0) < it.minimum } }
-        var chosen: InventoryWork? = unload ?: supply
+        val preparation = policy.preparation?.takeIf { !it.satisfied(npc) }
+        var chosen: InventoryWork? = unload ?: preparation ?: supply
         val pickup = policy.pickup
         if (chosen == null && pickup != null && BehaviorPlanning.admit(world, 33, PlanningKind.PICKUP) &&
             InventoryPickupWork.candidates(record, npc, world, pickup, snapshot.position, pickup.maxItems).isNotEmpty()) chosen = pickup
         val result = if (chosen == null) null else InventoryTaskDefinition(snapshot.dimensionId, chosen, anchor, snapshot.position, policy.travelRadius,
-            policy.workTicks, policy.maxSteps, TaskBudget(policy.durationTicks))
+            policy.workTicks, policy.maxSteps, TaskBudget(policy.durationTicks), version = 3)
         if (captures.size < 4096 || npc.npcUuid in captures) captures[npc.npcUuid] = Capture(record.id, record.amendments.revision, snapshot.gameTime, result)
         return result
+    }
+    /** A returned unload can precede mandatory preparation. Do not execute the parent
+     * during the existing cooldown with its required equipment/resources still absent.
+     * The ordinary task clock keeps consuming the original finite deadline. */
+    fun waitsForPreparation(record: TaskRecord, npc: NpcFacade): Boolean {
+        if (record.status != TaskStatus.RUNNING || record.frames.size != 1 || record.logistics.cooldownRemaining <= 0) return false
+        val preparation = record.logistics.policy.preparation ?: return false
+        return !preparation.satisfied(npc)
     }
     fun requested(server: MinecraftServer, npc: NpcFacade, world: NpcWorldView): Boolean = candidate(TaskStore.forServer(server).get(npc.npcUuid), npc, world) != null
     fun begin(server: MinecraftServer, npc: NpcFacade, world: NpcWorldView): NpcActionResult {

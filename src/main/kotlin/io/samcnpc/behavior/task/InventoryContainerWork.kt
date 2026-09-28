@@ -10,10 +10,13 @@ internal object InventoryContainerWork {
     fun tick(record: TaskRecord, execution: TaskExecution, npc: NpcFacade, world: NpcWorldView,
              definition: InventoryTaskDefinition, state: InventoryWorkState): NpcActionResult {
         val work = definition.work
+        if (work is UnloadExcess && work.minimumFreeSlots > 0 && state.satisfied(work, npc)) {
+            return TaskInventory.beginReturn(state, execution, npc, InventoryWorkReason.SATISFIED, "required free inventory slots are observed")
+        }
         val items = if (work is CollectContainer) state.capturedItemIds else work.itemIds
         val item = items.firstOrNull { needed(work, state, npc, it) > 0 }
         if (item == null) {
-            val satisfied = state.satisfied(work)
+            val satisfied = state.satisfied(work, npc)
             return TaskInventory.beginReturn(state, execution, npc, if (satisfied) InventoryWorkReason.SATISFIED else InventoryWorkReason.PARTIAL,
                 if (satisfied) "inventory goals observed; only actual transfers credited" else "available stock changed; captured quota not fully transferred")
         }
@@ -78,6 +81,7 @@ internal object InventoryContainerWork {
         val remaining = ((state.goals[item] ?: 0) - state.moved(work.kind, item)).coerceAtLeast(0)
         if (remaining == 0) return 0
         return when (work) {
+            is EnsureItems -> 0 // Executed by the preparation resolver, not exact-ID supply.
             is CollectContainer -> remaining
             is SupplyStock -> minOf(remaining, (work.needs.first { it.itemId == item }.target - (state.resources.retained()[item] ?: 0)).coerceAtLeast(0))
             is UnloadExcess -> minOf(remaining, InventoryTaskCapture.unloadable(npc, item, work.reserves.first { it.itemId == item }.keep))

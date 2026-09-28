@@ -23,14 +23,21 @@ internal object TaskInventory {
         if (state.phase == InventoryWorkPhase.RETURN) {
             val result = TaskNavigator.move(record, execution, npc, world, NavigateTaskDefinition(definition.dimensionId, definition.returnTo, budget = definition.budget))
             if (result.status == NpcActionStatus.SUCCEEDED && record.status == TaskStatus.RUNNING && record.active.id == execution.frameId) {
-                if (state.reason == InventoryWorkReason.SATISFIED && !state.satisfied(definition.work)) {
+                if (state.reason == InventoryWorkReason.SATISFIED && !state.satisfied(definition.work, npc)) {
                     state.reason = InventoryWorkReason.PARTIAL; state.detail = "stock changed before return; only actual effects are confirmed"
+                }
+                if (definition.work is EnsureItems || definition.work is UnloadExcess && definition.work.minimumFreeSlots > 0) {
+                    val facts = io.samcnpc.behavior.inventory.InventoryFacts.capture(npc)
+                    val ensure = definition.work as? EnsureItems
+                    state.readiness = InventoryReadiness(ensure?.let { facts.count(it.query, it.minimumDurability) } ?: 0,
+                        ensure?.destination?.let { facts.equippedMatches(ensure.query, it, ensure.minimumDurability) } ?: false, facts.freeSlots)
                 }
                 record.endInventory(true, message = state.detail)
             }
             return result
         }
-        return if (definition.work is PickupNearby) InventoryPickupWork.tick(record, execution, npc, world, definition, state)
+        return if (definition.work is EnsureItems) InventoryPreparationWork.tick(record, execution, npc, world, definition, state, definition.work)
+            else if (definition.work is PickupNearby) InventoryPickupWork.tick(record, execution, npc, world, definition, state)
             else InventoryContainerWork.tick(record, execution, npc, world, definition, state)
     }
     internal fun beginReturn(state: InventoryWorkState, execution: TaskExecution, npc: NpcFacade, why: InventoryWorkReason, detail: String): NpcActionResult {

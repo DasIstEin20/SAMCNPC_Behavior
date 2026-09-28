@@ -3,7 +3,7 @@ loaderVersion="[4,)"
 license="MIT"
 
 [modproperties.samcnpc_behavior]
-apiVersion="5"
+apiVersion="6"
 requiresCoreApi="2"
 buildId="${buildId}"
 

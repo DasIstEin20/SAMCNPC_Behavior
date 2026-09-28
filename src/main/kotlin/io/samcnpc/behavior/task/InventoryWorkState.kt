@@ -7,6 +7,7 @@ internal enum class InventoryWorkPhase { WORK, RETURN }
 internal enum class InventoryWorkReason {
     SATISFIED, PARTIAL, SOURCE_UNAVAILABLE, DESTINATION_UNAVAILABLE, SOURCE_EMPTY, INVENTORY_FULL, STORAGE_FULL,
     REJECTED, WORK_LIMIT, STEP_LIMIT, TIME_LIMIT, RETURN_FAILED, STATE_MISMATCH, CANCELLED,
+    MISSING_TOOL, MISSING_EQUIPMENT, MISSING_RESOURCE,
 }
 /** Checkpoints contain item counts and facts, never a live path or Core action ID. */
 internal class InventoryWorkState(
@@ -27,8 +28,19 @@ internal class InventoryWorkState(
     val withdrawals: MutableMap<NpcBlockPosition, Map<String, Int>> = linkedMapOf(),
     val deliveries: MutableMap<NpcBlockPosition, Map<String, Int>> = linkedMapOf(),
 ) {
-    val goals: Map<String, Int> = java.util.Map.copyOf(goals)
-    val capturedItemIds: List<String> = java.util.List.copyOf(goals.keys.sorted())
+    // Historical readiness is captured only after the physical return. Active work always reobserves.
+    var readiness: InventoryReadiness? = null
+    private val admittedGoals = LinkedHashMap(goals)
+    val goals: Map<String, Int> = java.util.Collections.unmodifiableMap(admittedGoals)
+    var capturedItemIds: List<String> = java.util.List.copyOf(goals.keys.sorted())
+        private set
+    fun admitPreparationItem(work: EnsureItems, item: String): Boolean {
+        if (item in admittedGoals) return true
+        if (admittedGoals.size >= 16 || !io.samcnpc.behavior.api.ItemQuery.validItemId(item)) return false
+        admittedGoals[item] = work.count
+        capturedItemIds = java.util.List.copyOf(admittedGoals.keys.sorted())
+        return true
+    }
     fun returning(why: InventoryWorkReason, message: String) {
         if (phase == InventoryWorkPhase.RETURN) return
         phase = InventoryWorkPhase.RETURN; reason = why; detail = message.take(TaskRecord.MAX_DETAIL_LENGTH)
@@ -42,14 +54,19 @@ internal class InventoryWorkState(
         InventoryTransferRows.record(rows,observation.position,observation.itemId,observation.moved)
         return null
     }
-    fun satisfied(work: InventoryWork): Boolean = goals.all { (id, count) -> when (work) {
+    fun satisfied(work: InventoryWork, npc: io.samcnpc.core.api.NpcFacade? = null): Boolean {
+        if (work is EnsureItems) return if (npc != null) work.satisfied(npc) else readiness?.let { it.matchingCount >= work.count && (work.destination == null || it.equipmentMatches) } == true
+        if (work is UnloadExcess && work.minimumFreeSlots > 0) return if (npc != null) npc.inventoryContents().count { it.stack.isEmpty } >= work.minimumFreeSlots else (readiness?.freeSlots ?: -1) >= work.minimumFreeSlots
+        return goals.all { (id, count) -> when (work) {
+        is EnsureItems -> false
         is CollectContainer -> moved(work.kind, id) >= count
         is SupplyStock -> moved(work.kind, id) >= count || (resources.retained()[id] ?: 0) >= work.needs.first { it.itemId == id }.target
         is UnloadExcess -> moved(work.kind, id) >= count
         is PickupNearby -> true
     } }
+    }
     fun moved(kind: InventoryWorkKind, item: String): Int = when (kind) {
-        InventoryWorkKind.SUPPLY, InventoryWorkKind.COLLECT -> resources.entries[item]?.supplied ?: 0
+        InventoryWorkKind.SUPPLY, InventoryWorkKind.COLLECT, InventoryWorkKind.ENSURE -> resources.entries[item]?.supplied ?: 0
         InventoryWorkKind.UNLOAD -> resources.entries[item]?.delivered ?: 0
         InventoryWorkKind.PICKUP -> picked[item] ?: 0
     }
@@ -59,6 +76,7 @@ internal class InventoryWorkState(
         resources.entries.filterValues { it.delivered > 0 }.mapValues { it.value.delivered },
         java.util.Map.copyOf(picked), steps, detail, java.util.Map.copyOf(withdrawals), java.util.Map.copyOf(deliveries))
 }
+internal data class InventoryReadiness(val matchingCount: Int, val equipmentMatches: Boolean, val freeSlots: Int)
 internal data class InventoryWorkOutcome(
     val frameId: UUID, val kind: InventoryWorkKind, val revision: Int,
     val reason: InventoryWorkReason, val returned: Boolean,

@@ -47,12 +47,15 @@ internal object TaskDefinitionInspections {
     }
 
     private fun inventory(work: InventoryWork): OperationValue.Record = when (work) {
+        is EnsureItems -> record("kind" to v(work.kind.name), "query" to v(work.query.encode()), "count" to v(work.count),
+            "sources" to containers(work.containers), "minimumDurability" to v(work.minimumDurability), "destination" to v(work.destination?.name), "sourceReserve" to v(work.sourceReserve))
         is CollectContainer -> record("kind" to v(work.kind.name), "source" to v(work.source), "maxItems" to v(work.maxItems))
         is SupplyStock -> record("kind" to v(work.kind.name), "sources" to containers(work.containers),
             "needs" to sequence(work.needs.map { record("itemId" to v(it.itemId), "minimum" to v(it.minimum),
                 "target" to v(it.target), "sourceReserve" to v(it.sourceReserve)) }))
         is UnloadExcess -> record("kind" to v(work.kind.name), "destinations" to containers(work.containers),
-            "reserves" to sequence(work.reserves.map { record("itemId" to v(it.itemId), "keep" to v(it.keep)) }))
+            "reserves" to sequence(work.reserves.map { record("itemId" to v(it.itemId), "keep" to v(it.keep)) })).let {
+                if (work.minimumFreeSlots == 0) it else merged(it, record("minimumFreeSlots" to v(work.minimumFreeSlots))) }
         is PickupNearby -> record("kind" to v(work.kind.name), "itemIds" to strings(work.itemIds),
             "radius" to v(work.radius), "maxItems" to v(work.maxItems))
     }

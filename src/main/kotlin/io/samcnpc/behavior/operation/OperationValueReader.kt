@@ -40,9 +40,13 @@ internal object OperationValueReader {
     fun unload(p: JsonObject) = OperationInventoryWork.Unload(p.getAsJsonArray("reserves").map { element ->
         val item = element.asJsonObject
         OperationItemReserve(item.text("itemId"), item.int("keep"))
-    }, containers(p.obj("destinations")))
+    }, containers(p.obj("destinations")), p.get("minimumFreeSlots")?.asInt ?: 0)
+    fun ensure(p: JsonObject) = OperationInventoryWork.Ensure(ItemQuery.parse(p.text("query")), p.int("count"),
+        p.maybe("sources")?.let(::containers), p.number("minimumDurability"),
+        if (p.get("destination").isJsonNull) null else NpcEquipmentDestination.valueOf(p.text("destination")), p.int("sourceReserve"))
     fun pickup(p: JsonObject) = OperationInventoryWork.Pickup(p.getAsJsonArray("itemIds").map { it.asString }, p.number("radius"), p.int("maxItems"))
     fun inventory(p: JsonObject): OperationInventoryWork = when (p.text("kind")) {
+        "ENSURE" -> ensure(p)
         "COLLECT" -> OperationInventoryWork.Collect(block(p.obj("source")), p.int("maxItems"))
         "SUPPLY" -> supply(p)
         "UNLOAD" -> unload(p)
@@ -54,5 +58,5 @@ internal object OperationValueReader {
         p.maybe("anchor")?.let(::position), p.optionalUuid("subjectUuid"), filter(p.obj("filter")))
     fun logistics(p: JsonObject) = OperationLogisticsPolicy(p.maybe("anchor")?.let(::position), p.maybe("supply")?.let(::supply),
         p.maybe("unload")?.let(::unload), p.maybe("pickup")?.let(::pickup), p.number("travelRadius"),
-        p.int("workTicks"), p.int("durationTicks"), p.int("cooldownTicks"), p.int("maxSteps"))
+        p.int("workTicks"), p.int("durationTicks"), p.int("cooldownTicks"), p.int("maxSteps"), p.maybe("preparation")?.let(::ensure))
 }

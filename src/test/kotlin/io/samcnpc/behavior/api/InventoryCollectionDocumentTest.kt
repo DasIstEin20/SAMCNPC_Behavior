@@ -19,9 +19,9 @@ class InventoryCollectionDocumentTest {
         assertEquals(NpcBlockPosition(-2, 64, 0), work.source)
         assertEquals(2304, work.maxItems)
         assertEquals(order.anchor, order.returnTo)
-        assertEquals(2, order.type.definitionVersion)
-        assertEquals(4, OperationCatalogApi.snapshot().catalogVersion)
-        for (version in listOf(0, 1, 3)) {
+        assertEquals(3, order.type.definitionVersion)
+        assertEquals(5, OperationCatalogApi.snapshot().catalogVersion)
+        for (version in listOf(0, 1, 4)) {
             val invalid = document(); invalid.addProperty("definitionVersion", version)
             assertIs<OperationDocumentResult.Rejected>(OperationDocumentApi.decodeOrder(invalid.toString()))
         }

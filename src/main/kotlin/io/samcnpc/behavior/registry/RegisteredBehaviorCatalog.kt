@@ -20,7 +20,7 @@ internal object RegisteredBehaviorCatalog {
         "samcnpc:distance_to_summoner" to listOf(comparisons, number("blocks", 0.0, 256.0, "Horizontal distance in blocks.")),
         "samcnpc:health_fraction" to listOf(comparisons, number("value", 0.0, 1.0, "Current health divided by maximum health.")),
         "samcnpc:was_hurt_recently" to listOf(number("withinTicks", 1.0, 120000.0, "Elapsed game ticks since damage.", integer = true)),
-    )
+    ) + LocalInventoryComponents.conditionParameters + LocalContainerComponents.parameters
     private val actionParameters: Map<String, List<BehaviorParameter>> = mapOf(
         "samcnpc:move_to_target" to movement,
         "samcnpc:move_to_summoner" to movement + BehaviorParameter.Numeric(
@@ -32,6 +32,7 @@ internal object RegisteredBehaviorCatalog {
             BehaviorParameter.Flag("allowPlayers", false, "Allow eligible players; summoner/friendly checks still apply.", false),
         ),
     )
+    private val allActionParameters = actionParameters + LocalInventoryComponents.actionParameters
     private val noArgumentConditions = setOf(
         "samcnpc:always", "samcnpc:task_ready", "samcnpc:task_combat_ready",
         "samcnpc:task_reaction_ready", "samcnpc:task_inventory_ready", "samcnpc:task_inventory_requested",
@@ -56,7 +57,7 @@ internal object RegisteredBehaviorCatalog {
         check(conditions.keys == noArgumentConditions + conditionParameters.keys) {
             "Condition catalog and registered IDs differ; update the explicit parameter contract."
         }
-        check(actions.keys == noArgumentActions + actionParameters.keys) {
+        check(actions.keys == noArgumentActions + allActionParameters.keys) {
             "Action catalog and registered IDs differ; update the explicit parameter contract."
         }
         val conditionRows = conditions.keys.sorted().map { id ->
@@ -64,9 +65,9 @@ internal object RegisteredBehaviorCatalog {
         }
         val actionRows = actions.values.sortedBy { it.id }.map { definition ->
             BehaviorComponentDescriptor(definition.id, BehaviorComponentKind.ACTION, 1,
-                definition.channels.map { it.name.lowercase(Locale.ROOT) }.sorted(), actionParameters[definition.id] ?: emptyList())
+                definition.channels.map { it.name.lowercase(Locale.ROOT) }.sorted(), allActionParameters[definition.id] ?: emptyList())
         }
-        return BehaviorComponentCatalog(1, 1, 1, conditionRows, actionRows)
+        return BehaviorComponentCatalog(2, 1, 1, conditionRows, actionRows)
     }
 
     private fun number(

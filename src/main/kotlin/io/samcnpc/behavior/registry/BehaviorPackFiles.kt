@@ -27,7 +27,7 @@ internal object BehaviorPackFiles {
         return files.map { file -> "external:${file.fileName}" to readStable(file, directory) }
     }
 
-    private fun prepareDirectory(path: Path): Path {
+    internal fun prepareDirectory(path: Path): Path {
         if (!Files.exists(path, NOFOLLOW_LINKS)) Files.createDirectory(path)
         if (!Files.isDirectory(path, NOFOLLOW_LINKS) || Files.isSymbolicLink(path) || path.toRealPath() != path) {
             throw IOException("behavior directory must be a real directory without links: $path")
